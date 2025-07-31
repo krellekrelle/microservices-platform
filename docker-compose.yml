@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - SESSION_SECRET=dev-secret-key-change-in-production
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+      - BASE_URL=http://localhost:3001
+      - FRONTEND_URL=http://localhost:3000
+    volumes:
+      - ./auth-service/data:/app/data
+    networks:
+      - app-network
+
+  landing-page:
+    build: ./landing-page
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - HELLO_WORLD_URL=http://hello-world-app:3002
+      - CHAT_APP_URL=http://localhost:3003
+    depends_on:
+      - auth-service
+    networks:
+      - app-network
+
+  hello-world-app:
+    build: ./hello-world-app
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  auth-data:
