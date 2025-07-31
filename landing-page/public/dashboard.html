@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Personal Project</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        .dashboard-title {
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        .app-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .app-card:hover {
+            transform: translateY(-5px);
+        }
+        .app-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .app-title {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        .app-description {
+            color: #666;
+            margin-bottom: 2rem;
+        }
+        .app-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+        .app-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Personal Project Dashboard</h2>
+        <div class="user-info">
+            <img id="userAvatar" class="user-avatar" src="" alt="User Avatar">
+            <span id="userName"></span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="dashboard-title">Welcome to Your Application Suite</h1>
+        
+        <div class="apps-grid">
+            <div class="app-card">
+                <div class="app-icon">👋</div>
+                <h3 class="app-title">Hello World</h3>
+                <p class="app-description">A simple greeting application to test the setup.</p>
+                <a href="http://localhost:3002" class="app-btn" target="_blank">Open Hello World</a>
+            </div>
+            
+            <div class="app-card">
+                <div class="app-icon">💬</div>
+                <h3 class="app-title">Chat Application</h3>
+                <p class="app-description">Real-time chat where all users can communicate.</p>
+                <a href="http://localhost:3003" class="app-btn" target="_blank">Open Chat</a>
+            </div>
+            
+            <div class="app-card">
+                <div class="app-icon">⚙️</div>
+                <h3 class="app-title">Admin Panel</h3>
+                <p class="app-description">Manage user access and application settings.</p>
+                <a href="http://localhost:3001/admin/users" class="app-btn" target="_blank">Open Admin</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load user information
+        fetch('/api/user')
+            .then(response => response.json())
+            .then(data => {
+                if (data.authenticated && data.user) {
+                    document.getElementById('userName').textContent = data.user.name;
+                    document.getElementById('userAvatar').src = data.user.photo;
+                }
+            })
+            .catch(error => console.error('Error loading user data:', error));
+
+        function logout() {
+            fetch('http://localhost:3001/auth/logout', {
+                method: 'POST',
+                credentials: 'include'
+            })
+            .then(() => {
+                window.location.href = '/';
+            })
+            .catch(error => {
+                console.error('Logout error:', error);
+                window.location.href = '/';
+            });
+        }
+    </script>
+</body>
+</html>

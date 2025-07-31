@@ -82,7 +82,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public (Gatsby builds here, but we want to keep our static HTML files)
 
 # Storybook build outputs
 .out
