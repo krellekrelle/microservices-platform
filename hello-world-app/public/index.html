@@ -86,11 +86,34 @@
 
     <script>
         function getMessage() {
+            console.log('Making fetch request to: ./api/message');
             fetch('./api/message', {
                 credentials: 'include'
             })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response URL:', response.url);
+                    
+                    // Check if we got redirected to a different domain (authentication failed)
+                    if (response.url && !response.url.includes('/hello/api/message')) {
+                        throw new Error('Authentication failed - redirected to login page');
+                    }
+                    
+                    // Check if response is not ok
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Server returned non-JSON response (probably authentication redirect)');
+                    }
+                    
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Success data:', data);
                     document.getElementById('message').textContent = data.message;
                     document.getElementById('timestamp').textContent = 
                         `Last updated: ${new Date(data.timestamp).toLocaleString()}`;
@@ -103,7 +126,8 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    document.getElementById('message').textContent = 'Error loading message';
+                    document.getElementById('message').textContent = 'Authentication required. Please log in from the main page.';
+                    document.getElementById('message').style.color = '#ff6b6b';
                 });
         }
 

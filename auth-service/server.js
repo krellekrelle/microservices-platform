@@ -64,7 +64,12 @@ async function initializeApp() {
 
     // Middleware
     app.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: [
+        process.env.FRONTEND_URL || 'http://localhost:3000',
+        process.env.BASE_URL || 'http://localhost',
+        'http://localhost',
+        'https://kl-pi.tail9f5728.ts.net'
+      ],
       credentials: true
     }));
 
@@ -75,7 +80,10 @@ async function initializeApp() {
       saveUninitialized: false,
       cookie: {
         secure: false, // Set to true in production with HTTPS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/', // Ensure cookies work across all paths
+        httpOnly: true, // Security: prevent XSS access to cookies
+        sameSite: 'lax' // Allow cookies to be sent with cross-site requests
       }
     }));
 
