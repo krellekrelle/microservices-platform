@@ -117,18 +117,18 @@
             statusBtn.textContent = 'Checking...';
             statusBtn.disabled = true;
 
-            fetch('/api/status', {
+            fetch('/api/user', {
                 credentials: 'include'
             })
             .then(response => response.json())
             .then(data => {
-                if (data.authenticated && data.status) {
-                    if (data.status === 'approved') {
+                if (data.authenticated && data.user) {
+                    if (data.user.status === 'approved') {
                         // Redirect to dashboard if approved
-                        window.location.href = '/dashboard';
-                    } else if (data.status === 'rejected') {
+                        window.location.href = '/dashboard.html';
+                    } else if (data.user.status === 'rejected') {
                         // Redirect to rejected page if rejected
-                        window.location.href = '/rejected';
+                        window.location.href = '/rejected.html';
                     } else {
                         // Still pending, just reload the page
                         window.location.reload();
