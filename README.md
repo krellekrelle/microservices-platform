@@ -4,12 +4,29 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 
 ## 🚀 Features
 
-- **Google OAuth Authentication** with professional sign-in button following Google's design guidelines
+- **G## 📋 Usage
+
+1. **Navigate to the landing page**: `http://localhost:3000`
+2. **Login with Google** (forced account selection)
+3. **Wait for approval** if first-time user (pending page)
+4. **Access dashboard** once approved
+
+### Available Applications
+
+Once approved, users have access to:
+
+- **🌍 Hello World App** - Example service demonstrating authentication integration
+- **🎮 LoL Tracker** - League of Legends account management
+  - Link Riot accounts to your profile
+  - View linked accounts and statistics
+  - Admin panel for viewing all accounts across usersOAuth Authentication** with professional sign-in button following Google's design guidelines
 - **JWT Token Authentication** - secure, stateless authentication with httpOnly cookies
 - **Three-tier User Management** - approval system (unknown/approved/rejected)
 - **PostgreSQL Database** - complete user data persistence with audit trails
 - **Web Admin Panel** - full user management interface with statistics and actions
 - **CLI Admin Tools** - command-line interface for user management and database operations
+- **League of Legends Integration** - Riot Games API integration for account tracking
+- **Admin Analytics** - comprehensive overview of linked accounts across all users
 - **Microservices Architecture** with Docker containerization
 - **Centralized Authentication** - all auth logic handled by dedicated auth service
 - **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
@@ -52,6 +69,13 @@ A microservices-based application suite with Google OAuth authentication, Postgr
    - Template for creating new authenticated services
    - Accessible via `/hello/` path through reverse proxy
    - Shows user information with JWT token validation
+
+6. **LoL Tracking Service** (Port 3003)
+   - League of Legends account management and game tracking
+   - Riot Games API integration for account validation
+   - User account linking with PUUID tracking
+   - Admin panel for viewing all linked accounts across users
+   - Accessible via `/lol/` path through reverse proxy
 
 ### Authentication Flow
 
@@ -111,10 +135,12 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
    GOOGLE_CLIENT_ID=your-google-client-id
    GOOGLE_CLIENT_SECRET=your-google-client-secret
    GOOGLE_CALLBACK_URL=https://your-domain.ts.net/auth/google/callback
-      - FRONTEND_URL=${FRONTEND_URL}
-   - DATABASE_URL=postgresql://app_user:secure_password_change_in_production@database:5432/microservices_platform
+   FRONTEND_URL=https://your-domain.ts.net
    BASE_URL=https://your-domain.ts.net
    AUTH_SERVICE_URL=http://auth-service:3001
+   
+   # Riot Games API (for LoL Tracking Service)
+   RIOT_API_KEY=your-riot-api-key-here
    
    # For local development, use:
    # GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
@@ -122,7 +148,12 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
    # BASE_URL=http://localhost:3000
    ```
 
-4. **Setup Tailscale (for public access)**
+4. **Setup Riot Games API (for LoL features)**
+   - Visit [Riot Developer Portal](https://developer.riotgames.com/)
+   - Create account and generate development API key
+   - Add the key to your `.env` file as `RIOT_API_KEY`
+
+5. **Setup Tailscale (for public access)**
    ```bash
    # Install Tailscale
    curl -fsSL https://tailscale.com/install.sh | sh
@@ -472,11 +503,12 @@ microservices-platform/
 
 Required for production:
 - `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_CLIENT_SECRET` 
 - `GOOGLE_CALLBACK_URL`
 - `FRONTEND_URL`
 - `AUTH_SERVICE_URL`
 - `DATABASE_URL`
+- `RIOT_API_KEY` (for LoL Tracking Service)
 
 ## 📝 License
 

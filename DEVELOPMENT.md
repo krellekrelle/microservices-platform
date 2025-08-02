@@ -64,6 +64,30 @@
 - **Docker Environment Integration**: JWT secrets shared via environment variables
 - **Migration Script**: Automated migration process with comprehensive documentation
 
+### Phase 10: League of Legends Integration (August 2025)
+- **LoL Tracking Service**: New microservice for League of Legends account management
+- **Riot Games API Integration**: Account validation and data fetching
+- **User Account Linking**: Link Riot accounts to platform users with PUUID tracking
+- **Admin Analytics**: Comprehensive overview of all linked accounts across users
+- **Database Extension**: New tables for riot accounts with proper relationships
+- **Service Pattern Implementation**: Follows established auth and routing patterns
+
+### Phase 8: Database Migration & Admin Panel (August 2025)
+- **PostgreSQL Integration**: Complete migration from JSON files to PostgreSQL database
+- **Database Schema**: Users, sessions, audit trails with automatic initialization
+- **Web Admin Panel**: Full-featured user management interface with statistics
+- **CLI Admin Tools**: Command-line interface for database operations
+- **API Endpoints**: RESTful admin API with proper authentication
+- **Container Rebuild Issues Discovered**: Critical lesson about Docker caching
+
+### Phase 9: JWT Authentication Migration (August 2025)
+- **JWT Token Implementation**: Migrated from Express sessions to JWT tokens
+- **Stateless Authentication**: Services now validate tokens independently
+- **Token Storage**: HttpOnly cookies with 24-hour access tokens and 7-day refresh tokens
+- **Shared JWT Middleware**: Created reusable JWT validation module for all services
+- **Docker Environment Integration**: JWT secrets shared via environment variables
+- **Migration Script**: Automated migration process with comprehensive documentation
+
 ## ⚠️ Critical Development Lessons
 
 ### Container Rebuilding Requirements
@@ -92,23 +116,25 @@ docker-compose up -d
 
 **Live Application**: https://kl-pi.tail9f5728.ts.net  
 **Status**: ✅ Fully Operational  
-**Last Updated**: August 2, 2025  
+**Last Updated**: August 3, 2025  
 
 ### Working Features
 - ✅ **Professional Google OAuth** - Official sign-in button with Google branding
 - ✅ **User Authentication** - Three-tier approval system (unknown/approved/rejected)
-- ✅ **Service Routing** - Hello World app accessible via `/hello/` path
+- ✅ **Service Routing** - Hello World app and LoL Tracker accessible via dashboard
 - ✅ **Authentication Integration** - Proper auth checks across all services
+- ✅ **League of Legends Integration** - Riot account linking and management
+- ✅ **Admin Analytics** - Comprehensive overview of all linked accounts
 - ✅ **Public HTTPS Access** - Via Tailscale Funnel without port forwarding
 - ✅ **Automatic SSL** - Caddy handles certificate management
 - ✅ **Docker Orchestration** - All services containerized and communicating
 
-### Recent Achievements (August 2, 2025)
-- **Google Branding Compliance**: Implemented official Google "G" logo and styling
-- **Service Integration**: Fixed routing between landing page and hello-world-app
-- **Authentication Flow**: Resolved auth check logic for proper status validation
-- **Path Handling**: Configured Caddy for proper microservice routing with path stripping
-- **User Experience**: Added user name display and interactive messaging in Hello World app
+### Recent Achievements (August 3, 2025)
+- **LoL Tracking Service**: Complete League of Legends account management system
+- **Riot API Integration**: Account validation and data fetching from Riot Games API
+- **Admin Panel**: Comprehensive analytics for viewing all accounts across users
+- **Database Extension**: New riot_accounts table with proper relationships
+- **Service Pattern**: New service follows established authentication and routing patterns
 
 ## 🎯 Core Architecture Principles
 
@@ -153,6 +179,9 @@ AUTH_SERVICE_URL=http://auth-service:3001
 
 # Database Configuration
 DATABASE_URL=postgresql://app_user:secure_password_change_in_production@database:5432/microservices_platform
+
+# Riot Games API (for LoL tracking service)
+RIOT_API_KEY=<your-riot-development-api-key>
 
 # For local development, use:
 # GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback

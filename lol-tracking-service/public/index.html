@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>League of Legends Account Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #c89b3c;
+            text-align: center;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #c89b3c;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #a17c29;
+        }
+        .account-list {
+            margin-top: 30px;
+        }
+        .account-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .account-info {
+            flex-grow: 1;
+        }
+        .account-name {
+            font-weight: bold;
+            color: #495057;
+        }
+        .account-details {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .remove-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+        }
+        .remove-btn:hover {
+            background-color: #c82333;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            text-align: center;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="margin-bottom: 20px;">
+            <a href="/" style="background: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                ← Back to Dashboard
+            </a>
+        </div>
+        
+        <h1>🎮 League of Legends Account Management</h1>
+        
+        <div id="adminSection" style="display: none; margin-bottom: 20px;">
+            <a href="/lol/admin" style="background: #dc3545; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                🛡️ Admin Panel - View All Accounts
+            </a>
+        </div>
+        
+        <div id="message"></div>
+        
+        <form id="addAccountForm">
+            <h3>Add Riot Account</h3>
+            <div class="form-group">
+                <label for="summonerName">Summoner Name:</label>
+                <input type="text" id="summonerName" name="summonerName" required 
+                       placeholder="e.g., Faker">
+            </div>
+            <div class="form-group">
+                <label for="summonerTag">Tag:</label>
+                <input type="text" id="summonerTag" name="summonerTag" required 
+                       placeholder="e.g., KR1, EUW, NA1">
+            </div>
+            <div class="form-group">
+                <label for="region">Region:</label>
+                <select id="region" name="region">
+                    <option value="europe">Europe</option>
+                    <option value="americas">Americas</option>
+                    <option value="asia">Asia</option>
+                </select>
+            </div>
+            <button type="submit" id="addBtn">Add Account</button>
+        </form>
+        
+        <div class="account-list">
+            <h3>Your Riot Accounts</h3>
+            <div id="accountsList">
+                <div class="loading">Loading accounts...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/lol';
+        
+        // Show message
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="message ${type}">${text}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        // Load accounts
+        async function loadAccounts() {
+            try {
+                const response = await fetch(`${API_BASE}/riot-accounts`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        document.getElementById('accountsList').innerHTML = 
+                            '<div class="error">Please log in to view your accounts. <a href="/">Go to login</a></div>';
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                displayAccounts(data.accounts);
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                document.getElementById('accountsList').innerHTML = 
+                    '<div class="error">Failed to load accounts. Please try refreshing the page.</div>';
+            }
+        }
+        
+        // Check if user is admin and show admin link
+        async function checkAdminStatus() {
+            try {
+                const response = await fetch('/api/user', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.authenticated && data.user && data.user.isAdmin) {
+                        document.getElementById('adminSection').style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.log('Could not check admin status:', error);
+            }
+        }
+        
+        // Display accounts
+        function displayAccounts(accounts) {
+            const container = document.getElementById('accountsList');
+            
+            if (accounts.length === 0) {
+                container.innerHTML = '<div>No Riot accounts linked yet. Add one above!</div>';
+                return;
+            }
+            
+            container.innerHTML = accounts.map(account => `
+                <div class="account-item">
+                    <div class="account-info">
+                        <div class="account-name">${account.summoner_name}#${account.summoner_tag}</div>
+                        <div class="account-details">
+                            Region: ${account.region} | Added: ${new Date(account.created_at).toLocaleDateString()}
+                        </div>
+                    </div>
+                    <button class="remove-btn" onclick="removeAccount(${account.id})">Remove</button>
+                </div>
+            `).join('');
+        }
+        
+        // Add account
+        document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const addBtn = document.getElementById('addBtn');
+            const originalText = addBtn.textContent;
+            addBtn.textContent = 'Adding...';
+            addBtn.disabled = true;
+            
+            try {
+                const formData = new FormData(e.target);
+                const data = {
+                    summonerName: formData.get('summonerName'),
+                    summonerTag: formData.get('summonerTag'),
+                    region: formData.get('region')
+                };
+                
+                const response = await fetch(`${API_BASE}/riot-accounts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Account added successfully!', 'success');
+                    e.target.reset();
+                    loadAccounts();
+                } else {
+                    showMessage(result.error || 'Failed to add account', 'error');
+                }
+            } catch (error) {
+                console.error('Error adding account:', error);
+                showMessage('Network error. Please try again.', 'error');
+            } finally {
+                addBtn.textContent = originalText;
+                addBtn.disabled = false;
+            }
+        });
+        
+        // Remove account
+        async function removeAccount(accountId) {
+            if (!confirm('Are you sure you want to remove this account?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/riot-accounts/${accountId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Account removed successfully!', 'success');
+                    loadAccounts();
+                } else {
+                    showMessage(result.error || 'Failed to remove account', 'error');
+                }
+            } catch (error) {
+                console.error('Error removing account:', error);
+                showMessage('Network error. Please try again.', 'error');
+            }
+        }
+        
+        // Load accounts and check admin status on page load
+        loadAccounts();
+        checkAdminStatus();
+    </script>
+</body>
+</html>

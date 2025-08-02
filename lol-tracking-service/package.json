@@ -1,0 +1,28 @@
+{
+  "name": "lol-tracking-service",
+  "version": "1.0.0",
+  "description": "League of Legends tracking service for managing Riot accounts and game data",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "pg": "^8.11.0",
+    "node-fetch": "^2.6.7",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "keywords": [
+    "league-of-legends",
+    "riot-api",
+    "microservice",
+    "tracking"
+  ],
+  "author": "Kristian Larsen",
+  "license": "MIT"
+}

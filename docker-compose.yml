@@ -83,6 +83,21 @@ services:
     networks:
       - app-network
 
+  lol-tracking-service:
+    build: ./lol-tracking-service
+    environment:
+      - PORT=3003
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - DATABASE_URL=postgresql://app_user:secure_password_change_in_production@database:5432/microservices_platform
+      - RIOT_API_KEY=${RIOT_API_KEY}
+    depends_on:
+      database:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
