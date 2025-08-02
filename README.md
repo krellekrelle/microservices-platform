@@ -1,12 +1,14 @@
 # Microservices Platform
 
-A microservices-based application suite with Google OAuth authentication, designed for Raspberry Pi deployment.
+A microservices-based application suite with Google OAuth authentication, designed for Raspberry Pi deployment with public HTTPS access via Tailscale.
 
 ## 🚀 Features
 
 - **Google OAuth Authentication** with three-tier approval system (unknown/approved/rejected)
 - **Microservices Architecture** with Docker containerization
 - **Centralized Authentication** - all auth logic handled by dedicated auth service
+- **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
+- **Caddy Reverse Proxy** - automatic SSL termination and request routing
 - **User Management** - file-based user approval system for admins
 - **Session Management** - auto-generated session secrets with persistence
 - **Account Switching** - forced Google account selection on login
@@ -16,27 +18,42 @@ A microservices-based application suite with Google OAuth authentication, design
 
 ### Services
 
-1. **Auth Service** (Port 3001)
+1. **Caddy Reverse Proxy** (Port 80/443)
+   - HTTPS termination and automatic SSL certificates
+   - Request routing to internal services
+   - Public access via Tailscale Funnel
+
+2. **Auth Service** (Port 3001)
    - Handles Google OAuth flow
    - Manages user approval states (unknown/approved/rejected)
    - Provides centralized authentication endpoints
    - Auto-generates and persists session secrets
 
-2. **Landing Page** (Port 3000)
+3. **Landing Page** (Port 3000)
    - Main entry point and navigation hub
    - Serves authentication pages (login/dashboard/pending/rejected)
    - Proxies all auth requests to auth service
    - Stateless design - all auth logic delegated to auth service
 
-3. **Hello World App** (Port 3002)
+4. **Hello World App** (Port 3002)
    - Example microservice demonstrating the architecture
    - Shows how to integrate with the auth system
 
 ### Authentication Flow
 
 ```
-User → Landing Page → Auth Service → Google OAuth → User Management → Appropriate Page
+User → Caddy Proxy → Landing Page → Auth Service → Google OAuth → User Management → Appropriate Page
 ```
+
+### Network Architecture
+
+```
+Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
+```
+
+- **External Access**: `https://kl-pi.tail9f5728.ts.net` (public HTTPS)
+- **Internal Network**: Docker `app-network` for service communication
+- **No Port Forwarding**: Tailscale bypasses CGNAT and ISP restrictions
 
 ### User States
 
@@ -50,6 +67,7 @@ User → Landing Page → Auth Service → Google OAuth → User Management → 
 
 - Docker and Docker Compose
 - Google OAuth credentials
+- Tailscale account (for public access)
 - Node.js 18+ (for local development)
 
 ### Environment Setup
@@ -70,14 +88,38 @@ User → Landing Page → Auth Service → Google OAuth → User Management → 
    - Create a new project or select existing
    - Enable Google+ API
    - Create OAuth 2.0 credentials
-   - Add authorized redirect URI: `http://localhost:3001/auth/google/callback`
+   - For production with Tailscale Funnel, add authorized redirect URI: 
+     `https://your-tailscale-domain.ts.net/auth/google/callback`
+   - For local development, add: `http://localhost:3001/auth/google/callback`
    - Copy Client ID and Client Secret to `.env`:
    ```env
+   # Production configuration
    GOOGLE_CLIENT_ID=your-google-client-id
    GOOGLE_CLIENT_SECRET=your-google-client-secret
-   GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
-   FRONTEND_URL=http://localhost:3000
+   GOOGLE_CALLBACK_URL=https://your-domain.ts.net/auth/google/callback
+   FRONTEND_URL=https://your-domain.ts.net
+   BASE_URL=https://your-domain.ts.net
    AUTH_SERVICE_URL=http://auth-service:3001
+   
+   # For local development, use:
+   # GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+   # FRONTEND_URL=http://localhost:3000
+   # BASE_URL=http://localhost:3000
+   ```
+
+4. **Setup Tailscale (for public access)**
+   ```bash
+   # Install Tailscale
+   curl -fsSL https://tailscale.com/install.sh | sh
+   
+   # Authenticate with your Tailscale account
+   sudo tailscale up
+   
+   # Enable Funnel for port 80
+   sudo tailscale funnel 80
+   
+   # Get your public domain
+   tailscale status
    ```
 
 ### Running with Docker (Recommended)
@@ -97,7 +139,11 @@ User → Landing Page → Auth Service → Google OAuth → User Management → 
    docker-compose logs -f
    ```
 
-4. **Stop services**
+4. **Access the application**
+   - **Local**: http://localhost:3000
+   - **Public** (with Tailscale): https://your-domain.ts.net
+
+5. **Stop services**
    ```bash
    docker-compose down
    ```
@@ -155,6 +201,25 @@ curl -X POST http://localhost:3001/admin/reject/user@example.com
 - **Check Status**: Users on pending page can check if they've been approved
 - **Logout**: Available on all authenticated pages
 - **Account Switching**: Login forces Google account selection
+
+## 🌐 Production Status
+
+The platform is currently deployed and accessible at:
+
+**🔗 Live Demo**: https://kl-pi.tail9f5728.ts.net
+
+### Current Configuration
+- **Platform**: Raspberry Pi 4
+- **Network**: Tailscale Funnel (bypasses CGNAT)
+- **SSL**: Automatic HTTPS via Caddy
+- **Authentication**: Google OAuth 2.0
+- **Status**: ✅ Fully Operational
+
+### Architecture Highlights
+- No port forwarding required (Tailscale handles external access)
+- Automatic SSL certificate management
+- Containerized microservices with Docker
+- Centralized authentication with session persistence
 
 ## 🔗 API Endpoints
 

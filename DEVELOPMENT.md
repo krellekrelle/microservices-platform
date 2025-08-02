@@ -35,6 +35,13 @@
 - Auto-generated session secrets with file persistence
 - Professional git repository with comprehensive documentation
 
+### Phase 6: Network & Public Access (August 2025)
+- **Tailscale Integration**: Implemented mesh VPN for bypassing CGNAT
+- **Tailscale Funnel**: Enabled public access without port forwarding
+- **Caddy v2 Reverse Proxy**: HTTPS termination and request routing
+- **Domain Access**: Public HTTPS access via `kl-pi.tail9f5728.ts.net`
+- **OAuth Update**: Fresh Google OAuth credentials for production domain
+
 ## 🎯 Core Architecture Principles
 
 ### 1. Centralized Authentication
@@ -65,22 +72,30 @@ All services → auth-service → Google OAuth → User Management
 
 ### Environment Configuration
 ```env
-GOOGLE_CLIENT_ID=13608024902-846ltke59gnc6bmql7fgi2fcapb6dkgj.apps.googleusercontent.com
+# Google OAuth Credentials (Production)
+GOOGLE_CLIENT_ID=13608024902-6e22ofrtkjb6464qk7o0uqvr7793fooe.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=<your-secret>
-GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
-FRONTEND_URL=http://localhost:3000
+GOOGLE_CALLBACK_URL=https://kl-pi.tail9f5728.ts.net/auth/google/callback
+FRONTEND_URL=https://kl-pi.tail9f5728.ts.net
+BASE_URL=https://kl-pi.tail9f5728.ts.net
 AUTH_SERVICE_URL=http://auth-service:3001
+
+# For local development, use:
+# GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+# FRONTEND_URL=http://localhost:3000
+# BASE_URL=http://localhost:3000
 ```
 
-### Docker Network
-- **Network Name**: `app-network`
-- **Service Resolution**: Services communicate using service names
-- **Port Mapping**: External ports mapped to host for development
+### Network Architecture
+- **Internal Network**: Docker `app-network` for service communication
+- **External Access**: Tailscale Funnel for public HTTPS access
+- **Reverse Proxy**: Caddy v2 handling SSL termination and routing
+- **Public Domain**: `kl-pi.tail9f5728.ts.net` (Tailscale Funnel domain)
 
 ## 🔐 Authentication Flow Deep Dive
 
 ### User Journey
-1. **User visits landing page** (`http://localhost:3000`)
+1. **User visits landing page** (`https://kl-pi.tail9f5728.ts.net`)
 2. **Landing page checks auth** via `GET /check-auth` to auth-service
 3. **Auth service determines user state**:
    - Not logged in → Serve login.html
@@ -90,8 +105,9 @@ AUTH_SERVICE_URL=http://auth-service:3001
 
 ### OAuth Configuration
 - **Forced Account Selection**: `prompt: 'select_account'`
-- **Callback URL**: Must match Google Cloud Console exactly
+- **Production Callback URL**: `https://kl-pi.tail9f5728.ts.net/auth/google/callback`
 - **Session Secret**: Auto-generated 256-byte random secret, persisted to file
+- **HTTPS**: Handled by Caddy with automatic certificate management via Tailscale
 
 ### User State Management
 - **Files**: `approved_logins.json`, `rejected_logins.json`, `unknown_logins.json`
@@ -155,9 +171,9 @@ if (!authData.authenticated || authData.userStatus !== 'approved') {
 ## 🔄 Planned Enhancements
 
 ### High Priority
-- **Caddy Integration**: HTTPS with automatic SSL certificates
 - **Database Migration**: Move from JSON files to proper database
 - **Health Checks**: Service monitoring and recovery
+- **Hello World Routing**: Fix path stripping for `/hello/*` routes
 
 ### Medium Priority
 - **API Documentation**: OpenAPI/Swagger specs
@@ -169,11 +185,25 @@ if (!authData.authenticated || authData.userStatus !== 'approved') {
 - **Kubernetes deployment**: For production scaling
 - **CI/CD Pipeline**: Automated testing and deployment
 
+## 🌐 Network & Deployment Solutions
+
+### CGNAT & ISP Restrictions
+- **Problem**: Many ISPs block ports 80/443 and use CGNAT
+- **Solution**: Tailscale mesh VPN with Funnel for public access
+- **Benefit**: No port forwarding required, automatic HTTPS
+
+### Tailscale Setup
+1. **Install Tailscale**: `curl -fsSL https://tailscale.com/install.sh | sh`
+2. **Authenticate**: `sudo tailscale up`
+3. **Enable Funnel**: `sudo tailscale funnel 80`
+4. **Get Domain**: `tailscale status` shows your `.ts.net` domain
+
 ## 🐛 Common Issues & Solutions
 
 ### Google OAuth Issues
 - **Problem**: OAuth callback fails
 - **Solution**: Verify GOOGLE_CALLBACK_URL matches Google Cloud Console exactly
+- **Production**: Use HTTPS domain for production OAuth callbacks
 
 ### Docker Networking
 - **Problem**: Services can't communicate
@@ -183,14 +213,19 @@ if (!authData.authenticated || authData.userStatus !== 'approved') {
 - **Problem**: Sessions lost on container restart
 - **Solution**: Volume mounting for `auth-service/data` directory
 
-### Port Conflicts
-- **Problem**: Ports 3000-3002 already in use
-- **Solution**: Update docker-compose.yml port mappings
+### Environment Variables Not Loading
+- **Problem**: New .env values not picked up by containers
+- **Solution**: Complete restart with `docker compose down && docker compose up -d`
+
+### CGNAT & Port Forwarding
+- **Problem**: ISP blocks standard ports or uses CGNAT
+- **Solution**: Use Tailscale Funnel for public access without port forwarding
 
 ## 📚 Key Files Reference
 
 ### Configuration Files
 - `docker-compose.yml`: Multi-container orchestration
+- `Caddyfile`: Reverse proxy configuration for HTTPS and routing
 - `.env.example`: Environment template
 - `.gitignore`: Comprehensive exclusions
 
@@ -220,9 +255,9 @@ if (!authData.authenticated || authData.userStatus !== 'approved') {
 
 When starting new development sessions, provide this context:
 
-> "Working on microservices-platform (GitHub: krellekrelle/microservices-platform). It's a Node.js microservices platform with centralized Google OAuth authentication. Architecture: auth-service (3001) handles all auth, landing-page (3000) is stateless proxy, hello-world-app (3002) is example service. Uses Docker with app-network for service communication. All services check auth via auth-service /check-auth endpoint."
+> "Working on microservices-platform (GitHub: krellekrelle/microservices-platform). It's a Node.js microservices platform with centralized Google OAuth authentication running on Raspberry Pi. Architecture: auth-service (3001) handles all auth, landing-page (3000) is stateless proxy, hello-world-app (3002) is example service. Uses Docker with app-network for service communication. Public access via Tailscale Funnel at https://kl-pi.tail9f5728.ts.net. All services check auth via auth-service /check-auth endpoint."
 
 ---
 
-**Last Updated**: July 31, 2025  
-**Architecture Version**: v1.0 (Centralized Auth)
+**Last Updated**: August 2, 2025  
+**Architecture Version**: v1.1 (Tailscale + Production HTTPS)

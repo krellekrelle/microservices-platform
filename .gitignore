@@ -130,6 +130,7 @@ Desktop.ini
 # Keep data files but ignore backup files
 *.bak
 *.backup
+oauth-credentials-backup.txt
 auth-service/data/*.bak
 auth-service/data/session.secret
 

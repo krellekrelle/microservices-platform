@@ -3,9 +3,10 @@
 ## 🎯 Service Overview
 
 **Purpose**: Centralized authentication and user management service  
-**Port**: 3001  
+**Port**: 3001 (internal Docker network)  
 **Role**: Core authentication provider for entire platform  
 **Dependencies**: Google OAuth 2.0, file system for data persistence  
+**Production Access**: Via Caddy reverse proxy at `https://kl-pi.tail9f5728.ts.net/auth/*`  
 
 ## 🏗️ Architecture Role
 

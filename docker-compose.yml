@@ -1,18 +1,31 @@
 version: '3.8'
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app-network
+    depends_on:
+      - auth-service
+      - landing-page
+      - hello-world-app
+
   auth-service:
     build: ./auth-service
-    ports:
-      - "3001:3001"
     environment:
       - PORT=3001
       - SESSION_SECRET=dev-secret-key-change-in-production
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
-      - BASE_URL=http://localhost:3001
-      - FRONTEND_URL=http://localhost:3000
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - BASE_URL=https://kl-pi.tail9f5728.ts.net
+      - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       - ./auth-service/data:/app/data
     networks:
@@ -20,13 +33,12 @@ services:
 
   landing-page:
     build: ./landing-page
-    ports:
-      - "3000:3000"
     environment:
       - PORT=3000
       - AUTH_SERVICE_URL=http://auth-service:3001
       - HELLO_WORLD_URL=http://hello-world-app:3002
       - CHAT_APP_URL=http://localhost:3003
+      - BASE_URL=https://kl-pi.tail9f5728.ts.net
     depends_on:
       - auth-service
     networks:
@@ -34,8 +46,6 @@ services:
 
   hello-world-app:
     build: ./hello-world-app
-    ports:
-      - "3002:3002"
     environment:
       - PORT=3002
     networks:
@@ -47,3 +57,5 @@ networks:
 
 volumes:
   auth-data:
+  caddy_data:
+  caddy_config:
