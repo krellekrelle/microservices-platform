@@ -20,6 +20,31 @@
             align-items: center;
             backdrop-filter: blur(10px);
         }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-link {
+            color: #333;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .nav-link:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+        .admin-link {
+            background: #28a745;
+            color: white !important;
+        }
+        .admin-link:hover {
+            background: #218838 !important;
+        }
         .user-info {
             display: flex;
             align-items: center;
@@ -105,7 +130,10 @@
 </head>
 <body>
     <div class="header">
-        <h2>Personal Project Dashboard</h2>
+        <div class="nav-links">
+            <a href="/dashboard.html" class="nav-link active">Dashboard</a>
+            <a href="/admin.html" class="nav-link admin-link" id="adminLink" style="display: none;">Admin Panel</a>
+        </div>
         <div class="user-info">
             <img id="userAvatar" class="user-avatar" src="" alt="User Avatar">
             <span id="userName"></span>
@@ -130,13 +158,6 @@
                 <p class="app-description">Real-time chat where all users can communicate.</p>
                 <a href="#" class="app-btn disabled" onclick="alert('Chat service coming soon!')">Coming Soon</a>
             </div>
-            
-            <div class="app-card">
-                <div class="app-icon">⚙️</div>
-                <h3 class="app-title">Admin Panel</h3>
-                <p class="app-description">Manage user access and application settings.</p>
-                <a href="/auth/admin/users" class="app-btn" target="_blank">Open Admin</a>
-            </div>
         </div>
     </div>
 
@@ -148,6 +169,11 @@
                 if (data.authenticated && data.user) {
                     document.getElementById('userName').textContent = data.user.name;
                     document.getElementById('userAvatar').src = data.user.photo;
+                    
+                    // Show admin link if user is admin
+                    if (data.user.isAdmin) {
+                        document.getElementById('adminLink').style.display = 'block';
+                    }
                 }
             })
             .catch(error => console.error('Error loading user data:', error));

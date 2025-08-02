@@ -113,26 +113,26 @@ async function initializeApp() {
       }
     });
 
-    console.log('📍 Registering routes...');
+    // Routes
 
     // Health check
     app.get('/health', (req, res) => {
-      res.json({
-        status: 'healthy',
+      res.json({ 
+        status: 'healthy', 
         timestamp: new Date().toISOString(),
         database: 'connected'
       });
     });
 
     // Start Google OAuth
-    app.get('/google', passport.authenticate('google', {
+    app.get('/auth/google', passport.authenticate('google', {
       scope: ['profile', 'email'],
       prompt: 'select_account' // Force account selection
     }));
 
     // Google OAuth callback
-    app.get('/google/callback',
-      passport.authenticate('google', { failureRedirect: '/failure' }),
+    app.get('/auth/google/callback',
+      passport.authenticate('google', { failureRedirect: '/auth/failure' }),
       (req, res) => {
         const user = req.user;
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -152,8 +152,9 @@ async function initializeApp() {
     );
 
     // Auth failure redirect
-    app.get('/failure', (req, res) => {
-      res.status(401).json({ error: 'Authentication failed' });
+    app.get('/auth/failure', (req, res) => {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login.html?error=auth_failed`);
     });
 
     // Check authentication status
@@ -191,28 +192,6 @@ async function initializeApp() {
           res.json({ message: 'Logged out successfully' });
         });
       });
-    });
-
-    // API endpoint to get current user info
-    app.get('/user', (req, res) => {
-      if (req.isAuthenticated()) {
-        res.json({
-          authenticated: true,
-          user: {
-            id: req.user.id,
-            email: req.user.email,
-            name: req.user.name,
-            photo: req.user.photo,
-            status: req.user.status,
-            isAdmin: req.user.is_admin || false
-          }
-        });
-      } else {
-        res.json({
-          authenticated: false,
-          user: null
-        });
-      }
     });
 
     // Admin routes
@@ -306,90 +285,6 @@ async function initializeApp() {
       }
     });
 
-    // Delete user (admin only)
-    app.delete('/admin/users/:email', requireAdmin, async (req, res) => {
-      try {
-        const { email } = req.params;
-        const adminId = req.user.id;
-        
-        // Don't allow admins to delete themselves
-        if (email === req.user.email) {
-          return res.status(400).json({ error: 'Cannot delete your own account' });
-        }
-        
-        const user = await db.deleteUser(email, adminId);
-        res.json({ 
-          message: 'User deleted successfully', 
-          user: {
-            email: user.email,
-            name: user.name
-          }
-        });
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        if (error.message === 'User not found') {
-          res.status(404).json({ error: 'User not found' });
-        } else {
-          res.status(500).json({ error: 'Failed to delete user' });
-        }
-      }
-    });
-
-    // Promote user to admin (admin only)
-    app.post('/admin/promote/:email', requireAdmin, async (req, res) => {
-      try {
-        const { email } = req.params;
-        const adminId = req.user.id;
-        
-        const user = await db.promoteToAdmin(email, adminId);
-        res.json({ 
-          message: 'User promoted to admin successfully', 
-          user: {
-            email: user.email,
-            name: user.name,
-            isAdmin: user.is_admin
-          }
-        });
-      } catch (error) {
-        console.error('Error promoting user:', error);
-        if (error.message === 'User not found') {
-          res.status(404).json({ error: 'User not found' });
-        } else {
-          res.status(500).json({ error: 'Failed to promote user' });
-        }
-      }
-    });
-
-    // Demote admin to user (admin only)
-    app.post('/admin/demote/:email', requireAdmin, async (req, res) => {
-      try {
-        const { email } = req.params;
-        const adminId = req.user.id;
-        
-        // Don't allow admins to demote themselves
-        if (email === req.user.email) {
-          return res.status(400).json({ error: 'Cannot demote your own account' });
-        }
-        
-        const user = await db.demoteFromAdmin(email, adminId);
-        res.json({ 
-          message: 'Admin demoted to user successfully', 
-          user: {
-            email: user.email,
-            name: user.name,
-            isAdmin: user.is_admin
-          }
-        });
-      } catch (error) {
-        console.error('Error demoting user:', error);
-        if (error.message === 'User not found') {
-          res.status(404).json({ error: 'User not found' });
-        } else {
-          res.status(500).json({ error: 'Failed to demote user' });
-        }
-      }
-    });
-
     // Middleware functions
     function requireAdmin(req, res, next) {
       if (!req.isAuthenticated()) {
@@ -402,8 +297,6 @@ async function initializeApp() {
       
       next();
     }
-
-    console.log('✅ Routes registered successfully');
 
     // Error handling middleware
     app.use((error, req, res, next) => {

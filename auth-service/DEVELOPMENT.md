@@ -5,7 +5,7 @@
 **Purpose**: Centralized authentication and user management service  
 **Port**: 3001 (internal Docker network)  
 **Role**: Core authentication provider for entire platform  
-**Dependencies**: Google OAuth 2.0, file system for data persistence  
+**Dependencies**: Google OAuth 2.0, PostgreSQL database  
 **Production Access**: Via Caddy reverse proxy at `https://kl-pi.tail9f5728.ts.net/auth/*`  
 
 ## 🏗️ Architecture Role
@@ -13,24 +13,34 @@
 The auth-service is the **heart** of the platform's security model:
 - **Single source of truth** for user authentication states
 - **OAuth provider** handling Google authentication flow
-- **Session manager** with auto-generated secrets
-- **User state manager** with file-based persistence
-- **Admin API** for user approval workflows
+- **Session manager** with PostgreSQL session store
+- **User state manager** with PostgreSQL persistence
+- **Admin API** with full CRUD operations and audit trails
+- **Web admin panel API** for user management interface
 
 ## 📁 File Structure
 
 ```
 auth-service/
 ├── server.js              # Main application logic
+├── database.js            # Database service layer
 ├── package.json           # Dependencies and scripts
 ├── Dockerfile            # Container configuration
-└── data/                 # Persistent data directory
-    ├── approved_logins.json
-    ├── rejected_logins.json
-    ├── unknown_logins.json
-    ├── session.secret
-    └── .gitkeep          # Ensures directory exists in git
+└── .env                  # Environment configuration
 ```
+
+## 💾 Database Architecture
+
+### Tables
+- **users**: Core user data with Google OAuth profile
+- **sessions**: Express session storage (PostgreSQL-based)
+- **user_status_changes**: Audit trail of status modifications
+
+### Schema Features
+- Automatic admin user creation during initialization
+- Foreign key constraints and data integrity
+- Audit logging for all user status changes
+- Connection pooling for performance
 
 ## 🔧 Core Functionality
 

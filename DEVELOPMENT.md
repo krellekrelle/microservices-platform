@@ -48,6 +48,38 @@
 - **Hello World App Integration**: Fully functional authentication and user display
 - **Proper Path Stripping**: Caddy `handle_path` configuration for clean URLs
 
+### Phase 8: Database Migration & Admin Panel (August 2025)
+- **PostgreSQL Integration**: Complete migration from JSON files to PostgreSQL database
+- **Database Schema**: Users, sessions, audit trails with automatic initialization
+- **Web Admin Panel**: Full-featured user management interface with statistics
+- **CLI Admin Tools**: Command-line interface for database operations
+- **API Endpoints**: RESTful admin API with proper authentication
+- **Container Rebuild Issues Discovered**: Critical lesson about Docker caching
+
+## ⚠️ Critical Development Lessons
+
+### Container Rebuilding Requirements
+**MAJOR ISSUE DISCOVERED**: Docker container caching can prevent code changes from taking effect!
+
+**Symptoms**:
+- Code changes not reflected in running services
+- Old endpoints/behavior persisting after updates
+- Authentication or routing issues after modifications
+
+**Solutions**:
+```bash
+# Always rebuild containers after code changes
+docker-compose build service-name --no-cache
+docker-compose up -d service-name
+
+# For major issues, full rebuild
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+**Browser Caching**: Also use hard refresh (Ctrl+F5) or incognito mode when testing changes.
+
 ## 🎯 Current Production Status
 
 **Live Application**: https://kl-pi.tail9f5728.ts.net  
@@ -94,9 +126,12 @@ All services → auth-service → Google OAuth → User Management
 
 ### Core Technologies
 - **Backend**: Node.js 18 with Express
+- **Database**: PostgreSQL 16 Alpine with persistent volumes
 - **Authentication**: Passport.js with Google OAuth 2.0
 - **Containerization**: Docker & Docker Compose
-- **Session Management**: express-session with file store
+- **Session Management**: express-session with PostgreSQL store
+- **Reverse Proxy**: Caddy v2 with automatic HTTPS
+- **Frontend**: Vanilla HTML/CSS/JavaScript with modern UI components
 
 ### Environment Configuration
 ```env
@@ -107,6 +142,9 @@ GOOGLE_CALLBACK_URL=https://kl-pi.tail9f5728.ts.net/auth/google/callback
 FRONTEND_URL=https://kl-pi.tail9f5728.ts.net
 BASE_URL=https://kl-pi.tail9f5728.ts.net
 AUTH_SERVICE_URL=http://auth-service:3001
+
+# Database Configuration
+DATABASE_URL=postgresql://app_user:secure_password_change_in_production@database:5432/microservices_platform
 
 # For local development, use:
 # GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback

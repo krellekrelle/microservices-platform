@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Microservices Platform</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-link {
+            color: #333;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .nav-link:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        .admin-title {
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 0.5rem;
+        }
+        .admin-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+        .panel-tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 2rem;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .users-table th,
+        .users-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .users-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .status-unknown {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-approved {
+            background: #d1edff;
+            color: #0c5460;
+        }
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .admin-badge {
+            background: #e2e3ff;
+            color: #383d41;
+        }
+        .action-btn {
+            padding: 6px 12px;
+            margin: 0 2px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-promote {
+            background: #007bff;
+            color: white;
+        }
+        .btn-demote {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-links">
+            <a href="/dashboard.html" class="nav-link">← Back to Dashboard</a>
+            <a href="/admin.html" class="nav-link active">Admin Panel</a>
+        </div>
+        <div class="user-info">
+            <img src="" alt="User Avatar" class="user-avatar" id="userAvatar">
+            <span id="userName">Loading...</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="admin-title">🛠️ Admin Panel</h1>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalUsers">-</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pendingUsers">-</div>
+                <div class="stat-label">Pending Approval</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="approvedUsers">-</div>
+                <div class="stat-label">Approved Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="rejectedUsers">-</div>
+                <div class="stat-label">Rejected Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="adminUsers">-</div>
+                <div class="stat-label">Administrators</div>
+            </div>
+        </div>
+
+        <div class="admin-panel">
+            <div class="panel-tabs">
+                <button class="tab-btn active" onclick="showTab('pending')">Pending Users</button>
+                <button class="tab-btn" onclick="showTab('all')">All Users</button>
+                <button class="tab-btn" onclick="showTab('approved')">Approved</button>
+                <button class="tab-btn" onclick="showTab('rejected')">Rejected</button>
+            </div>
+
+            <div id="messageArea"></div>
+
+            <div id="pending" class="tab-content active">
+                <h3>🟡 Pending Users</h3>
+                <div class="loading" id="pendingLoading">Loading pending users...</div>
+                <table class="users-table" id="pendingTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingTableBody"></tbody>
+                </table>
+            </div>
+
+            <div id="all" class="tab-content">
+                <h3>👥 All Users</h3>
+                <div class="loading" id="allLoading">Loading all users...</div>
+                <table class="users-table" id="allTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Admin</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allTableBody"></tbody>
+                </table>
+            </div>
+
+            <div id="approved" class="tab-content">
+                <h3>🟢 Approved Users</h3>
+                <div class="loading" id="approvedLoading">Loading approved users...</div>
+                <table class="users-table" id="approvedTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Admin</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="approvedTableBody"></tbody>
+                </table>
+            </div>
+
+            <div id="rejected" class="tab-content">
+                <h3>🔴 Rejected Users</h3>
+                <div class="loading" id="rejectedLoading">Loading rejected users...</div>
+                <table class="users-table" id="rejectedTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rejectedTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3 id="confirmTitle">Confirm Action</h3>
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" id="confirmBtn" onclick="confirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let pendingAction = null;
+
+        // Check if user is admin on page load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/check-auth');
+                const data = await response.json();
+                
+                if (!data.authenticated) {
+                    window.location.href = '/';
+                    return;
+                }
+                
+                if (!data.user.isAdmin) {
+                    alert('Access denied. Admin privileges required.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+                
+                currentUser = data.user;
+                document.getElementById('userName').textContent = data.user.name;
+                if (data.user.profilePicture) {
+                    document.getElementById('userAvatar').src = data.user.profilePicture;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch('/auth/admin/users');
+                const users = await response.json();
+                
+                const stats = {
+                    total: users.length,
+                    pending: users.filter(u => u.status === 'unknown').length,
+                    approved: users.filter(u => u.status === 'approved').length,
+                    rejected: users.filter(u => u.status === 'rejected').length,
+                    admin: users.filter(u => u.is_admin).length
+                };
+                
+                document.getElementById('totalUsers').textContent = stats.total;
+                document.getElementById('pendingUsers').textContent = stats.pending;
+                document.getElementById('approvedUsers').textContent = stats.approved;
+                document.getElementById('rejectedUsers').textContent = stats.rejected;
+                document.getElementById('adminUsers').textContent = stats.admin;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        // Load users by status
+        async function loadUsers(status = null) {
+            const endpoint = status ? `/auth/admin/users/${status}` : '/auth/admin/users';
+            try {
+                const response = await fetch(endpoint);
+                const users = await response.json();
+                return users;
+            } catch (error) {
+                console.error('Failed to load users:', error);
+                return [];
+            }
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        // Create action buttons
+        function createActionButtons(user) {
+            const buttons = [];
+            const isCurrentUser = user.email === currentUser.email;
+            
+            if (user.status === 'unknown') {
+                buttons.push(`<button class="action-btn btn-approve" onclick="approveUser('${user.email}')">Approve</button>`);
+                buttons.push(`<button class="action-btn btn-reject" onclick="rejectUser('${user.email}')">Reject</button>`);
+            } else if (user.status === 'approved') {
+                buttons.push(`<button class="action-btn btn-reject" onclick="rejectUser('${user.email}')">Reject</button>`);
+            } else if (user.status === 'rejected') {
+                buttons.push(`<button class="action-btn btn-approve" onclick="approveUser('${user.email}')">Approve</button>`);
+            }
+            
+            if (user.status === 'approved' && !user.is_admin) {
+                buttons.push(`<button class="action-btn btn-promote" onclick="promoteUser('${user.email}')">Make Admin</button>`);
+            }
+            
+            if (user.is_admin && !isCurrentUser) {
+                buttons.push(`<button class="action-btn btn-demote" onclick="demoteUser('${user.email}')">Remove Admin</button>`);
+            }
+            
+            if (!isCurrentUser) {
+                buttons.push(`<button class="action-btn btn-delete" onclick="deleteUser('${user.email}')">Delete</button>`);
+            }
+            
+            return buttons.join(' ');
+        }
+
+        // Show tab
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Load data for the tab
+            loadTabData(tabName);
+        }
+
+        // Load data for specific tab
+        async function loadTabData(tabName) {
+            const loadingId = `${tabName}Loading`;
+            const tableId = `${tabName}Table`;
+            const bodyId = `${tabName}TableBody`;
+            
+            document.getElementById(loadingId).style.display = 'block';
+            document.getElementById(tableId).style.display = 'none';
+            
+            try {
+                let users;
+                if (tabName === 'all') {
+                    users = await loadUsers();
+                } else if (tabName === 'pending') {
+                    users = await loadUsers('unknown');
+                } else {
+                    users = await loadUsers(tabName);
+                }
+                
+                const tbody = document.getElementById(bodyId);
+                tbody.innerHTML = '';
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #666;">No users found</td></tr>`;
+                } else {
+                    users.forEach(user => {
+                        const row = document.createElement('tr');
+                        
+                        if (tabName === 'all') {
+                            row.innerHTML = `
+                                <td>${user.email}</td>
+                                <td>${user.name}</td>
+                                <td><span class="status-badge status-${user.status}">${user.status}</span></td>
+                                <td>${user.is_admin ? '<span class="status-badge admin-badge">Admin</span>' : 'User'}</td>
+                                <td>${formatDate(user.created_at)}</td>
+                                <td>${createActionButtons(user)}</td>
+                            `;
+                        } else if (tabName === 'approved') {
+                            row.innerHTML = `
+                                <td>${user.email}</td>
+                                <td>${user.name}</td>
+                                <td>${user.is_admin ? '<span class="status-badge admin-badge">Admin</span>' : 'User'}</td>
+                                <td>${formatDate(user.created_at)}</td>
+                                <td>${createActionButtons(user)}</td>
+                            `;
+                        } else {
+                            row.innerHTML = `
+                                <td>${user.email}</td>
+                                <td>${user.name}</td>
+                                <td>${formatDate(user.created_at)}</td>
+                                <td>${createActionButtons(user)}</td>
+                            `;
+                        }
+                        
+                        tbody.appendChild(row);
+                    });
+                }
+                
+                document.getElementById(loadingId).style.display = 'none';
+                document.getElementById(tableId).style.display = 'table';
+            } catch (error) {
+                console.error('Failed to load tab data:', error);
+                document.getElementById(loadingId).innerHTML = 'Failed to load data';
+            }
+        }
+
+        // User action functions
+        async function approveUser(email) {
+            await performAction('approve', email, `Approve user ${email}?`);
+        }
+
+        async function rejectUser(email) {
+            await performAction('reject', email, `Reject user ${email}?`);
+        }
+
+        async function promoteUser(email) {
+            await performAction('promote', email, `Promote ${email} to admin?`);
+        }
+
+        async function demoteUser(email) {
+            await performAction('demote', email, `Remove admin privileges from ${email}?`);
+        }
+
+        async function deleteUser(email) {
+            await performAction('delete', email, `Permanently delete user ${email}? This action cannot be undone.`);
+        }
+
+        // Perform action with confirmation
+        async function performAction(action, email, message) {
+            pendingAction = { action, email };
+            document.getElementById('confirmTitle').textContent = `Confirm ${action.charAt(0).toUpperCase() + action.slice(1)}`;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmModal').style.display = 'block';
+        }
+
+        // Confirm action
+        async function confirmAction() {
+            if (!pendingAction) return;
+            
+            const { action, email } = pendingAction;
+            closeModal();
+            
+            try {
+                let response;
+                switch (action) {
+                    case 'approve':
+                        response = await fetch(`/auth/admin/approve/${email}`, { method: 'POST' });
+                        break;
+                    case 'reject':
+                        response = await fetch(`/auth/admin/reject/${email}`, { method: 'POST' });
+                        break;
+                    case 'promote':
+                        response = await fetch(`/auth/admin/promote/${email}`, { method: 'POST' });
+                        break;
+                    case 'demote':
+                        response = await fetch(`/auth/admin/demote/${email}`, { method: 'POST' });
+                        break;
+                    case 'delete':
+                        response = await fetch(`/auth/admin/users/${email}`, { method: 'DELETE' });
+                        break;
+                }
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    await loadStats();
+                    await loadTabData(document.querySelector('.tab-content.active').id);
+                } else {
+                    showMessage(result.error || 'Action failed', 'error');
+                }
+            } catch (error) {
+                console.error('Action failed:', error);
+                showMessage('Action failed', 'error');
+            }
+            
+            pendingAction = null;
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+            pendingAction = null;
+        }
+
+        // Show message
+        function showMessage(message, type) {
+            const messageArea = document.getElementById('messageArea');
+            messageArea.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageArea.innerHTML = '';
+            }, 5000);
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                await fetch('/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout failed:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            await loadStats();
+            await loadTabData('pending');
+        });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('confirmModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

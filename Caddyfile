@@ -1,25 +1,39 @@
 :80 {
-    # Main landing page (default)
-    reverse_proxy landing-page:3000
+    # Auth service routes (strip /auth prefix)
+    handle_path /auth/* {
+        reverse_proxy auth-service:3001
+    }
     
-    # Auth service routes
-    reverse_proxy /auth/* auth-service:3001
+    # API routes to auth service (strip /api prefix)  
+    handle_path /api/* {
+        reverse_proxy auth-service:3001
+    }
     
     # Hello World App routes - strip /hello prefix
     handle_path /hello/* {
         reverse_proxy hello-world-app:3002
     }
+    
+    # Main landing page (default catch-all)
+    reverse_proxy landing-page:3000
 }
 
 kl-pi.tail9f5728.ts.net {
-    # Main landing page (default)
-    reverse_proxy landing-page:3000
+    # Auth service routes (strip /auth prefix)
+    handle_path /auth/* {
+        reverse_proxy auth-service:3001
+    }
     
-    # Auth service routes
-    reverse_proxy /auth/* auth-service:3001
+    # API routes to auth service (strip /api prefix)
+    handle_path /api/* {
+        reverse_proxy auth-service:3001
+    }
     
-    # Hello World App routes - strip /hello prefix  
+    # Hello World App routes - strip /hello prefix
     handle_path /hello/* {
         reverse_proxy hello-world-app:3002
     }
+    
+    # Main landing page (default catch-all)
+    reverse_proxy landing-page:3000
 }
