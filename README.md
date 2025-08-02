@@ -5,6 +5,7 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 ## 🚀 Features
 
 - **Google OAuth Authentication** with professional sign-in button following Google's design guidelines
+- **JWT Token Authentication** - secure, stateless authentication with httpOnly cookies
 - **Three-tier User Management** - approval system (unknown/approved/rejected)
 - **PostgreSQL Database** - complete user data persistence with audit trails
 - **Web Admin Panel** - full user management interface with statistics and actions
@@ -14,7 +15,7 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 - **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
 - **Caddy Reverse Proxy** - automatic SSL termination and request routing
 - **Working Inter-Service Routing** - proper path handling between services
-- **Session Management** - auto-generated session secrets with persistence
+- **JWT Token Management** - 24-hour access tokens with 7-day refresh tokens
 - **Account Switching** - forced Google account selection on login
 - **Real-time Status Checking** - users can check approval status without page refresh
 
@@ -30,8 +31,8 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 2. **Auth Service** (Port 3001)
    - Handles Google OAuth flow
    - Manages user approval states (unknown/approved/rejected)
+   - Generates and validates JWT tokens
    - Provides centralized authentication endpoints
-   - Auto-generates and persists session secrets
    - PostgreSQL database integration for user management
 
 3. **Database** (Port 5432)
@@ -43,19 +44,19 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 4. **Landing Page** (Port 3000)
    - Main entry point and navigation hub
    - Serves authentication pages (login/dashboard/pending/rejected)
-   - Proxies all auth requests to auth service
-   - Stateless design - all auth logic delegated to auth service
+   - JWT token validation and routing
+   - Stateless design with JWT-based authentication
 
 5. **Hello World App** (Port 3002)
-   - Example microservice demonstrating the authentication integration pattern
+   - Example microservice demonstrating the JWT authentication integration pattern
    - Template for creating new authenticated services
    - Accessible via `/hello/` path through reverse proxy
-   - Shows user information and provides interactive messaging
+   - Shows user information with JWT token validation
 
 ### Authentication Flow
 
 ```
-User → Caddy Proxy → Landing Page → Auth Service → Google OAuth → User Management → Appropriate Page
+User → Caddy Proxy → Landing Page → JWT Validation → Auth Service → Google OAuth → JWT Generation → Protected Routes
 ```
 
 ### Network Architecture
@@ -208,7 +209,31 @@ docker-compose restart service-name
    cd hello-world-app && npm start
    ```
 
-## 📋 Usage
+## � JWT Migration
+
+This project has been migrated from Express sessions to JWT token authentication. If you're upgrading from a previous version:
+
+### Quick Migration
+```bash
+# Run the automated migration script
+./migrate-to-jwt.sh
+```
+
+### Manual Migration Steps
+1. **Update Dependencies**: JWT packages added to all services
+2. **Rebuild Containers**: `docker-compose build --no-cache`
+3. **Environment Variables**: JWT_SECRET added to docker-compose.yml
+4. **Service Updates**: All services now use JWT middleware
+
+### Key Changes
+- **Authentication**: JWT tokens instead of Express sessions
+- **Token Storage**: Secure httpOnly cookies with automatic refresh
+- **Token Lifetime**: 24-hour access tokens, 7-day refresh tokens
+- **Stateless Services**: Independent token validation per service
+
+For detailed migration information, see `JWT-MIGRATION.md`.
+
+## �📋 Usage
 
 1. **Navigate to the landing page**: `http://localhost:3000`
 2. **Login with Google** (forced account selection)
@@ -322,7 +347,7 @@ The platform is currently deployed and accessible at:
 - No port forwarding required (Tailscale handles external access)
 - Automatic SSL certificate management
 - Containerized microservices with Docker
-- Centralized authentication with session persistence
+- JWT-based authentication with token persistence
 
 ## 🔗 API Endpoints
 
@@ -332,8 +357,9 @@ The platform is currently deployed and accessible at:
 |--------|----------|-------------|
 | GET | `/auth/google` | Initiate Google OAuth |
 | GET | `/auth/google/callback` | OAuth callback |
-| GET | `/check-auth` | Check authentication status |
-| POST | `/logout` | Logout and clear session |
+| GET | `/check-auth` | Check authentication status (legacy) |
+| POST | `/auth/refresh` | Refresh JWT tokens |
+| POST | `/logout` | Logout and clear JWT tokens |
 | GET | `/admin/users` | View all users (admin) |
 | POST | `/admin/approve/:email` | Approve user (admin) |
 | POST | `/admin/reject/:email` | Reject user (admin) |
@@ -362,8 +388,8 @@ The platform is currently deployed and accessible at:
 ```
 microservices-platform/
 ├── auth-service/              # Authentication microservice
-│   ├── data/                  # Session persistence
-│   │   └── .gitkeep          # Directory placeholder
+│   ├── data/                  # JWT secret storage
+│   │   └── jwt.secret        # JWT signing secret
 │   ├── database.js           # Database service layer
 │   ├── server.js
 │   ├── package.json
@@ -373,21 +399,29 @@ microservices-platform/
 │   │   ├── login.html
 │   │   ├── dashboard.html
 │   │   ├── pending.html
-│   │   └── rejected.html
+│   │   ├── rejected.html
+│   │   └── jwt-auth.js       # Frontend JWT utilities
 │   ├── server.js
+│   ├── jwt-middleware.js     # Local JWT middleware
 │   ├── package.json
 │   └── Dockerfile
 ├── hello-world-app/           # Example microservice
 │   ├── server.js
+│   ├── jwt-middleware.js     # Local JWT middleware
 │   ├── package.json
 │   └── Dockerfile
 ├── database/                  # Database schema and initialization
 │   └── init.sql              # PostgreSQL schema and initial data
+├── jwt-middleware.js          # Shared JWT middleware template
 ├── admin.sh                  # Database administration script
+├── migrate-to-jwt.sh         # JWT migration script
 ├── docker-compose.yml         # Multi-container orchestration
 ├── .env.example               # Environment template
+├── JWT-MIGRATION.md          # JWT migration documentation
+├── MIGRATION-SUMMARY.md      # Migration changes summary
+├── CHANGELOG.md              # Version history and changes
+├── EXAMPLE-NEW-SERVICE.js    # Template for new JWT services
 ├── .gitignore
-├── DOCKER.md                  # Docker commands reference
 └── README.md
 ```
 
@@ -420,7 +454,7 @@ microservices-platform/
 ### File Persistence
 
 - PostgreSQL database data persists in Docker volume `postgres_data`
-- Session secrets persist in `auth-service/data/` directory
+- JWT secrets persist in `auth-service/data/jwt.secret` file
 - Docker volumes ensure data survives container restarts
 - Database includes automatic backups and audit trails
 
@@ -428,7 +462,7 @@ microservices-platform/
 
 ### Production Considerations
 
-- Set secure session secrets in production
+- Set secure JWT secrets in production
 - Use environment-specific Google OAuth credentials
 - Configure proper reverse proxy (nginx)
 - Set up SSL/TLS certificates
@@ -462,7 +496,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 - **OAuth not working**: Check Google Cloud Console configuration
 - **Services not communicating**: Verify Docker network and service names
-- **Session issues**: Check if session.secret file exists and is readable
+- **JWT token issues**: Check if jwt.secret file exists and JWT_SECRET environment variable is set
 - **Port conflicts**: Ensure ports 3000-3002 are available
 
 ### Debug Commands

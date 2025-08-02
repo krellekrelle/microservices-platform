@@ -3,6 +3,8 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -12,23 +14,23 @@ require('dotenv').config();
 // Initialize database service
 const db = new DatabaseService();
 
-// Generate or load session secret
-async function getSessionSecret() {
+// Generate or load JWT secret
+async function getJWTSecret() {
   // If explicitly set in .env and not the default, use it
-  if (process.env.SESSION_SECRET && process.env.SESSION_SECRET !== 'your-secure-session-secret-here') {
-    return process.env.SESSION_SECRET;
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET !== 'your-jwt-secret-here') {
+    return process.env.JWT_SECRET;
   }
   
-  const secretFile = path.join(__dirname, 'data', 'session.secret');
+  const secretFile = path.join(__dirname, 'data', 'jwt.secret');
   
   try {
     // Try to load existing secret
     const existingSecret = await fs.readFile(secretFile, 'utf8');
-    console.log('✅ Loaded existing session secret');
+    console.log('✅ Loaded existing JWT secret');
     return existingSecret.trim();
   } catch (error) {
     // Generate new secret if file doesn't exist
-    const generatedSecret = crypto.randomBytes(32).toString('hex');
+    const generatedSecret = crypto.randomBytes(64).toString('hex');
     
     // Ensure data directory exists
     await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
@@ -36,8 +38,8 @@ async function getSessionSecret() {
     // Save the secret
     await fs.writeFile(secretFile, generatedSecret);
     
-    console.log('🔑 Generated and saved new session secret');
-    console.log('💡 Secret saved to data/session.secret and will persist across restarts');
+    console.log('� Generated and saved new JWT secret');
+    console.log('💡 Secret saved to data/jwt.secret and will persist across restarts');
     
     return generatedSecret;
   }
@@ -45,6 +47,77 @@ async function getSessionSecret() {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// JWT utility functions
+let JWT_SECRET;
+
+const generateTokens = (user) => {
+  const payload = {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    status: user.status,
+    isAdmin: user.is_admin || false,
+    profilePicture: user.profile_picture_url
+  };
+
+  const accessToken = jwt.sign(payload, JWT_SECRET, {
+    expiresIn: '24h',
+    issuer: 'microservices-platform',
+    audience: 'platform-services'
+  });
+
+  const refreshToken = jwt.sign(
+    { id: user.id, type: 'refresh' },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  return { accessToken, refreshToken };
+};
+
+const verifyToken = (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET, {
+      issuer: 'microservices-platform',
+      audience: 'platform-services'
+    });
+  } catch (error) {
+    return null;
+  }
+};
+
+// JWT Middleware
+const authenticateJWT = (req, res, next) => {
+  const token = req.cookies['auth-token'];
+  
+  if (!token) {
+    return res.status(401).json({ 
+      authenticated: false, 
+      error: 'No token provided' 
+    });
+  }
+
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    res.clearCookie('auth-token');
+    res.clearCookie('refresh-token');
+    return res.status(401).json({ 
+      authenticated: false, 
+      error: 'Invalid or expired token' 
+    });
+  }
+
+  req.user = decoded;
+  next();
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.user?.isAdmin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
 
 // Initialize application
 async function initializeApp() {
@@ -56,10 +129,10 @@ async function initializeApp() {
       process.exit(1);
     }
 
-    // Get session secret
-    const sessionSecret = await getSessionSecret();
+    // Get JWT secret
+    JWT_SECRET = await getJWTSecret();
     
-    // Ensure data directory exists (for session.secret file)
+    // Ensure data directory exists
     await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
 
     // Middleware
@@ -74,16 +147,18 @@ async function initializeApp() {
     }));
 
     app.use(express.json());
+    app.use(cookieParser());
+    
+    // Keep minimal session for OAuth state only
     app.use(session({
-      secret: sessionSecret,
+      secret: 'oauth-state-secret',
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: false, // Set to true in production with HTTPS
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        path: '/', // Ensure cookies work across all paths
-        httpOnly: true, // Security: prevent XSS access to cookies
-        sameSite: 'lax' // Allow cookies to be sent with cross-site requests
+        secure: false,
+        maxAge: 10 * 60 * 1000, // 10 minutes for OAuth flow only
+        httpOnly: true,
+        sameSite: 'lax'
       }
     }));
 
@@ -106,12 +181,12 @@ async function initializeApp() {
       }
     }));
 
-    // Serialize user for session
+    // Serialize user for OAuth session (temporary)
     passport.serializeUser((user, done) => {
       done(null, user.id);
     });
 
-    // Deserialize user from session
+    // Deserialize user from OAuth session (temporary)
     passport.deserializeUser(async (id, done) => {
       try {
         const user = await db.getUserById(id);
@@ -138,12 +213,35 @@ async function initializeApp() {
       prompt: 'select_account' // Force account selection
     }));
 
-    // Google OAuth callback
+    // Google OAuth callback - now generates JWT tokens
     app.get('/google/callback',
       passport.authenticate('google', { failureRedirect: '/failure' }),
       (req, res) => {
         const user = req.user;
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        
+        // Generate JWT tokens
+        const { accessToken, refreshToken } = generateTokens(user);
+        
+        // Set JWT tokens as httpOnly cookies
+        res.cookie('auth-token', accessToken, {
+          httpOnly: true,
+          secure: false, // Set to true in production with HTTPS
+          sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000, // 24 hours
+          path: '/'
+        });
+        
+        res.cookie('refresh-token', refreshToken, {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          path: '/'
+        });
+        
+        // Clear OAuth session (no longer needed)
+        req.session.destroy();
         
         // Redirect based on user status
         switch (user.status) {
@@ -164,69 +262,126 @@ async function initializeApp() {
       res.status(401).json({ error: 'Authentication failed' });
     });
 
-    // Check authentication status
+    // Check authentication status (JWT-based)
     app.get('/check-auth', async (req, res) => {
-      if (req.isAuthenticated()) {
-        // Get fresh user data from database
-        const user = await db.getUserById(req.user.id);
+      const token = req.cookies['auth-token'];
+      
+      if (!token) {
+        return res.json({ authenticated: false });
+      }
+
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        res.clearCookie('auth-token');
+        res.clearCookie('refresh-token');
+        return res.json({ authenticated: false });
+      }
+
+      // Get fresh user data from database to ensure status is current
+      try {
+        const user = await db.getUserById(decoded.id);
+        const freshPayload = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          status: user.status,
+          isAdmin: user.is_admin,
+          profilePicture: user.profile_picture_url
+        };
+
+        res.json({
+          authenticated: true,
+          user: freshPayload
+        });
+      } catch (error) {
+        console.error('Error fetching fresh user data:', error);
         res.json({
           authenticated: true,
           user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            status: user.status,
-            isAdmin: user.is_admin,
-            profilePicture: user.profile_picture_url
+            id: decoded.id,
+            email: decoded.email,
+            name: decoded.name,
+            status: decoded.status,
+            isAdmin: decoded.isAdmin,
+            profilePicture: decoded.profilePicture
           }
         });
-      } else {
-        res.json({ authenticated: false });
       }
     });
 
-    // Logout
+    // Logout (JWT-based)
     app.post('/logout', (req, res) => {
-      req.logout((err) => {
-        if (err) {
-          return res.status(500).json({ error: 'Logout failed' });
+      res.clearCookie('auth-token');
+      res.clearCookie('refresh-token');
+      res.json({ message: 'Logged out successfully' });
+    });
+
+    // API endpoint to get current user info (JWT-based)
+    app.get('/user', authenticateJWT, (req, res) => {
+      res.json({
+        authenticated: true,
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          name: req.user.name,
+          photo: req.user.profilePicture,
+          status: req.user.status,
+          isAdmin: req.user.isAdmin
         }
-        req.session.destroy((err) => {
-          if (err) {
-            return res.status(500).json({ error: 'Session destruction failed' });
-          }
-          res.clearCookie('connect.sid');
-          res.json({ message: 'Logged out successfully' });
-        });
       });
     });
 
-    // API endpoint to get current user info
-    app.get('/user', (req, res) => {
-      if (req.isAuthenticated()) {
-        res.json({
-          authenticated: true,
-          user: {
-            id: req.user.id,
-            email: req.user.email,
-            name: req.user.name,
-            photo: req.user.photo,
-            status: req.user.status,
-            isAdmin: req.user.is_admin || false
-          }
+    // JWT token refresh endpoint
+    app.post('/refresh', (req, res) => {
+      const refreshToken = req.cookies['refresh-token'];
+      
+      if (!refreshToken) {
+        return res.status(401).json({ error: 'No refresh token provided' });
+      }
+
+      try {
+        const decoded = jwt.verify(refreshToken, JWT_SECRET);
+        
+        if (decoded.type !== 'refresh') {
+          return res.status(401).json({ error: 'Invalid refresh token' });
+        }
+
+        // Get fresh user data and generate new tokens
+        db.getUserById(decoded.id).then(user => {
+          const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
+          
+          res.cookie('auth-token', accessToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/'
+          });
+          
+          res.cookie('refresh-token', newRefreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/'
+          });
+          
+          res.json({ message: 'Tokens refreshed successfully' });
+        }).catch(error => {
+          console.error('Error refreshing tokens:', error);
+          res.status(500).json({ error: 'Failed to refresh tokens' });
         });
-      } else {
-        res.json({
-          authenticated: false,
-          user: null
-        });
+        
+      } catch (error) {
+        res.clearCookie('refresh-token');
+        res.status(401).json({ error: 'Invalid refresh token' });
       }
     });
 
-    // Admin routes
+    // Admin routes - now using JWT middleware
 
     // Get all users (admin only)
-    app.get('/admin/users', requireAdmin, async (req, res) => {
+    app.get('/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const users = await db.getAllUsers();
         res.json(users);
@@ -237,7 +392,7 @@ async function initializeApp() {
     });
 
     // Get users by status (admin only)
-    app.get('/admin/users/:status', requireAdmin, async (req, res) => {
+    app.get('/admin/users/:status', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { status } = req.params;
         if (!['unknown', 'approved', 'rejected'].includes(status)) {
@@ -253,7 +408,7 @@ async function initializeApp() {
     });
 
     // Approve user (admin only)
-    app.post('/admin/approve/:email', requireAdmin, async (req, res) => {
+    app.post('/admin/approve/:email', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { email } = req.params;
         const adminId = req.user.id;
@@ -278,7 +433,7 @@ async function initializeApp() {
     });
 
     // Reject user (admin only)
-    app.post('/admin/reject/:email', requireAdmin, async (req, res) => {
+    app.post('/admin/reject/:email', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { email } = req.params;
         const adminId = req.user.id;
@@ -303,7 +458,7 @@ async function initializeApp() {
     });
 
     // Get user status history (admin only)
-    app.get('/admin/users/:id/history', requireAdmin, async (req, res) => {
+    app.get('/admin/users/:id/history', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const history = await db.getUserStatusHistory(id);
@@ -315,7 +470,7 @@ async function initializeApp() {
     });
 
     // Delete user (admin only)
-    app.delete('/admin/users/:email', requireAdmin, async (req, res) => {
+    app.delete('/admin/users/:email', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { email } = req.params;
         const adminId = req.user.id;
@@ -344,7 +499,7 @@ async function initializeApp() {
     });
 
     // Promote user to admin (admin only)
-    app.post('/admin/promote/:email', requireAdmin, async (req, res) => {
+    app.post('/admin/promote/:email', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { email } = req.params;
         const adminId = req.user.id;
@@ -369,7 +524,7 @@ async function initializeApp() {
     });
 
     // Demote admin to user (admin only)
-    app.post('/admin/demote/:email', requireAdmin, async (req, res) => {
+    app.post('/admin/demote/:email', authenticateJWT, requireAdmin, async (req, res) => {
       try {
         const { email } = req.params;
         const adminId = req.user.id;
@@ -398,19 +553,6 @@ async function initializeApp() {
       }
     });
 
-    // Middleware functions
-    function requireAdmin(req, res, next) {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-      
-      if (!req.user.is_admin) {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
-      
-      next();
-    }
-
     console.log('✅ Routes registered successfully');
 
     // Error handling middleware
@@ -428,7 +570,8 @@ async function initializeApp() {
     app.listen(PORT, () => {
       console.log(`🚀 Auth service running on port ${PORT}`);
       console.log(`📊 Database: Connected to PostgreSQL`);
-      console.log(`🔐 Admin user: klarsen1997@gmail.com`);
+      console.log(`🔐 JWT-based authentication enabled`);
+      console.log(`🔑 Admin user: klarsen1997@gmail.com`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 

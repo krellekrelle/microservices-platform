@@ -6,42 +6,49 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3001';
 
 // Initialize JWT middleware
 const jwtMiddleware = new JWTMiddleware();
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(cookieParser());
 
-// Helper function to check auth via JWT
-const checkAuthJWT = (req) => {
-  const token = req.cookies['auth-token'];
-  
-  if (!token) {
-    return {
-      authenticated: false,
-      redirectTo: '/',
-      page: 'login'
-    };
-  }
-
-  const decoded = jwtMiddleware.verifyToken(token);
-  if (!decoded) {
-    return {
-      authenticated: false,
-      redirectTo: '/',
-      page: 'login'
-    };
-  }
-
-  return {
-    authenticated: true,
-    user: decoded
-  };
-};
-
 // Initialize the app
+async function initializeApp() {
+  try {
+    // Initialize JWT middleware
+    await jwtMiddleware.initialize();
+    console.log('✅ JWT middleware initialized');
+
+    // Helper function to check auth via JWT
+    const checkAuthJWT = (req) => {
+      const token = req.cookies['auth-token'];
+      
+      if (!token) {
+        return {
+          authenticated: false,
+          redirectTo: '/',
+          page: 'login'
+        };
+      }
+
+      const decoded = jwtMiddleware.verifyToken(token);
+      if (!decoded) {
+        return {
+          authenticated: false,
+          redirectTo: '/',
+          page: 'login'
+        };
+      }
+
+      return {
+        authenticated: true,
+        user: decoded
+      };
+    };
 async function initializeApp() {
   try {
     // Initialize JWT middleware

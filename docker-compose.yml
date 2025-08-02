@@ -36,6 +36,7 @@ services:
     environment:
       - PORT=3001
       - SESSION_SECRET=dev-secret-key-change-in-production
+      - JWT_SECRET=7aa5c54ef4656dc9141d86d0448995227515021093db7bad9c10a085bef3b00fab31da0e2bdde0a55b481a66f233127f3c74eeb9cb035595bbfa6f5e478795fd
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
@@ -54,6 +55,7 @@ services:
     build: ./landing-page
     environment:
       - PORT=3000
+      - JWT_SECRET=7aa5c54ef4656dc9141d86d0448995227515021093db7bad9c10a085bef3b00fab31da0e2bdde0a55b481a66f233127f3c74eeb9cb035595bbfa6f5e478795fd
       - AUTH_SERVICE_URL=http://auth-service:3001
       - HELLO_WORLD_URL=http://hello-world-app:3002
       - CHAT_APP_URL=http://localhost:3003
@@ -70,6 +72,7 @@ services:
     build: ./hello-world-app
     environment:
       - PORT=3002
+      - JWT_SECRET=7aa5c54ef4656dc9141d86d0448995227515021093db7bad9c10a085bef3b00fab31da0e2bdde0a55b481a66f233127f3c74eeb9cb035595bbfa6f5e478795fd
       - AUTH_SERVICE_URL=http://auth-service:3001
       - FRONTEND_URL=https://kl-pi.tail9f5728.ts.net
     depends_on:

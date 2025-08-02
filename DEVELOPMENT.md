@@ -56,6 +56,14 @@
 - **API Endpoints**: RESTful admin API with proper authentication
 - **Container Rebuild Issues Discovered**: Critical lesson about Docker caching
 
+### Phase 9: JWT Authentication Migration (August 2025)
+- **JWT Token Implementation**: Migrated from Express sessions to JWT tokens
+- **Stateless Authentication**: Services now validate tokens independently
+- **Token Storage**: HttpOnly cookies with 24-hour access tokens and 7-day refresh tokens
+- **Shared JWT Middleware**: Created reusable JWT validation module for all services
+- **Docker Environment Integration**: JWT secrets shared via environment variables
+- **Migration Script**: Automated migration process with comprehensive documentation
+
 ## ⚠️ Critical Development Lessons
 
 ### Container Rebuilding Requirements
@@ -113,9 +121,9 @@ All services → auth-service → Google OAuth → User Management
 - **Implementation**: All services call `/check-auth` endpoint
 
 ### 2. Stateless Service Design
-- **auth-service**: Stateful (manages sessions, user data)
-- **landing-page**: Stateless (proxies all auth decisions)
-- **hello-world-app**: Stateless (example service pattern)
+- **auth-service**: Stateful (manages JWT tokens, user data)
+- **landing-page**: Stateless (JWT token validation)
+- **hello-world-app**: Stateless (JWT token validation)
 
 ### 3. Container-First Development
 - Each service runs in isolated Docker container
@@ -127,9 +135,9 @@ All services → auth-service → Google OAuth → User Management
 ### Core Technologies
 - **Backend**: Node.js 18 with Express
 - **Database**: PostgreSQL 16 Alpine with persistent volumes
-- **Authentication**: Passport.js with Google OAuth 2.0
+- **Authentication**: Passport.js with Google OAuth 2.0 and JWT tokens
 - **Containerization**: Docker & Docker Compose
-- **Session Management**: express-session with PostgreSQL store
+- **Token Management**: JWT with httpOnly cookies and automatic refresh
 - **Reverse Proxy**: Caddy v2 with automatic HTTPS
 - **Frontend**: Vanilla HTML/CSS/JavaScript with modern UI components
 
