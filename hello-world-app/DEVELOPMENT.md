@@ -40,7 +40,7 @@ const checkAuth = async (req, res, next) => {
         
         const authData = await authResponse.json();
         
-        if (!authData.authenticated || authData.userStatus !== 'approved') {
+        if (!authData.authenticated || authData.status !== 'approved') {
             return res.redirect(process.env.FRONTEND_URL);
         }
         
@@ -55,7 +55,7 @@ const checkAuth = async (req, res, next) => {
 
 **Key Principles**:
 - Always forward cookies to auth-service
-- Check both `authenticated` and `userStatus` 
+- Check both `authenticated` and `status` (not `userStatus`)
 - Redirect unauthorized users to landing page
 - Attach user data to request for downstream use
 
@@ -103,7 +103,7 @@ app.post('/api/data', checkAuth, (req, res) => {
 ## 🔄 Business Logic Flow
 
 ### Request Processing Flow
-1. User requests `http://localhost:3002/`
+1. User requests `https://kl-pi.tail9f5728.ts.net/hello/`
 2. Express middleware `checkAuth` executes
 3. Auth check calls `auth-service:3001/check-auth`
 4. Auth-service validates session and returns user status
@@ -145,7 +145,7 @@ networks:
 ### Required Variables
 ```env
 AUTH_SERVICE_URL=http://auth-service:3001
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=https://kl-pi.tail9f5728.ts.net
 ```
 
 ### Variable Usage
@@ -265,10 +265,10 @@ docker exec -it hello-world-app-container env | grep -E "(AUTH_SERVICE_URL|FRONT
 ### Manual Testing
 ```bash
 # Test without authentication (should redirect)
-curl -I http://localhost:3002/
+curl -I https://kl-pi.tail9f5728.ts.net/hello/
 
 # Test with valid session cookie
-curl -b "session-cookie=value" http://localhost:3002/
+curl -b "session-cookie=value" https://kl-pi.tail9f5728.ts.net/hello/
 ```
 
 ### Integration Testing
@@ -313,7 +313,7 @@ describe('Hello World App', () => {
        - "3003:3003"  # New port
      environment:
        - AUTH_SERVICE_URL=http://auth-service:3001
-       - FRONTEND_URL=http://localhost:3000
+       - FRONTEND_URL=https://kl-pi.tail9f5728.ts.net
    ```
 
 4. **Modify server.js**:
@@ -332,7 +332,7 @@ When creating new services based on hello-world-app:
 
 - [ ] Copy `checkAuth` middleware exactly
 - [ ] Forward cookies to auth-service correctly
-- [ ] Check both `authenticated` and `userStatus`
+- [ ] Check both `authenticated` and `status` (not `userStatus`)
 - [ ] Redirect unauthorized users to landing page
 - [ ] Add service to docker-compose.yml
 - [ ] Update landing-page dashboard with new service link

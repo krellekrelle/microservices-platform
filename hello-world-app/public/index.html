@@ -76,6 +76,7 @@
     <div class="container">
         <div class="icon">👋</div>
         <h1>Hello World Application</h1>
+        <div id="userInfo" style="margin-bottom: 1rem; font-size: 1.1rem; opacity: 0.9;"></div>
         <div id="message">Click the button to get a greeting!</div>
         <div class="timestamp" id="timestamp"></div>
         
@@ -85,12 +86,18 @@
 
     <script>
         function getMessage() {
-            fetch('/api/message')
+            fetch('./api/message')
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('message').textContent = data.message;
                     document.getElementById('timestamp').textContent = 
                         `Last updated: ${new Date(data.timestamp).toLocaleString()}`;
+                    
+                    // Display user info if available
+                    if (data.user) {
+                        document.getElementById('userInfo').innerHTML = 
+                            `Welcome, <strong>${data.user.name}</strong>!`;
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -99,7 +106,7 @@
         }
 
         function goBack() {
-            window.location.href = 'http://localhost:3000/dashboard';
+            window.location.href = '/';
         }
 
         // Load initial message

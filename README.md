@@ -4,11 +4,13 @@ A microservices-based application suite with Google OAuth authentication, design
 
 ## 🚀 Features
 
-- **Google OAuth Authentication** with three-tier approval system (unknown/approved/rejected)
+- **Google OAuth Authentication** with professional sign-in button following Google's design guidelines
+- **Three-tier User Management** - approval system (unknown/approved/rejected)
 - **Microservices Architecture** with Docker containerization
 - **Centralized Authentication** - all auth logic handled by dedicated auth service
 - **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
 - **Caddy Reverse Proxy** - automatic SSL termination and request routing
+- **Working Inter-Service Routing** - proper path handling between services
 - **User Management** - file-based user approval system for admins
 - **Session Management** - auto-generated session secrets with persistence
 - **Account Switching** - forced Google account selection on login
@@ -36,8 +38,10 @@ A microservices-based application suite with Google OAuth authentication, design
    - Stateless design - all auth logic delegated to auth service
 
 4. **Hello World App** (Port 3002)
-   - Example microservice demonstrating the architecture
-   - Shows how to integrate with the auth system
+   - Example microservice demonstrating the authentication integration pattern
+   - Template for creating new authenticated services
+   - Accessible via `/hello/` path through reverse proxy
+   - Shows user information and provides interactive messaging
 
 ### Authentication Flow
 
@@ -212,8 +216,15 @@ The platform is currently deployed and accessible at:
 - **Platform**: Raspberry Pi 4
 - **Network**: Tailscale Funnel (bypasses CGNAT)
 - **SSL**: Automatic HTTPS via Caddy
-- **Authentication**: Google OAuth 2.0
+- **Authentication**: Google OAuth 2.0 with professional sign-in button
+- **Routing**: Fully functional inter-service communication
 - **Status**: ✅ Fully Operational
+
+### Recent Updates (August 2025)
+- ✅ **Professional Google Sign-in Button** - Official Google "G" logo with proper branding
+- ✅ **Working Service Routing** - Hello World app accessible via dashboard
+- ✅ **Authentication Integration** - Proper auth checks across all services
+- ✅ **Path Handling** - Correct Caddy reverse proxy configuration with path stripping
 
 ### Architecture Highlights
 - No port forwarding required (Tailscale handles external access)
@@ -239,9 +250,20 @@ The platform is currently deployed and accessible at:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Main landing page |
-| GET | `/check-auth` | Check auth (proxy to auth service) |
+| GET | `/` | Main landing page (login or dashboard) |
+| GET | `/api/user` | Get user info (proxy to auth service) |
+| GET | `/api/status` | Check auth status (proxy to auth service) |
 | POST | `/logout` | Logout (proxy to auth service) |
+
+### Hello World App (Port 3002)
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| GET | `/` | Hello World application | Yes (approved users) |
+| GET | `/api/message` | Get random greeting message | Yes (approved users) |
+| GET | `/health` | Service health check | No |
+
+**Access via Reverse Proxy**: `https://kl-pi.tail9f5728.ts.net/hello/`
 
 ## 📁 Project Structure
 

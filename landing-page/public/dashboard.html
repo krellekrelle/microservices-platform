@@ -94,6 +94,13 @@
         .app-btn:hover {
             background: #218838;
         }
+        .app-btn.disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .app-btn.disabled:hover {
+            background: #6c757d;
+        }
     </style>
 </head>
 <body>
@@ -114,21 +121,21 @@
                 <div class="app-icon">👋</div>
                 <h3 class="app-title">Hello World</h3>
                 <p class="app-description">A simple greeting application to test the setup.</p>
-                <a href="http://localhost:3002" class="app-btn" target="_blank">Open Hello World</a>
+                <a href="/hello/" class="app-btn" target="_blank">Open Hello World</a>
             </div>
             
             <div class="app-card">
                 <div class="app-icon">💬</div>
                 <h3 class="app-title">Chat Application</h3>
                 <p class="app-description">Real-time chat where all users can communicate.</p>
-                <a href="http://localhost:3003" class="app-btn" target="_blank">Open Chat</a>
+                <a href="#" class="app-btn disabled" onclick="alert('Chat service coming soon!')">Coming Soon</a>
             </div>
             
             <div class="app-card">
                 <div class="app-icon">⚙️</div>
                 <h3 class="app-title">Admin Panel</h3>
                 <p class="app-description">Manage user access and application settings.</p>
-                <a href="http://localhost:3001/admin/users" class="app-btn" target="_blank">Open Admin</a>
+                <a href="/auth/admin/users" class="app-btn" target="_blank">Open Admin</a>
             </div>
         </div>
     </div>
@@ -146,7 +153,7 @@
             .catch(error => console.error('Error loading user data:', error));
 
         function logout() {
-            fetch('http://localhost:3001/auth/logout', {
+            fetch('/auth/logout', {
                 method: 'POST',
                 credentials: 'include'
             })

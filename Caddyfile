@@ -6,7 +6,9 @@
     reverse_proxy /auth/* auth-service:3001
     
     # Hello World App routes - strip /hello prefix
-    reverse_proxy /hello/* hello-world-app:3002
+    handle_path /hello/* {
+        reverse_proxy hello-world-app:3002
+    }
 }
 
 kl-pi.tail9f5728.ts.net {
@@ -17,5 +19,7 @@ kl-pi.tail9f5728.ts.net {
     reverse_proxy /auth/* auth-service:3001
     
     # Hello World App routes - strip /hello prefix  
-    reverse_proxy /hello/* hello-world-app:3002
+    handle_path /hello/* {
+        reverse_proxy hello-world-app:3002
+    }
 }
