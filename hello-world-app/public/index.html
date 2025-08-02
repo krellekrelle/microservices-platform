@@ -86,7 +86,9 @@
 
     <script>
         function getMessage() {
-            fetch('./api/message')
+            fetch('./api/message', {
+                credentials: 'include'
+            })
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('message').textContent = data.message;
@@ -106,7 +108,7 @@
         }
 
         function goBack() {
-            window.location.href = '/';
+            window.location.href = '/dashboard.html';
         }
 
         // Load initial message
