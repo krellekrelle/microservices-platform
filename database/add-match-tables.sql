@@ -18,6 +18,7 @@ CREATE TABLE lol_matches (
     map_id INTEGER, -- MapId
     queue_id INTEGER, -- QueueId
     platform_id VARCHAR(10), -- PlatformId
+    fines_calculated BOOLEAN DEFAULT FALSE, -- Track if fines have been calculated for this match
     loaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
