@@ -29,7 +29,50 @@ auth-service/
 └── .env                  # Environment configuration
 ```
 
-## 💾 Database Architecture
+## � Development Commands
+
+### Docker Management
+```bash
+# Rebuild and restart auth service
+docker compose up auth-service --build -d
+
+# View auth service logs
+docker compose logs -f auth-service
+
+# Stop auth service
+docker compose stop auth-service
+
+# Full rebuild (if having issues)
+docker compose down
+docker compose up auth-service --build -d
+```
+
+### Database Access
+```bash
+# Connect to PostgreSQL database
+docker exec -it microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+
+# Check users table
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM users;"
+
+# Check approved users
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM users WHERE status = 'approved';"
+
+# Check user status changes audit
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM user_status_changes ORDER BY changed_at DESC LIMIT 10;"
+
+# Count users by status
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT status, COUNT(*) FROM users GROUP BY status;"
+```
+
+### Database Credentials
+- **Configuration**: Database credentials are defined in `docker-compose.yml`
+- **Development**: Check the `database` service environment variables
+- **Production**: Use secure credentials via environment variables or secrets management
+- **Host**: `database` (within Docker network)
+- **Port**: 5432
+
+## �💾 Database Architecture
 
 ### Tables
 - **users**: Core user data with Google OAuth profile

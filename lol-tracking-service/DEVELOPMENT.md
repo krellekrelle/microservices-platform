@@ -25,7 +25,62 @@ lol-tracking-service/
 └── DEVELOPMENT.md        # This documentation
 ```
 
-## 🔧 Core Functionality
+## � Development Commands
+
+### Docker Management
+```bash
+# Rebuild and restart lol-tracking service
+docker compose up lol-tracking-service --build -d
+
+# View service logs
+docker compose logs -f lol-tracking-service
+
+# Stop service
+docker compose stop lol-tracking-service
+
+# Full rebuild (if having issues)
+docker compose down
+docker compose up lol-tracking-service --build -d
+```
+
+### Database Access
+```bash
+# Connect to PostgreSQL database
+docker exec -it microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+
+# Check riot accounts
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM riot_accounts;"
+
+# Check matches count
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT COUNT(*) as total_matches FROM lol_matches;"
+
+# Check matches with known users
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM lol_matches_with_users LIMIT 10;"
+
+# Check fines
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM lol_fines ORDER BY date DESC LIMIT 10;"
+
+# Database structure overview
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "\dt lol*"
+```
+
+### Database Credentials
+- **Configuration**: Database credentials are defined in `docker-compose.yml`
+- **Development**: Check the `database` service environment variables
+- **Production**: Use secure credentials via environment variables
+- **Host**: `database` (within Docker network)
+- **Port**: 5432
+
+### API Testing
+```bash
+# Test service health
+curl http://localhost:3003/health
+
+# Test via reverse proxy
+curl https://kl-pi.tail9f5728.ts.net/lol/health
+```
+
+## �🔧 Core Functionality
 
 ### 1. Authentication Integration
 ```javascript
@@ -107,7 +162,7 @@ Response:
 # Service Configuration
 PORT=3003
 AUTH_SERVICE_URL=http://auth-service:3001
-DATABASE_URL=postgresql://app_user:password@database:5432/microservices_platform
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
 
 # Riot Games API
 RIOT_API_KEY=your_riot_api_key_here
@@ -155,7 +210,7 @@ lol-tracking-service:
   environment:
     - PORT=3003
     - AUTH_SERVICE_URL=http://auth-service:3001
-    - DATABASE_URL=postgresql://app_user:password@database:5432/microservices_platform
+    - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
     - RIOT_API_KEY=${RIOT_API_KEY}
   depends_on:
     - auth-service

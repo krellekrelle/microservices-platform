@@ -109,13 +109,33 @@
 **Solutions**:
 ```bash
 # Always rebuild containers after code changes
-docker-compose build service-name --no-cache
-docker-compose up -d service-name
+docker compose up service-name --build -d
 
 # For major issues, full rebuild
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+
+# Specific service rebuild examples
+docker compose up auth-service --build -d
+docker compose up lol-tracking-service --build -d
+docker compose up landing-page --build -d
+docker compose up hello-world-app --build -d
+```
+
+**Database Access**:
+```bash
+# Connect to PostgreSQL database
+docker exec -it microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+
+# Example database queries (replace with actual credentials from docker-compose.yml)
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT COUNT(*) as total_matches FROM lol_matches;"
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT COUNT(*) as total_users FROM users;"
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM users WHERE status = 'approved';"
+
+# Database credentials are defined in docker-compose.yml under the database service
+# Check docker-compose.yml for current development credentials
+# For production: Use secure credentials and environment variables
 ```
 
 **Browser Caching**: Also use hard refresh (Ctrl+F5) or incognito mode when testing changes.
@@ -187,7 +207,7 @@ BASE_URL=https://kl-pi.tail9f5728.ts.net
 AUTH_SERVICE_URL=http://auth-service:3001
 
 # Database Configuration
-DATABASE_URL=postgresql://app_user:secure_password_change_in_production@database:5432/microservices_platform
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
 
 # Riot Games API (for LoL tracking service)
 RIOT_API_KEY=<your-riot-development-api-key>

@@ -25,7 +25,37 @@ hello-world-app/
 └── DEVELOPMENT.md        # This file
 ```
 
-## 🔧 Core Functionality
+## � Development Commands
+
+### Docker Management
+```bash
+# Rebuild and restart hello-world-app
+docker compose up hello-world-app --build -d
+
+# View service logs
+docker compose logs -f hello-world-app
+
+# Stop service
+docker compose stop hello-world-app
+
+# Full rebuild (if having issues)
+docker compose down
+docker compose up hello-world-app --build -d
+```
+
+### Testing
+```bash
+# Test service health
+curl http://localhost:3002/
+
+# Test via reverse proxy
+curl https://kl-pi.tail9f5728.ts.net/hello/
+
+# Test authentication flow (requires browser)
+open https://kl-pi.tail9f5728.ts.net/hello/
+```
+
+## �🔧 Core Functionality
 
 ### 1. Authentication Integration Pattern
 ```javascript

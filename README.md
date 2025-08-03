@@ -4,7 +4,35 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 
 ## 🚀 Features
 
-- **G## 📋 Usage
+- **Google OAuth Authentication** with professional sign-in button following Google's design guidelines
+- **JWT Token Authentication** - secure, stateless authentication with httpOnly cookies
+- **Three-tier User Management** - approval system (unknown/approved/rejected)
+- **PostgreSQL Database** - complete user data persistence with audit trails
+- **Web Admin Panel** - full user management interface with statistics and actions
+- **CLI Admin Tools** - command-line interface for user management and database operations
+- **League of Legends Integration** - Riot Games API integration for account tracking and match loading
+- **Admin Analytics** - comprehensive overview of linked accounts across all users
+- **Microservices Architecture** with Docker containerization
+- **Centralized Authentication** - all auth logic handled by dedicated auth service
+- **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
+- **Caddy Reverse Proxy** - automatic SSL termination and request routing
+- **Working Inter-Service Routing** - proper path handling between services
+- **JWT Token Management** - 24-hour access tokens with 7-day refresh tokens
+- **Account Switching** - forced Google account selection on login
+- **Real-time Status Checking** - users can check approval status without page refresh
+
+## 🎯 Current Status (August 2025)
+
+**Latest Updates**:
+- ✅ **Match Loading System**: Complete match data loading and management for League of Legends
+- ✅ **Summoner Name Display**: Fixed fine displays to show LoL summoner names instead of real names
+- ✅ **Delete All Functionality**: Admin can delete all matches with proper confirmation
+- ✅ **Routing Fix**: Corrected Express.js route order for proper endpoint matching
+- ✅ **Database Integration**: All LoL data properly stored with foreign key relationships
+
+**Production Ready**: All core features functional with proper error handling and user feedback.
+
+## 📋 Usage
 
 1. **Navigate to the landing page**: `http://localhost:3000`
 2. **Login with Google** (forced account selection)
@@ -175,17 +203,21 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
 
 1. **Start all services**
    ```bash
-   docker-compose up --build -d
+   docker compose up --build -d
    ```
 
 2. **Check service status**
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 3. **View logs**
    ```bash
-   docker-compose logs -f
+   docker compose logs -f
+   
+   # View specific service logs
+   docker compose logs -f auth-service
+   docker compose logs -f lol-tracking-service
    ```
 
 4. **Access the application**
@@ -194,7 +226,7 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
 
 5. **Stop services**
    ```bash
-   docker-compose down
+   docker compose down
    ```
 
 ### ⚠️ Important: Container Rebuilding
@@ -202,18 +234,43 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
 **When making code changes, containers must be rebuilt to reflect changes!**
 
 ```bash
-# Rebuild and restart specific service
-docker-compose build auth-service --no-cache
-docker-compose up -d auth-service
+# Rebuild and restart specific service (CORRECT COMMAND)
+docker compose up auth-service --build -d
+docker compose up lol-tracking-service --build -d
+docker compose up landing-page --build -d
+docker compose up hello-world-app --build -d
 
 # For major changes or persistent issues, rebuild without cache
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 
 # Quick restart (for minor changes)
-docker-compose restart service-name
+docker compose restart service-name
 ```
+
+### Database Access
+
+**Database Credentials**: 
+- Credentials are configured via environment variables in `docker-compose.yml`
+- For development: Check the `database` service environment in `docker-compose.yml`
+- For production: Use secure credentials and proper secrets management
+
+```bash
+# Connect to PostgreSQL database (use credentials from docker-compose.yml)
+docker exec -it microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+
+# Example database queries
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT COUNT(*) as total_users FROM users;"
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM users WHERE status = 'approved';"
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT COUNT(*) as total_matches FROM lol_matches;"
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT * FROM riot_accounts;"
+
+# View database structure
+docker exec microservices-platform-database-1 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "\dt"
+```
+
+> **🔒 Security Note**: For production deployments, use strong, unique database credentials and proper secrets management. Never commit production credentials to version control.
 
 **Note**: Browser caching can also cause issues. Use hard refresh (Ctrl+F5) or incognito mode when testing changes.
 
@@ -502,6 +559,33 @@ microservices-platform/
 - Set up SSL/TLS certificates
 - Monitor container health and logs
 
+### 🔒 Security Best Practices
+
+**Database Security:**
+- Never use default credentials in production
+- Use strong, unique database passwords (minimum 16 characters)
+- Implement database connection encryption (SSL/TLS)
+- Regularly rotate database credentials
+- Use secrets management systems (e.g., Docker Secrets, Kubernetes Secrets, HashiCorp Vault)
+
+**Environment Variables:**
+- Store sensitive credentials in environment variables or secrets management
+- Never commit production credentials to version control
+- Use different credentials for development, staging, and production
+- Implement proper access controls for environment variable access
+
+**JWT Security:**
+- Generate cryptographically secure JWT secrets (256+ bits)
+- Rotate JWT secrets regularly
+- Use appropriate token expiration times
+- Implement proper token validation and error handling
+
+**Network Security:**
+- Use firewalls to restrict database access
+- Implement network segmentation
+- Use VPNs or private networks for database connections
+- Enable audit logging for database access
+
 ### Environment Variables
 
 Required for production:
@@ -510,8 +594,11 @@ Required for production:
 - `GOOGLE_CALLBACK_URL`
 - `FRONTEND_URL`
 - `AUTH_SERVICE_URL`
-- `DATABASE_URL`
+- `DATABASE_URL` (with secure credentials)
 - `RIOT_API_KEY` (for LoL Tracking Service)
+- `POSTGRES_USER` (secure username)
+- `POSTGRES_PASSWORD` (strong password)
+- `POSTGRES_DB` (database name)
 
 ## 📝 License
 

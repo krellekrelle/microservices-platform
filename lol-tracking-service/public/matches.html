@@ -208,6 +208,182 @@
             background-color: #6c757d;
             cursor: not-allowed;
         }
+        .fine-btn {
+            background-color: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.3s;
+            margin-right: 4px;
+        }
+        .fine-btn:hover {
+            background-color: #e0a800;
+        }
+        .fine-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .fine-status {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .fine-calculated {
+            background: #d4edda;
+            color: #155724;
+            cursor: help;
+            border-bottom: 1px dotted #155724;
+        }
+        .fine-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .fine-summary {
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+        .bulk-actions {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .bulk-actions button {
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+        .select-all-checkbox {
+            margin-right: 10px;
+        }
+        .match-checkbox {
+            margin-right: 10px;
+        }
+        .results-column {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.9em;
+        }
+        .results-column:hover {
+            white-space: normal;
+            word-wrap: break-word;
+        }
+        .team-won {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .team-lost {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .split-teams {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .no-known-users {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .match-details {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .teams-comparison {
+            display: block;
+            margin: 15px 0;
+        }
+        .team-headers {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .roles-container {
+            display: block;
+        }
+        .team-header {
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .team-win {
+            background: #d4edda;
+            color: #155724;
+        }
+        .team-loss {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .role-row {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 15px;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 8px;
+        }
+        .role-row:last-child {
+            border-bottom: none;
+        }
+        .role-label {
+            text-align: center;
+            font-weight: bold;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.8em;
+        }
+        .player-info {
+            text-align: center;
+            padding: 5px;
+        }
+        .player-info.left {
+            text-align: right;
+        }
+        .player-info.right {
+            text-align: left;
+        }
+        .player-name {
+            font-weight: bold;
+            color: #495057;
+        }
+        .player-name.known-user {
+            color: #28a745;
+            background: #d4edda;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .player-stats {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+        .expandable-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .expandable-row:hover {
+            background-color: #f8f9fa !important;
+        }
+        .expand-icon {
+            transition: transform 0.2s;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 <body>
@@ -270,6 +446,28 @@
         <!-- Matches Table Section -->
         <div id="matches-section">
             <h2>🏆 Loaded Matches</h2>
+            
+            <!-- Bulk Actions -->
+            <div class="bulk-actions" id="bulkActions" style="display: none;">
+                <h4>Bulk Actions</h4>
+                <button type="button" class="fine-btn" onclick="bulkCalculateFines()">
+                    💰 Calculate Fines for Selected
+                </button>
+                <button type="button" class="delete-btn" onclick="bulkDeleteMatches()">
+                    🗑️ Delete Selected
+                </button>
+                <span id="selectedCount">0 matches selected</span>
+            </div>
+
+            <!-- Admin Actions -->
+            <div class="bulk-actions">
+                <h4>Admin Tools</h4>
+                <button type="button" class="delete-btn" onclick="deleteAllMatches()" style="background-color: #dc3545;">
+                    🗑️ Delete All Matches
+                </button>
+                <span id="deleteProgress" style="margin-left: 10px;"></span>
+            </div>
+            
             <div id="matchesContainer">
                 <div class="loading">Loading matches...</div>
             </div>
@@ -285,6 +483,7 @@
     <script>
         let currentPage = 1;
         let totalPages = 1;
+        let selectedMatches = new Set();
         
         // Set default dates (last 7 days)
         document.addEventListener('DOMContentLoaded', function() {
@@ -301,7 +500,9 @@
         // Load match statistics
         async function loadStats() {
             try {
-                const response = await fetch('/lol/admin/match-stats');
+                const response = await fetch('/lol/admin/match-stats', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 
                 if (!response.ok) {
@@ -338,7 +539,9 @@
         // Load matches with pagination
         async function loadMatches(page = 1) {
             try {
-                const response = await fetch(`/lol/admin/matches?page=${page}&limit=20`);
+                const response = await fetch(`/lol/admin/matches?page=${page}&limit=20`, {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 
                 if (!response.ok) {
@@ -359,6 +562,10 @@
                     <table class="matches-table">
                         <thead>
                             <tr>
+                                <th>
+                                    <input type="checkbox" class="select-all-checkbox" 
+                                           onchange="toggleSelectAll(this)" title="Select All">
+                                </th>
                                 <th>Match ID</th>
                                 <th>Date</th>
                                 <th>Mode</th>
@@ -366,27 +573,94 @@
                                 <th>Platform</th>
                                 <th>Known Users</th>
                                 <th>Players</th>
+                                <th>Results</th>
+                                <th>Fines</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${data.matches.map(match => `
-                                <tr id="match-row-${match.match_id}">
-                                    <td>${match.match_id}</td>
+                            ${data.matches.map(match => {
+                                // Create detailed fine summary
+                                let fineStatus;
+                                if (match.fines_calculated && match.fine_details && match.fine_details.length > 0) {
+                                    // Group fines by type
+                                    const finesByType = {};
+                                    match.fine_details.forEach(fine => {
+                                        if (!finesByType[fine.fine_type]) {
+                                            finesByType[fine.fine_type] = { count: 0, total: 0, users: [] };
+                                        }
+                                        finesByType[fine.fine_type].count++;
+                                        finesByType[fine.fine_type].total += fine.fine_size;
+                                        finesByType[fine.fine_type].users.push(fine.summoner_name || fine.user_name);
+                                    });
+                                    
+                                    // Create summary text
+                                    const summaryParts = [];
+                                    for (const [type, info] of Object.entries(finesByType)) {
+                                        let friendlyType = type;
+                                        if (type === 'YasouFine') friendlyType = 'Death Penalty';
+                                        else if (type === 'WonAram') friendlyType = 'Non-Participation';
+                                        else if (type === 'LostAram') friendlyType = 'Game Loss';
+                                        
+                                        summaryParts.push(`${friendlyType}: ${info.count}x (${info.total} kr)`);
+                                    }
+                                    
+                                    const totalAmount = match.total_fine_amount || 0;
+                                    const summary = summaryParts.join(', ');
+                                    fineStatus = `<span class="fine-calculated" title="${summary}">✅ ${match.fine_count} fines (${totalAmount} kr)</span>`;
+                                } else if (match.fines_calculated) {
+                                    fineStatus = `<span class="fine-calculated">✅ No fines</span>`;
+                                } else {
+                                    fineStatus = `<span class="fine-pending">⏳ Pending</span>`;
+                                }
+                                
+                                const resultsDisplay = match.match_result || 'No known users';
+                                let resultClass = 'no-known-users';
+                                if (resultsDisplay === 'Team Won') resultClass = 'team-won';
+                                else if (resultsDisplay === 'Team Lost') resultClass = 'team-lost';
+                                else if (resultsDisplay === 'Split Teams') resultClass = 'split-teams';
+                                
+                                return `
+                                <tr id="match-row-${match.match_id}" class="expandable-row" onclick="toggleMatchDetails('${match.match_id}')">
+                                    <td>
+                                        <input type="checkbox" class="match-checkbox" 
+                                               value="${match.match_id}" 
+                                               onchange="updateSelectedMatches()" 
+                                               onclick="event.stopPropagation()">
+                                    </td>
+                                    <td><span class="expand-icon" id="expand-icon-${match.match_id}">▶</span>${match.match_id}</td>
                                     <td>${new Date(parseInt(match.game_creation)).toLocaleDateString()}</td>
                                     <td><span class="game-mode">${match.game_mode}</span></td>
                                     <td>${Math.floor(match.game_duration / 60)}:${(match.game_duration % 60).toString().padStart(2, '0')}</td>
                                     <td>${match.platform_id}</td>
                                     <td><span class="known-users">${match.known_users_count || 0}</span></td>
                                     <td title="${match.known_summoner_names || 'No known players'}">${match.known_user_names || 'No known users'}</td>
-                                    <td>
+                                    <td title="${resultsDisplay}" class="results-column ${resultClass}">${resultsDisplay}</td>
+                                    <td>${fineStatus}</td>
+                                    <td onclick="event.stopPropagation()">
+                                        <button class="fine-btn" 
+                                                onclick="calculateFines('${match.match_id}')" 
+                                                ${match.fines_calculated ? 'disabled' : ''}
+                                                title="Calculate fines for this match">
+                                            💰 Fines
+                                        </button>
                                         <button class="delete-btn" onclick="deleteMatch('${match.match_id}')" 
                                                 title="Delete this match">
                                             🗑️ Delete
                                         </button>
                                     </td>
                                 </tr>
-                            `).join('')}
+                                <tr id="match-details-${match.match_id}" style="display: none;">
+                                    <td colspan="11">
+                                        <div class="match-details">
+                                            <div id="match-details-content-${match.match_id}">
+                                                Loading match details...
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                 `;
@@ -411,6 +685,194 @@
             const newPage = currentPage + direction;
             if (newPage >= 1 && newPage <= totalPages) {
                 loadMatches(newPage);
+            }
+        }
+        
+        // Function to update selected matches
+        function updateSelectedMatches() {
+            selectedMatches.clear();
+            const checkboxes = document.querySelectorAll('.match-checkbox:checked');
+            checkboxes.forEach(cb => selectedMatches.add(cb.value));
+            
+            const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (selectedMatches.size > 0) {
+                bulkActions.style.display = 'block';
+                selectedCount.textContent = `${selectedMatches.size} matches selected`;
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+        
+        // Function to toggle select all
+        function toggleSelectAll(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.match-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+            updateSelectedMatches();
+        }
+        
+        // Function to calculate fines for a single match
+        async function calculateFines(matchId) {
+            const button = document.querySelector(`#match-row-${matchId} .fine-btn`);
+            
+            try {
+                button.disabled = true;
+                button.textContent = 'Calculating...';
+                
+                const response = await fetch(`/lol/admin/matches/${matchId}/calculate-fines`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to calculate fines');
+                }
+                
+                // Show success message
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `
+                    <div class="success">
+                        Fines calculated for match ${matchId}! 
+                        Applied ${result.finesApplied} fines.
+                        ${result.reason ? `Reason: ${result.reason}` : ''}
+                    </div>
+                `;
+                
+                // Refresh the matches to show updated fine status
+                loadMatches(currentPage);
+                loadStats();
+                
+            } catch (error) {
+                console.error('Error calculating fines:', error);
+                button.disabled = false;
+                button.textContent = '💰 Fines';
+                
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="error">Error calculating fines: ${error.message}</div>`;
+            }
+        }
+        
+        // Function to bulk calculate fines
+        async function bulkCalculateFines() {
+            if (selectedMatches.size === 0) {
+                alert('Please select at least one match.');
+                return;
+            }
+            
+            if (!confirm(`Calculate fines for ${selectedMatches.size} selected matches?`)) {
+                return;
+            }
+            
+            const messageDiv = document.getElementById('message');
+            
+            try {
+                const response = await fetch('/lol/admin/matches/bulk-calculate-fines', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        matchIds: Array.from(selectedMatches)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to calculate fines');
+                }
+                
+                let message = `
+                    <div class="success">
+                        <h4>Bulk Fine Calculation Complete!</h4>
+                        <p><strong>Processed:</strong> ${result.results.processed} matches</p>
+                        <p><strong>Total Fines Applied:</strong> ${result.results.totalFines}</p>
+                        <p><strong>Already Calculated:</strong> ${result.results.alreadyCalculated}</p>
+                `;
+                
+                if (result.results.errors.length > 0) {
+                    message += `<p><strong>Errors:</strong> ${result.results.errors.length}</p>`;
+                    message += `<details><summary>Show Errors</summary><ul>`;
+                    result.results.errors.forEach(error => {
+                        message += `<li>${error}</li>`;
+                    });
+                    message += `</ul></details>`;
+                }
+                
+                message += `</div>`;
+                messageDiv.innerHTML = message;
+                
+                // Clear selection and refresh
+                selectedMatches.clear();
+                updateSelectedMatches();
+                loadMatches(currentPage);
+                loadStats();
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Error calculating fines: ${error.message}</div>`;
+            }
+        }
+        
+        // Function to bulk delete matches
+        async function bulkDeleteMatches() {
+            if (selectedMatches.size === 0) {
+                alert('Please select at least one match.');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete ${selectedMatches.size} selected matches?\n\nThis will permanently remove all match data, participants, teams, bans, and fines.`)) {
+                return;
+            }
+            
+            const messageDiv = document.getElementById('message');
+            let deletedCount = 0;
+            let errorCount = 0;
+            
+            try {
+                for (const matchId of selectedMatches) {
+                    try {
+                        const response = await fetch(`/lol/admin/matches/${matchId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            deletedCount++;
+                            // Remove the row from the table
+                            const row = document.getElementById(`match-row-${matchId}`);
+                            if (row) row.remove();
+                        } else {
+                            errorCount++;
+                        }
+                        
+                    } catch (error) {
+                        errorCount++;
+                    }
+                }
+                
+                messageDiv.innerHTML = `
+                    <div class="${errorCount > 0 ? 'error' : 'success'}">
+                        Bulk deletion complete! Deleted ${deletedCount} matches.
+                        ${errorCount > 0 ? `Failed to delete ${errorCount} matches.` : ''}
+                    </div>
+                `;
+                
+                // Clear selection and refresh
+                selectedMatches.clear();
+                updateSelectedMatches();
+                loadStats();
+                
+                // If no matches left on page, reload
+                const remainingRows = document.querySelectorAll('.matches-table tbody tr');
+                if (remainingRows.length === 0) {
+                    loadMatches(currentPage);
+                }
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Error during bulk deletion: ${error.message}</div>`;
             }
         }
         
@@ -440,7 +902,7 @@
                 progressDiv.style.display = 'block';
                 messageDiv.innerHTML = '';
                 
-                const response = await fetch('/admin/load-matches', {
+                const response = await fetch('/lol/admin/load-matches', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -500,7 +962,7 @@
                 deleteBtn.disabled = true;
                 deleteBtn.textContent = 'Deleting...';
                 
-                const response = await fetch(`/admin/matches/${matchId}`, {
+                const response = await fetch(`/lol/admin/matches/${matchId}`, {
                     method: 'DELETE'
                 });
                 
@@ -534,6 +996,289 @@
                 const messageDiv = document.getElementById('message');
                 messageDiv.innerHTML = `<div class="error">Error deleting match: ${error.message}</div>`;
             }
+        }
+        
+        // Function to toggle match details
+        async function toggleMatchDetails(matchId) {
+            const detailsRow = document.getElementById(`match-details-${matchId}`);
+            const expandIcon = document.getElementById(`expand-icon-${matchId}`);
+            const contentDiv = document.getElementById(`match-details-content-${matchId}`);
+            
+            // Check if the row is currently hidden
+            const isHidden = detailsRow.style.display === 'none' || detailsRow.style.display === '';
+            
+            if (isHidden) {
+                // Expand
+                detailsRow.style.display = 'table-row';
+                expandIcon.textContent = '▼';
+                expandIcon.classList.add('expanded');
+                
+                // Load match details if not already loaded
+                if (contentDiv.textContent.trim() === 'Loading match details...') {
+                    try {
+                        const response = await fetch(`/lol/admin/matches/${matchId}/details`, {
+                            credentials: 'include'
+                        });
+                        const data = await response.json();
+                        
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to load match details');
+                        }
+                        
+                        contentDiv.innerHTML = generateMatchDetailsHTML(data);
+                        
+                    } catch (error) {
+                        contentDiv.innerHTML = `<div class="error">Error loading match details: ${error.message}</div>`;
+                    }
+                }
+            } else {
+                // Collapse
+                detailsRow.style.display = 'none';
+                expandIcon.textContent = '▶';
+                expandIcon.classList.remove('expanded');
+            }
+        }        // Function to generate match details HTML
+        function generateMatchDetailsHTML(matchData) {
+            // Group players by team
+            const team1 = matchData.participants.filter(p => !p.win);
+            const team2 = matchData.participants.filter(p => p.win);
+            
+            // Check if this is a ranked game mode with defined roles
+            const hasDefinedRoles = matchData.match_info.queue_id === 420 || // Ranked Solo/Duo
+                                   matchData.match_info.queue_id === 440 || // Ranked Flex
+                                   matchData.match_info.game_mode === 'CLASSIC'; // Normal Draft/Blind
+            
+            let rolesHTML = '';
+            
+            if (hasDefinedRoles) {
+                // For ranked/classic games, use proper role ordering
+                const roleOrder = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
+                const roleNames = {
+                    'TOP': 'Top Lane',
+                    'JUNGLE': 'Jungle',
+                    'MIDDLE': 'Mid Lane', 
+                    'BOTTOM': 'Bottom',
+                    'UTILITY': 'Support'
+                };
+                
+                // Function to get player by role with better matching
+                const getPlayerByRole = (team, role) => {
+                    // First try exact match on team_position
+                    let player = team.find(p => p.team_position === role);
+                    if (player) return player;
+                    
+                    // Then try common variations
+                    if (role === 'UTILITY') {
+                        player = team.find(p => p.team_position === 'SUPPORT');
+                        if (player) return player;
+                    }
+                    if (role === 'BOTTOM') {
+                        player = team.find(p => p.team_position === 'BOT' || p.team_position === 'ADC');
+                        if (player) return player;
+                    }
+                    if (role === 'MIDDLE') {
+                        player = team.find(p => p.team_position === 'MID');
+                        if (player) return player;
+                    }
+                    if (role === 'JUNGLE') {
+                        player = team.find(p => p.team_position === 'JNG' || p.team_position === 'JUNGLER');
+                        if (player) return player;
+                    }
+                    
+                    // Fallback: get any unmatched player
+                    return team.find(p => !roleOrder.includes(p.team_position) && 
+                                         p.team_position !== 'SUPPORT' && 
+                                         p.team_position !== 'BOT' && 
+                                         p.team_position !== 'ADC' &&
+                                         p.team_position !== 'MID' &&
+                                         p.team_position !== 'JNG' &&
+                                         p.team_position !== 'JUNGLER');
+                };
+                
+                // Create a copy of teams to avoid mutating original arrays
+                const team1Copy = [...team1];
+                const team2Copy = [...team2];
+                
+                roleOrder.forEach(role => {
+                    const player1 = getPlayerByRole(team1Copy, role);
+                    const player2 = getPlayerByRole(team2Copy, role);
+                    
+                    const player1HTML = player1 ? `
+                        <div class="player-info left">
+                            <div class="player-name ${player1.user_id ? 'known-user' : ''}">${player1.summoner_name || 'Unknown Player'}</div>
+                            <div class="player-stats">${player1.kills}/${player1.deaths}/${player1.assists}</div>
+                        </div>
+                    ` : '<div class="player-info left">-</div>';
+                    
+                    const player2HTML = player2 ? `
+                        <div class="player-info right">
+                            <div class="player-name ${player2.user_id ? 'known-user' : ''}">${player2.summoner_name || 'Unknown Player'}</div>
+                            <div class="player-stats">${player2.kills}/${player2.deaths}/${player2.assists}</div>
+                        </div>
+                    ` : '<div class="player-info right">-</div>';
+                    
+                    rolesHTML += `
+                        <div class="role-row">
+                            ${player1HTML}
+                            <div class="role-label">${roleNames[role]}</div>
+                            ${player2HTML}
+                        </div>
+                    `;
+                    
+                    // Remove matched players to avoid duplicates
+                    if (player1) {
+                        const index = team1Copy.indexOf(player1);
+                        if (index > -1) team1Copy.splice(index, 1);
+                    }
+                    if (player2) {
+                        const index = team2Copy.indexOf(player2);
+                        if (index > -1) team2Copy.splice(index, 1);
+                    }
+                });
+                
+                // Add any remaining unmatched players
+                const maxRemaining = Math.max(team1Copy.length, team2Copy.length);
+                for (let i = 0; i < maxRemaining; i++) {
+                    const player1 = team1Copy[i];
+                    const player2 = team2Copy[i];
+                    
+                    if (player1 || player2) {
+                        const player1HTML = player1 ? `
+                            <div class="player-info left">
+                                <div class="player-name ${player1.user_id ? 'known-user' : ''}">${player1.summoner_name || 'Unknown Player'}</div>
+                                <div class="player-stats">${player1.kills}/${player1.deaths}/${player1.assists}</div>
+                            </div>
+                        ` : '<div class="player-info left">-</div>';
+                        
+                        const player2HTML = player2 ? `
+                            <div class="player-info right">
+                                <div class="player-name ${player2.user_id ? 'known-user' : ''}">${player2.summoner_name || 'Unknown Player'}</div>
+                                <div class="player-stats">${player2.kills}/${player2.deaths}/${player2.assists}</div>
+                            </div>
+                        ` : '<div class="player-info right">-</div>';
+                        
+                        rolesHTML += `
+                            <div class="role-row">
+                                ${player1HTML}
+                                <div class="role-label">Player ${i + 6}</div>
+                                ${player2HTML}
+                            </div>
+                        `;
+                    }
+                }
+            } else {
+                // For ARAM/other modes, just show players in any order (no specific roles)
+                const maxPlayers = Math.max(team1.length, team2.length);
+                for (let i = 0; i < maxPlayers; i++) {
+                    const player1 = team1[i];
+                    const player2 = team2[i];
+                    
+                    const player1HTML = player1 ? `
+                        <div class="player-info left">
+                            <div class="player-name ${player1.user_id ? 'known-user' : ''}">${player1.summoner_name || 'Unknown Player'}</div>
+                            <div class="player-stats">${player1.kills}/${player1.deaths}/${player1.assists}</div>
+                        </div>
+                    ` : '<div class="player-info left">-</div>';
+                    
+                    const player2HTML = player2 ? `
+                        <div class="player-info right">
+                            <div class="player-name ${player2.user_id ? 'known-user' : ''}">${player2.summoner_name || 'Unknown Player'}</div>
+                            <div class="player-stats">${player2.kills}/${player2.deaths}/${player2.assists}</div>
+                        </div>
+                    ` : '<div class="player-info right">-</div>';
+                    
+                    rolesHTML += `
+                        <div class="role-row">
+                            ${player1HTML}
+                            <div class="role-label">Player ${i + 1}</div>
+                            ${player2HTML}
+                        </div>
+                    `;
+                }
+            }
+            
+            // Determine team results
+            const team1Won = team1.length > 0 ? team1[0].win : false;
+            const team2Won = team2.length > 0 ? team2[0].win : false;
+            
+            return `
+                <h4>Match Details: ${matchData.match_id}</h4>
+                <div class="teams-comparison">
+                    <div class="team-headers">
+                        <div class="team-header ${team1Won ? 'team-win' : 'team-loss'}">Team 1 (${team1Won ? 'Win' : 'Loss'})</div>
+                        <div></div>
+                        <div class="team-header ${team2Won ? 'team-win' : 'team-loss'}">Team 2 (${team2Won ? 'Win' : 'Loss'})</div>
+                    </div>
+                    <div class="roles-container">
+                        ${rolesHTML}
+                    </div>
+                </div>
+                ${matchData.fine_details && matchData.fine_details.length > 0 ? `
+                    <h5>Fines Applied:</h5>
+                    <ul>
+                        ${matchData.fine_details.map(fine => {
+                            let fineTypeDisplay = fine.fine_type;
+                            if (fine.fine_type === 'YasouFine') fineTypeDisplay = 'Death Penalty';
+                            else if (fine.fine_type === 'WonAram') fineTypeDisplay = 'Non-Participation Fine';
+                            else if (fine.fine_type === 'LostAram') fineTypeDisplay = 'Game Loss Fine';
+                            
+                            return `<li><strong>${fine.summoner_name || fine.user_name}</strong>: ${fineTypeDisplay} - ${fine.fine_size} kr</li>`;
+                        }).join('')}
+                    </ul>
+                ` : '<p><em>No fines applied to this match.</em></p>'}
+            `;
+        }
+
+        // Function to delete all matches
+        async function deleteAllMatches() {
+            const progressSpan = document.getElementById('deleteProgress');
+            
+            // Confirm deletion
+            if (!confirm('⚠️ WARNING: This will permanently delete ALL matches and their fines!\n\nAre you absolutely sure you want to continue?')) {
+                return;
+            }
+            
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '🗑️ Deleting...';
+            progressSpan.textContent = 'Deleting all matches...';
+            progressSpan.style.color = 'orange';
+            
+            try {
+                const response = await fetch('/lol/admin/matches/all', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    progressSpan.textContent = `✅ Deleted ${result.deletedCount} matches!`;
+                    progressSpan.style.color = 'green';
+                    
+                    // Reload matches to show empty state
+                    await loadMatches(1);
+                    await loadStats();
+                } else {
+                    progressSpan.textContent = `❌ Error: ${result.error}`;
+                    progressSpan.style.color = 'red';
+                }
+            } catch (error) {
+                console.error('Error deleting all matches:', error);
+                progressSpan.textContent = `❌ Error: ${error.message}`;
+                progressSpan.style.color = 'red';
+            }
+            
+            button.disabled = false;
+            button.textContent = '🗑️ Delete All Matches';
+            
+            // Clear progress message after 5 seconds
+            setTimeout(() => {
+                progressSpan.textContent = '';
+                progressSpan.style.color = '';
+            }, 8000);
         }
     </script>
 </body>

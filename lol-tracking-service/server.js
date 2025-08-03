@@ -455,6 +455,7 @@ const getMatchDetails = async (matchId, region = 'europe') => {
         }
         throw new Error(`Riot API error: ${response.status}`);
     }
+    
     return await response.json();
 };
 
@@ -523,6 +524,12 @@ const saveMatchToDatabase = async (matchData) => {
         
         // Insert participants
         for (const participant of matchData.info.participants) {
+            // Get the summoner name with fallback options (prioritize riotIdGameName)
+            const summonerName = participant.riotIdGameName || 
+                                participant.summonerName || 
+                                participant.gameName || 
+                                'Unknown Player';
+            
             await client.query(`
                 INSERT INTO lol_participants (
                     match_id, participant_id, puuid, riot_id_tagline,
@@ -552,7 +559,7 @@ const saveMatchToDatabase = async (matchData) => {
                 participant.riotIdTagline,
                 participant.profileIcon,
                 participant.summonerLevel,
-                participant.summonerName,
+                summonerName, // Use the fallback summoner name
                 participant.win,
                 participant.gameEndedInSurrender,
                 participant.championName,
@@ -693,10 +700,63 @@ app.get('/admin/matches', checkAdmin, async (req, res) => {
         const offset = (page - 1) * limit;
         
         const result = await pool.query(`
-            SELECT * FROM lol_matches_with_users 
-            ORDER BY game_creation DESC 
+            SELECT 
+                m.*,
+                mv.known_users_count,
+                mv.known_user_names,
+                mv.known_summoner_names,
+                COUNT(f.id) as fine_count,
+                SUM(f.fine_size) as total_fine_amount
+            FROM lol_matches m
+            LEFT JOIN lol_matches_with_users mv ON m.match_id = mv.match_id
+            LEFT JOIN lol_fines f ON m.match_id = f.match_id
+            GROUP BY m.match_id, mv.known_users_count, mv.known_user_names, mv.known_summoner_names
+            ORDER BY m.game_creation DESC 
             LIMIT $1 OFFSET $2
         `, [limit, offset]);
+        
+        // Now get match results separately for each match
+        for (let match of result.rows) {
+            const participantsResult = await pool.query(`
+                SELECT p.win, ra.user_id
+                FROM lol_participants p
+                LEFT JOIN riot_accounts ra ON p.puuid = ra.puuid
+                WHERE p.match_id = $1 AND ra.user_id IS NOT NULL
+            `, [match.match_id]);
+            
+            const knownParticipants = participantsResult.rows;
+            
+            if (knownParticipants.length === 0) {
+                match.match_result = 'No known users';
+            } else {
+                const winResults = knownParticipants.map(p => p.win);
+                const uniqueResults = [...new Set(winResults)];
+                
+                if (uniqueResults.length > 1) {
+                    match.match_result = 'Split Teams';
+                } else if (uniqueResults[0] === true) {
+                    match.match_result = 'Team Won';
+                } else {
+                    match.match_result = 'Team Lost';
+                }
+            }
+            
+            // Get fine details for this match
+            const finesResult = await pool.query(`
+                SELECT 
+                    f.fine_type,
+                    f.fine_size,
+                    u.name as user_name,
+                    ra.summoner_name
+                FROM lol_fines f
+                JOIN users u ON f.user_id = u.id
+                LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+                WHERE f.match_id = $1
+                ORDER BY f.fine_type, u.name
+            `, [match.match_id]);
+            
+            match.fine_details = finesResult.rows;
+        }
         
         const totalResult = await pool.query('SELECT COUNT(*) FROM lol_matches');
         const total = parseInt(totalResult.rows[0].count);
@@ -748,6 +808,66 @@ app.get('/admin/match-stats', checkAdmin, async (req, res) => {
     }
 });
 
+// Admin endpoint to delete ALL matches (must be before :matchId route)
+app.delete('/admin/matches/all', checkAdmin, async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        // Get count before deletion for reporting
+        const countResult = await client.query('SELECT COUNT(*) FROM lol_matches');
+        const totalMatches = parseInt(countResult.rows[0].count);
+        
+        if (totalMatches === 0) {
+            await client.query('ROLLBACK');
+            return res.json({
+                success: true,
+                message: 'No matches to delete',
+                deletedCount: 0
+            });
+        }
+        
+        // Delete in correct order due to foreign key constraints
+        // 1. Delete all fines
+        const finesResult = await client.query('DELETE FROM lol_fines');
+        
+        // 2. Delete all bans
+        const bansResult = await client.query('DELETE FROM lol_bans');
+        
+        // 3. Delete all teams
+        const teamsResult = await client.query('DELETE FROM lol_teams');
+        
+        // 4. Delete all participants
+        const participantsResult = await client.query('DELETE FROM lol_participants');
+        
+        // 5. Delete all matches
+        const matchesResult = await client.query('DELETE FROM lol_matches');
+        
+        await client.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: 'All matches deleted successfully',
+            deletedCount: totalMatches,
+            details: {
+                matches: matchesResult.rowCount,
+                participants: participantsResult.rowCount,
+                teams: teamsResult.rowCount,
+                bans: bansResult.rowCount,
+                fines: finesResult.rowCount
+            }
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting all matches:', error);
+        res.status(500).json({ error: 'Failed to delete all matches' });
+    } finally {
+        client.release();
+    }
+});
+
 // Admin endpoint to delete a match
 app.delete('/admin/matches/:matchId', checkAdmin, async (req, res) => {
     const client = await pool.connect();
@@ -755,51 +875,360 @@ app.delete('/admin/matches/:matchId', checkAdmin, async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        const matchId = req.params.matchId;
+        // Get count before deletion for reporting
+        const countResult = await client.query('SELECT COUNT(*) FROM lol_matches');
+        const totalMatches = parseInt(countResult.rows[0].count);
         
-        // Check if match exists
-        const matchExists = await client.query(
-            'SELECT match_id FROM lol_matches WHERE match_id = $1',
-            [matchId]
-        );
-        
-        if (matchExists.rows.length === 0) {
+        if (totalMatches === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'Match not found' });
+            return res.json({
+                success: true,
+                message: 'No matches to delete',
+                deletedCount: 0
+            });
         }
         
         // Delete in correct order due to foreign key constraints
-        // 1. Delete bans (references teams)
-        await client.query(`
-            DELETE FROM lol_bans 
-            WHERE team_id IN (
-                SELECT team_id FROM lol_teams WHERE match_id = $1
-            )
-        `, [matchId]);
+        // 1. Delete all fines
+        const finesResult = await client.query('DELETE FROM lol_fines');
         
-        // 2. Delete teams
-        await client.query('DELETE FROM lol_teams WHERE match_id = $1', [matchId]);
+        // 2. Delete all bans
+        const bansResult = await client.query('DELETE FROM lol_bans');
         
-        // 3. Delete participants
-        await client.query('DELETE FROM lol_participants WHERE match_id = $1', [matchId]);
+        // 3. Delete all teams
+        const teamsResult = await client.query('DELETE FROM lol_teams');
         
-        // 4. Delete match
-        const deleteResult = await client.query('DELETE FROM lol_matches WHERE match_id = $1', [matchId]);
+        // 4. Delete all participants
+        const participantsResult = await client.query('DELETE FROM lol_participants');
+        
+        // 5. Delete all matches
+        const matchesResult = await client.query('DELETE FROM lol_matches');
         
         await client.query('COMMIT');
         
         res.json({
             success: true,
-            message: 'Match deleted successfully',
-            matchId: matchId
+            message: 'All matches deleted successfully',
+            deletedCount: totalMatches,
+            details: {
+                matches: matchesResult.rowCount,
+                participants: participantsResult.rowCount,
+                teams: teamsResult.rowCount,
+                bans: bansResult.rowCount,
+                fines: finesResult.rowCount
+            }
         });
         
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Error deleting match:', error);
-        res.status(500).json({ error: 'Failed to delete match' });
+        console.error('Error deleting all matches:', error);
+        res.status(500).json({ error: 'Failed to delete all matches' });
     } finally {
         client.release();
+    }
+});
+
+// Helper function to calculate fines for a match
+const calculateFinesForMatch = async (matchId) => {
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        // Get match details
+        const matchResult = await client.query(`
+            SELECT match_id, game_mode, queue_id 
+            FROM lol_matches 
+            WHERE match_id = $1 AND fines_calculated = false
+        `, [matchId]);
+        
+        if (matchResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return { alreadyCalculated: true };
+        }
+        
+        const match = matchResult.rows[0];
+        
+        // Get participants with their riot account info
+        const participantsResult = await client.query(`
+            SELECT p.*, ra.user_id, ra.summoner_name as account_name, u.name as user_name
+            FROM lol_participants p
+            LEFT JOIN riot_accounts ra ON p.puuid = ra.puuid
+            LEFT JOIN users u ON ra.user_id = u.id
+            WHERE p.match_id = $1
+        `, [matchId]);
+        
+        const participants = participantsResult.rows;
+        const knownUsers = participants.filter(p => p.user_id);
+        
+        // Check if we have at least 3 known users
+        if (knownUsers.length < 3) {
+            await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
+            await client.query('COMMIT');
+            return { 
+                success: true, 
+                finesApplied: 0, 
+                reason: 'Less than 3 known users in match' 
+            };
+        }
+        
+        // Check if all known users are on the same team
+        const teamResults = knownUsers.map(p => p.win);
+        const uniqueTeamResults = [...new Set(teamResults)];
+        
+        if (uniqueTeamResults.length > 1) {
+            await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
+            await client.query('COMMIT');
+            return { 
+                success: true, 
+                finesApplied: 0, 
+                reason: 'Known users are on different teams - skipping fine calculation' 
+            };
+        }
+        
+        // All known users are on the same team, get the team result
+        const teamWon = knownUsers[0].win;
+        
+        const gameMode = match.game_mode.toLowerCase();
+        const fines = [];
+        
+        // Get all users who have registered riot accounts for ARAM/URF/BRAWL win/loss fines
+        const allUsersWithAccounts = await client.query(`
+            SELECT DISTINCT u.id, u.name 
+            FROM users u 
+            JOIN riot_accounts ra ON u.id = ra.user_id
+        `);
+        
+        // 1. Yasuo fine logic
+        for (const participant of knownUsers) {
+            const deaths = participant.deaths || 0;
+            let deathThreshold = 10; // Default for normal games
+            
+            // Adjust threshold based on game mode
+            if (['aram', 'urf'].includes(gameMode)) {
+                deathThreshold = 13;
+            } else if (gameMode === 'nexusblitz') { // Nexus Blitz is "BRAWL"
+                deathThreshold = 8;
+            }
+            
+            if (deaths >= deathThreshold) {
+                fines.push({
+                    userId: participant.user_id,
+                    fineType: 'YasouFine',
+                    fineSize: 10,
+                    reason: `${deaths} deaths (threshold: ${deathThreshold})`
+                });
+            }
+        }
+        
+        // 2. ARAM/URF/BRAWL win/loss fines
+        if (['aram', 'urf', 'nexusblitz'].includes(gameMode)) {
+            const participatingUserIds = knownUsers.map(p => p.user_id);
+            const nonParticipatingUsers = allUsersWithAccounts.rows.filter(
+                u => !participatingUserIds.includes(u.id)
+            );
+            
+            if (teamWon) {
+                // Team won - fine non-participating users
+                for (const user of nonParticipatingUsers) {
+                    fines.push({
+                        userId: user.id,
+                        fineType: 'WonAram',
+                        fineSize: 5,
+                        reason: `Did not participate in winning ${gameMode.toUpperCase()} game`
+                    });
+                }
+            } else {
+                // Team lost - fine participating users
+                for (const participant of knownUsers) {
+                    fines.push({
+                        userId: participant.user_id,
+                        fineType: 'LostAram',
+                        fineSize: 5,
+                        reason: `Lost ${gameMode.toUpperCase()} game`
+                    });
+                }
+            }
+        }
+        
+        // Insert fines into database
+        for (const fine of fines) {
+            await client.query(`
+                INSERT INTO lol_fines (match_id, user_id, fine_type, fine_size, date)
+                VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            `, [matchId, fine.userId, fine.fineType, fine.fineSize]);
+        }
+        
+        // Mark match as fines calculated
+        await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
+        
+        await client.query('COMMIT');
+        
+        return {
+            success: true,
+            finesApplied: fines.length,
+            fines: fines
+        };
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+// Admin endpoint to calculate fines for a single match
+app.post('/admin/matches/:matchId/calculate-fines', checkAdmin, async (req, res) => {
+    try {
+        const matchId = req.params.matchId;
+        const result = await calculateFinesForMatch(matchId);
+        
+        if (result.alreadyCalculated) {
+            return res.json({
+                success: false,
+                message: 'Fines already calculated for this match'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: `Fines calculation complete for match ${matchId}`,
+            finesApplied: result.finesApplied,
+            reason: result.reason,
+            fines: result.fines
+        });
+        
+    } catch (error) {
+        console.error('Error calculating fines:', error);
+        res.status(500).json({ error: 'Failed to calculate fines' });
+    }
+});
+
+// Admin endpoint to calculate fines for multiple matches
+app.post('/admin/matches/bulk-calculate-fines', checkAdmin, async (req, res) => {
+    try {
+        const { matchIds } = req.body;
+        
+        if (!matchIds || !Array.isArray(matchIds)) {
+            return res.status(400).json({ error: 'matchIds array is required' });
+        }
+        
+        const results = {
+            processed: 0,
+            totalFines: 0,
+            alreadyCalculated: 0,
+            errors: []
+        };
+        
+        for (const matchId of matchIds) {
+            try {
+                const result = await calculateFinesForMatch(matchId);
+                results.processed++;
+                
+                if (result.alreadyCalculated) {
+                    results.alreadyCalculated++;
+                } else {
+                    results.totalFines += result.finesApplied;
+                }
+                
+            } catch (error) {
+                console.error(`Error calculating fines for match ${matchId}:`, error);
+                results.errors.push(`Match ${matchId}: ${error.message}`);
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Bulk fine calculation complete',
+            results
+        });
+        
+    } catch (error) {
+        console.error('Error in bulk fine calculation:', error);
+        res.status(500).json({ error: 'Failed to calculate fines' });
+    }
+});
+
+// Admin endpoint to get fines for a specific match
+app.get('/admin/matches/:matchId/fines', checkAdmin, async (req, res) => {
+    try {
+        const matchId = req.params.matchId;
+        
+        const result = await pool.query(`
+            SELECT 
+                f.*,
+                u.name as user_name,
+                ra.summoner_name
+            FROM lol_fines f
+            JOIN users u ON f.user_id = u.id
+            LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+            WHERE f.match_id = $1
+            ORDER BY f.date DESC
+        `, [matchId]);
+        
+        res.json({
+            success: true,
+            fines: result.rows
+        });
+        
+    } catch (error) {
+        console.error('Error fetching fines:', error);
+        res.status(500).json({ error: 'Failed to fetch fines' });
+    }
+});
+
+// Admin endpoint to get detailed match information
+app.get('/admin/matches/:matchId/details', checkAdmin, async (req, res) => {
+    try {
+        const matchId = req.params.matchId;
+        
+        // Get match basic info
+        const matchResult = await pool.query(`
+            SELECT * FROM lol_matches WHERE match_id = $1
+        `, [matchId]);
+        
+        if (matchResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Match not found' });
+        }
+        
+        // Get participants with user info
+        const participantsResult = await pool.query(`
+            SELECT 
+                p.*,
+                ra.user_id,
+                u.name as user_name
+            FROM lol_participants p
+            LEFT JOIN riot_accounts ra ON p.puuid = ra.puuid
+            LEFT JOIN users u ON ra.user_id = u.id
+            WHERE p.match_id = $1
+            ORDER BY p.win DESC, p.team_position
+        `, [matchId]);
+        
+        // Get fines for this match
+        const finesResult = await pool.query(`
+            SELECT 
+                f.*,
+                u.name as user_name,
+                ra.summoner_name
+            FROM lol_fines f
+            JOIN users u ON f.user_id = u.id
+            LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+            WHERE f.match_id = $1
+            ORDER BY f.date DESC
+        `, [matchId]);
+        
+        res.json({
+            success: true,
+            match_id: matchId,
+            match_info: matchResult.rows[0],
+            participants: participantsResult.rows,
+            fine_details: finesResult.rows
+        });
+        
+    } catch (error) {
+        console.error('Error fetching match details:', error);
+        res.status(500).json({ error: 'Failed to fetch match details' });
     }
 });
 
