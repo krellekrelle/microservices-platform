@@ -10,15 +10,13 @@ CREATE TABLE riot_accounts (
     region VARCHAR(10) NOT NULL DEFAULT 'europe', -- API region
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for performance
 CREATE INDEX idx_riot_accounts_puuid ON riot_accounts(puuid);
 CREATE INDEX idx_riot_accounts_user_id ON riot_accounts(user_id);
 CREATE INDEX idx_riot_accounts_summoner_name ON riot_accounts(summoner_name);
-CREATE INDEX idx_riot_accounts_active ON riot_accounts(is_active);
 
 -- Add trigger for updating updated_at on riot_accounts
 CREATE TRIGGER update_riot_accounts_updated_at 
@@ -36,9 +34,7 @@ SELECT
     ra.region,
     u.email,
     u.name as user_name,
-    ra.created_at,
-    ra.is_active
+    ra.created_at
 FROM riot_accounts ra
 JOIN users u ON ra.user_id = u.id
-WHERE ra.is_active = true
 ORDER BY ra.created_at DESC;
