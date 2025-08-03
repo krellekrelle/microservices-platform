@@ -191,6 +191,23 @@
             background-color: #28a745;
             transition: width 0.3s ease;
         }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.3s;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .delete-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -349,11 +366,12 @@
                                 <th>Platform</th>
                                 <th>Known Users</th>
                                 <th>Players</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${data.matches.map(match => `
-                                <tr>
+                                <tr id="match-row-${match.match_id}">
                                     <td>${match.match_id}</td>
                                     <td>${new Date(parseInt(match.game_creation)).toLocaleDateString()}</td>
                                     <td><span class="game-mode">${match.game_mode}</span></td>
@@ -361,6 +379,12 @@
                                     <td>${match.platform_id}</td>
                                     <td><span class="known-users">${match.known_users_count || 0}</span></td>
                                     <td title="${match.known_summoner_names || 'No known players'}">${match.known_user_names || 'No known users'}</td>
+                                    <td>
+                                        <button class="delete-btn" onclick="deleteMatch('${match.match_id}')" 
+                                                title="Delete this match">
+                                            🗑️ Delete
+                                        </button>
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -416,7 +440,7 @@
                 progressDiv.style.display = 'block';
                 messageDiv.innerHTML = '';
                 
-                const response = await fetch('/lol/admin/load-matches', {
+                const response = await fetch('/admin/load-matches', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -462,6 +486,55 @@
                 progressDiv.style.display = 'none';
             }
         });
+        
+        // Function to delete a match
+        async function deleteMatch(matchId) {
+            if (!confirm(`Are you sure you want to delete match ${matchId}?\n\nThis will permanently remove all match data, participants, teams, and bans.`)) {
+                return;
+            }
+            
+            const matchRow = document.getElementById(`match-row-${matchId}`);
+            const deleteBtn = matchRow.querySelector('.delete-btn');
+            
+            try {
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = 'Deleting...';
+                
+                const response = await fetch(`/admin/matches/${matchId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to delete match');
+                }
+                
+                // Remove the row from the table
+                matchRow.remove();
+                
+                // Show success message
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="success">Match ${matchId} deleted successfully!</div>`;
+                
+                // Refresh statistics
+                loadStats();
+                
+                // If this was the last match on the page, reload matches
+                const remainingRows = document.querySelectorAll('.matches-table tbody tr');
+                if (remainingRows.length === 0) {
+                    loadMatches(currentPage);
+                }
+                
+            } catch (error) {
+                console.error('Error deleting match:', error);
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '🗑️ Delete';
+                
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="error">Error deleting match: ${error.message}</div>`;
+            }
+        }
     </script>
 </body>
 </html>

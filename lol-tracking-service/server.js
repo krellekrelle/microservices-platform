@@ -171,7 +171,7 @@ app.get('/test-riot-api', checkAuth, async (req, res) => {
 app.get('/riot-accounts', checkAuth, async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT id, puuid, summoner_name, summoner_tag, region, created_at FROM riot_accounts WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC',
+            'SELECT id, puuid, summoner_name, summoner_tag, region, created_at FROM riot_accounts WHERE user_id = $1 ORDER BY created_at DESC',
             [req.user.id]
         );
         
@@ -201,7 +201,6 @@ app.get('/admin/riot-accounts', checkAdmin, async (req, res) => {
                 u.status as user_status
             FROM riot_accounts ra
             JOIN users u ON ra.user_id = u.id
-            WHERE ra.is_active = true
             ORDER BY ra.created_at DESC
         `);
         
@@ -226,7 +225,6 @@ app.get('/admin/riot-accounts/stats', checkAdmin, async (req, res) => {
                 region,
                 COUNT(*) as accounts_per_region
             FROM riot_accounts 
-            WHERE is_active = true
             GROUP BY region
             ORDER BY accounts_per_region DESC
         `);
@@ -237,7 +235,7 @@ app.get('/admin/riot-accounts/stats', checkAdmin, async (req, res) => {
                 u.email,
                 COUNT(ra.id) as account_count
             FROM users u
-            LEFT JOIN riot_accounts ra ON u.id = ra.user_id AND ra.is_active = true
+            LEFT JOIN riot_accounts ra ON u.id = ra.user_id
             WHERE u.status = 'approved'
             GROUP BY u.id, u.name, u.email
             ORDER BY account_count DESC
@@ -247,8 +245,7 @@ app.get('/admin/riot-accounts/stats', checkAdmin, async (req, res) => {
             SELECT 
                 COUNT(*) as total_accounts,
                 COUNT(DISTINCT user_id) as total_users_with_accounts
-            FROM riot_accounts 
-            WHERE is_active = true
+            FROM riot_accounts
         `);
         
         res.json({
@@ -286,7 +283,7 @@ app.post('/riot-accounts', checkAuth, async (req, res) => {
         
         // Check if account is already linked to any user
         const existingAccount = await pool.query(
-            'SELECT id, user_id FROM riot_accounts WHERE puuid = $1 AND is_active = true',
+            'SELECT id, user_id FROM riot_accounts WHERE puuid = $1',
             [riotAccount.puuid]
         );
         
@@ -349,9 +346,9 @@ app.delete('/riot-accounts/:id', checkAuth, async (req, res) => {
     const accountId = req.params.id;
     
     try {
-        // Verify the account belongs to the user
+        // Verify the account belongs to the user and permanently delete it
         const result = await pool.query(
-            'UPDATE riot_accounts SET is_active = false WHERE id = $1 AND user_id = $2 RETURNING id',
+            'DELETE FROM riot_accounts WHERE id = $1 AND user_id = $2 RETURNING id, summoner_name',
             [accountId, req.user.id]
         );
         
@@ -363,7 +360,7 @@ app.delete('/riot-accounts/:id', checkAuth, async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Riot account removed successfully'
+            message: `Riot account "${result.rows[0].summoner_name}" permanently deleted`
         });
         
     } catch (error) {
@@ -381,7 +378,7 @@ app.get('/riot-accounts/:id', checkAuth, async (req, res) => {
             `SELECT ra.*, u.name as user_name, u.email 
              FROM riot_accounts ra 
              JOIN users u ON ra.user_id = u.id 
-             WHERE ra.id = $1 AND ra.user_id = $2 AND ra.is_active = true`,
+             WHERE ra.id = $1 AND ra.user_id = $2`,
             [accountId, req.user.id]
         );
         
@@ -418,9 +415,20 @@ const getMatchIdsForPuuid = async (puuid, startEpoch, endEpoch, region = 'europe
     });
     
     if (!response.ok) {
+        if (response.status === 429) {
+            throw new Error('Riot API rate limit exceeded (429). Please wait a few minutes before trying again.');
+        }
+        if (response.status === 403) {
+            throw new Error('Riot API access forbidden (403). Check your API key or permissions.');
+        }
+        if (response.status === 401) {
+            throw new Error('Riot API authentication failed (401). Check your API key.');
+        }
+        if (response.status === 404) {
+            throw new Error('Riot API resource not found (404).');
+        }
         throw new Error(`Riot API error: ${response.status}`);
     }
-    
     return await response.json();
 };
 
@@ -433,9 +441,20 @@ const getMatchDetails = async (matchId, region = 'europe') => {
     });
     
     if (!response.ok) {
+        if (response.status === 429) {
+            throw new Error('Riot API rate limit exceeded (429). Please wait a few minutes before trying again.');
+        }
+        if (response.status === 403) {
+            throw new Error('Riot API access forbidden (403). Check your API key or permissions.');
+        }
+        if (response.status === 401) {
+            throw new Error('Riot API authentication failed (401). Check your API key.');
+        }
+        if (response.status === 404) {
+            throw new Error('Riot API resource not found (404).');
+        }
         throw new Error(`Riot API error: ${response.status}`);
     }
-    
     return await response.json();
 };
 
@@ -608,7 +627,7 @@ app.post('/admin/load-matches', checkAdmin, async (req, res) => {
         
         // Get all riot accounts
         const accountsResult = await pool.query(
-            'SELECT puuid, summoner_name FROM riot_accounts WHERE is_active = true'
+            'SELECT puuid, summoner_name FROM riot_accounts'
         );
         
         const results = {
@@ -726,6 +745,61 @@ app.get('/admin/match-stats', checkAdmin, async (req, res) => {
     } catch (error) {
         console.error('Error fetching match stats:', error);
         res.status(500).json({ error: 'Failed to fetch match statistics' });
+    }
+});
+
+// Admin endpoint to delete a match
+app.delete('/admin/matches/:matchId', checkAdmin, async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        const matchId = req.params.matchId;
+        
+        // Check if match exists
+        const matchExists = await client.query(
+            'SELECT match_id FROM lol_matches WHERE match_id = $1',
+            [matchId]
+        );
+        
+        if (matchExists.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Match not found' });
+        }
+        
+        // Delete in correct order due to foreign key constraints
+        // 1. Delete bans (references teams)
+        await client.query(`
+            DELETE FROM lol_bans 
+            WHERE team_id IN (
+                SELECT team_id FROM lol_teams WHERE match_id = $1
+            )
+        `, [matchId]);
+        
+        // 2. Delete teams
+        await client.query('DELETE FROM lol_teams WHERE match_id = $1', [matchId]);
+        
+        // 3. Delete participants
+        await client.query('DELETE FROM lol_participants WHERE match_id = $1', [matchId]);
+        
+        // 4. Delete match
+        const deleteResult = await client.query('DELETE FROM lol_matches WHERE match_id = $1', [matchId]);
+        
+        await client.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: 'Match deleted successfully',
+            matchId: matchId
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting match:', error);
+        res.status(500).json({ error: 'Failed to delete match' });
+    } finally {
+        client.release();
     }
 });
 
