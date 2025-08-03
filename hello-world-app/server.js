@@ -11,7 +11,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 // Initialize JWT middleware
 const jwtMiddleware = new JWTMiddleware();
 
-app.use(express.static(path.join(__dirname, 'public')));
+// DO NOT use express.static here - it bypasses authentication
+// app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
 // Initialize the app

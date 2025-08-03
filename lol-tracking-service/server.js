@@ -15,7 +15,8 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// DO NOT use express.static here - it bypasses authentication
+// app.use(express.static(path.join(__dirname, 'public')));
 
 // Authentication middleware (following the established pattern)
 const checkAuth = async (req, res, next) => {
@@ -32,19 +33,22 @@ const checkAuth = async (req, res, next) => {
         console.log('Auth check response:', authData); // Debug log
         
         if (!authData.authenticated) {
-            return res.status(401).json({ error: 'Not authenticated' });
+            // Redirect to main landing page instead of returning JSON error
+            return res.redirect('/');
         }
         
         // Check user status - the auth service returns user.status, not userStatus
         if (!authData.user || authData.user.status !== 'approved') {
-            return res.status(401).json({ error: 'User not approved' });
+            // Redirect to main landing page instead of returning JSON error
+            return res.redirect('/');
         }
         
         req.user = authData.user;
         next();
     } catch (error) {
         console.error('Auth check failed:', error);
-        res.status(500).json({ error: 'Authentication service unavailable' });
+        // Redirect to main landing page instead of returning JSON error
+        return res.redirect('/');
     }
 };
 
@@ -61,22 +65,26 @@ const checkAdmin = async (req, res, next) => {
         const authData = await authResponse.json();
         
         if (!authData.authenticated) {
-            return res.status(401).json({ error: 'Not authenticated' });
+            // Redirect to main landing page instead of returning JSON error
+            return res.redirect('/');
         }
         
         if (!authData.user || authData.user.status !== 'approved') {
-            return res.status(401).json({ error: 'User not approved' });
+            // Redirect to main landing page instead of returning JSON error
+            return res.redirect('/');
         }
         
         if (!authData.user.isAdmin) {
-            return res.status(403).json({ error: 'Admin access required' });
+            // Redirect to main landing page instead of returning JSON error
+            return res.redirect('/');
         }
         
         req.user = authData.user;
         next();
     } catch (error) {
         console.error('Admin auth check failed:', error);
-        res.status(500).json({ error: 'Authentication service unavailable' });
+        // Redirect to main landing page instead of returning JSON error
+        return res.redirect('/');
     }
 };
 
@@ -114,19 +122,22 @@ const getRiotAccountByRiotId = async (gameName, tagLine, region = 'europe') => {
 // Routes
 
 // Root route - serve the management interface
-app.get('/', (req, res) => {
+app.get('/', checkAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Admin route - serve the admin interface
-app.get('/admin', (req, res) => {
+app.get('/admin', checkAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // Admin matches route - serve the match management interface
-app.get('/admin/matches-manager', (req, res) => {
+app.get('/admin/matches-manager', checkAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'matches.html'));
 });
+
+// Serve static assets for authenticated users
+app.use('/static', checkAuth, express.static(path.join(__dirname, 'public')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -309,34 +320,89 @@ app.post('/riot-accounts', checkAuth, async (req, res) => {
         
     } catch (error) {
         console.error('Error adding riot account:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            constraint: error.constraint
+        });
         
         if (error.message.includes('Riot API error: 404')) {
             return res.status(404).json({ 
-                error: 'Summoner not found. Please check the summoner name and tag.' 
+                error: 'Summoner not found. Please check the summoner name and tag.',
+                details: error.message
             });
         }
         
         if (error.message.includes('Riot API error: 401')) {
             return res.status(500).json({ 
-                error: 'Riot API authentication failed. Please contact administrator.' 
+                error: 'Riot API authentication failed. Please contact administrator.',
+                details: error.message
             });
         }
         
         if (error.message.includes('Riot API error: 403')) {
             return res.status(500).json({ 
-                error: 'Riot API rate limit exceeded. Please try again in a few minutes.' 
+                error: 'Riot API rate limit exceeded. Please try again in a few minutes.',
+                details: error.message
             });
         }
         
         if (error.message.includes('Riot API error:')) {
             return res.status(500).json({ 
-                error: `Riot API error: ${error.message}. Please try again later.` 
+                error: `Riot API error: ${error.message}. Please try again later.`,
+                details: error.message
             });
         }
         
-        // Database or other errors
+        // Database constraint errors
+        if (error.code === '23503') { // Foreign key constraint violation
+            if (error.constraint === 'riot_accounts_user_id_fkey') {
+                return res.status(500).json({ 
+                    error: 'User account data is missing from database. Please contact administrator.',
+                    details: `User ID ${req.user.id} not found in users table. Database may need restoration.`
+                });
+            }
+            return res.status(500).json({ 
+                error: 'Database constraint violation.',
+                details: `Foreign key violation: ${error.constraint} - ${error.detail}`
+            });
+        }
+        
+        if (error.code === '23505') { // Unique constraint violation
+            if (error.constraint === 'riot_accounts_puuid_key') {
+                return res.status(409).json({ 
+                    error: 'This Riot account is already linked to a user.',
+                    details: 'PUUID already exists in database'
+                });
+            }
+            return res.status(409).json({ 
+                error: 'Duplicate entry detected.',
+                details: `Constraint violation: ${error.constraint}`
+            });
+        }
+        
+        // Database connection errors
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            return res.status(500).json({ 
+                error: 'Database connection failed. Please contact administrator.',
+                details: error.message
+            });
+        }
+        
+        // Network/fetch errors
+        if (error.code === 'ENOTFOUND' || error.code === 'ECONNRESET') {
+            return res.status(500).json({ 
+                error: 'Network error occurred while contacting Riot API.',
+                details: error.message
+            });
+        }
+        
+        // Generic database or other errors with more details
         res.status(500).json({ 
-            error: 'Failed to add riot account. Please try again.' 
+            error: 'Failed to add riot account. Please try again.',
+            details: error.message,
+            errorCode: error.code || 'UNKNOWN_ERROR'
         });
     }
 });
@@ -644,6 +710,9 @@ app.post('/admin/load-matches', checkAdmin, async (req, res) => {
             errors: []
         };
         
+        // Track matches loaded in this session to avoid double-counting
+        const matchesLoadedThisSession = new Set();
+        
         // Process each account
         for (const account of accountsResult.rows) {
             try {
@@ -655,13 +724,22 @@ app.post('/admin/load-matches', checkAdmin, async (req, res) => {
                 // Process each match
                 for (const matchId of matchIds) {
                     try {
+                        // Skip if we already processed this match in this session
+                        if (matchesLoadedThisSession.has(matchId)) {
+                            results.processed++;
+                            continue;
+                        }
+                        
                         const matchDetails = await getMatchDetails(matchId, region);
                         const saveResult = await saveMatchToDatabase(matchDetails);
                         
                         if (saveResult.alreadyExists) {
+                            // This match was already in the database before this session
                             results.existingMatches++;
                         } else {
+                            // This is a new match loaded in this session
                             results.newMatches++;
+                            matchesLoadedThisSession.add(matchId);
                         }
                         
                         results.processed++;

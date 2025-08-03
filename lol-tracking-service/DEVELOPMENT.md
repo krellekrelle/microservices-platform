@@ -6,6 +6,17 @@
 **Port**: 3003  
 **Role**: Manage Riot accounts for authenticated users, track game data  
 **Dependencies**: auth-service, PostgreSQL database, Riot Games API  
+**Security**: Admin-only access with route-based protection (express.static removed for security)
+
+## 🛡️ Security Architecture
+
+**Admin-Only Pattern**: This service implements strict admin access control:
+
+- ❌ **Removed**: `app.use(express.static())` - bypassed authentication completely
+- ✅ **Added**: `checkAuth` middleware for user endpoints requiring approved status
+- ✅ **Added**: `checkAdmin` middleware for admin endpoints requiring admin privileges
+- ✅ **Added**: Protected `/static` route for authenticated asset serving
+- ✅ **Added**: Redirect handling to landing page instead of JSON errors for better UX  
 
 ## 🏗️ Architecture Role
 

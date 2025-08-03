@@ -20,17 +20,26 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 - **JWT Token Management** - 24-hour access tokens with 7-day refresh tokens
 - **Account Switching** - forced Google account selection on login
 - **Real-time Status Checking** - users can check approval status without page refresh
+- **Secure Static File Serving** - authentication bypass vulnerability fixed with route-based protection
+- **JWT Token Refresh** - automatic token refresh for seamless user experience
 
 ## 🎯 Current Status (August 2025)
 
-**Latest Updates**:
+**Latest Security Updates** (August 4, 2025):
+- ✅ **Authentication Bypass Fix**: Removed express.static middleware that allowed unauthorized access to protected pages
+- ✅ **Route-Based Security**: All HTML pages now served through protected routes with JWT validation  
+- ✅ **Redirect Path Corrections**: Fixed .html extension redirects across all services for seamless navigation
+- ✅ **JWT Token Refresh**: Implemented real-time token refresh for status checking without re-login
+- ✅ **Consistent Error Handling**: All services now redirect to landing page instead of returning JSON errors
+
+**Previous Updates**:
 - ✅ **Match Loading System**: Complete match data loading and management for League of Legends
 - ✅ **Summoner Name Display**: Fixed fine displays to show LoL summoner names instead of real names
 - ✅ **Delete All Functionality**: Admin can delete all matches with proper confirmation
 - ✅ **Routing Fix**: Corrected Express.js route order for proper endpoint matching
 - ✅ **Database Integration**: All LoL data properly stored with foreign key relationships
 
-**Production Ready**: All core features functional with proper error handling and user feedback.
+**Production Ready**: All core features functional with proper security and user feedback.
 
 ## 📋 Usage
 
@@ -48,22 +57,7 @@ Once approved, users have access to:
   - Link Riot accounts to your profile
   - View linked accounts and statistics
   - Admin panel for viewing all accounts across users
-  - **Match Loading** - Load and analyze match history for date ranges (Admin only)OAuth Authentication** with professional sign-in button following Google's design guidelines
-- **JWT Token Authentication** - secure, stateless authentication with httpOnly cookies
-- **Three-tier User Management** - approval system (unknown/approved/rejected)
-- **PostgreSQL Database** - complete user data persistence with audit trails
-- **Web Admin Panel** - full user management interface with statistics and actions
-- **CLI Admin Tools** - command-line interface for user management and database operations
-- **League of Legends Integration** - Riot Games API integration for account tracking and match loading
-- **Admin Analytics** - comprehensive overview of linked accounts across all users
-- **Microservices Architecture** with Docker containerization
-- **Centralized Authentication** - all auth logic handled by dedicated auth service
-- **Public HTTPS Access** - via Tailscale Funnel (no port forwarding required)
-- **Caddy Reverse Proxy** - automatic SSL termination and request routing
-- **Working Inter-Service Routing** - proper path handling between services
-- **JWT Token Management** - 24-hour access tokens with 7-day refresh tokens
-- **Account Switching** - forced Google account selection on login
-- **Real-time Status Checking** - users can check approval status without page refresh
+  - **Match Loading** - Load and analyze match history for date ranges (Admin only)
 
 ## 🏗️ Architecture
 

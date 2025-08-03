@@ -252,8 +252,8 @@
 <body>
     <div class="header">
         <div class="nav-links">
-            <a href="/dashboard.html" class="nav-link">← Back to Dashboard</a>
-            <a href="/admin.html" class="nav-link active">Admin Panel</a>
+            <a href="/dashboard" class="nav-link">← Back to Dashboard</a>
+            <a href="/admin" class="nav-link active">Admin Panel</a>
         </div>
         <div class="user-info">
             <img src="" alt="User Avatar" class="user-avatar" id="userAvatar">
@@ -396,7 +396,7 @@
                 
                 if (!data.user.isAdmin) {
                     alert('Access denied. Admin privileges required.');
-                    window.location.href = '/dashboard.html';
+                    window.location.href = '/dashboard';
                     return;
                 }
                 
@@ -653,7 +653,7 @@
         // Logout function
         async function logout() {
             try {
-                await fetch('/auth/logout', { method: 'POST' });
+                await fetch('/api/logout', { method: 'POST' });
                 window.location.href = '/';
             } catch (error) {
                 console.error('Logout failed:', error);

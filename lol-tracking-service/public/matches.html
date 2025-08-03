@@ -922,7 +922,8 @@
                         <h4>Match Loading Complete!</h4>
                         <p><strong>Processed:</strong> ${result.results.processed} matches</p>
                         <p><strong>New Matches:</strong> ${result.results.newMatches}</p>
-                        <p><strong>Already Existed:</strong> ${result.results.existingMatches}</p>
+                        <p><strong>Already in Database:</strong> ${result.results.existingMatches}</p>
+                        <p><em>Note: Duplicates across accounts are handled automatically</em></p>
                 `;
                 
                 if (result.results.errors.length > 0) {

@@ -50,18 +50,14 @@ class JWTMiddleware {
     const token = req.cookies ? req.cookies['auth-token'] : null;
     
     if (!token) {
-      return res.status(401).json({ 
-        authenticated: false, 
-        error: 'No token provided' 
-      });
+      // Redirect to main page (/) instead of returning JSON error
+      return res.redirect('/');
     }
 
     const decoded = this.verifyToken(token);
     if (!decoded) {
-      return res.status(401).json({ 
-        authenticated: false, 
-        error: 'Invalid or expired token' 
-      });
+      // Redirect to main page (/) instead of returning JSON error
+      return res.redirect('/');
     }
 
     req.user = decoded;
@@ -71,7 +67,8 @@ class JWTMiddleware {
   // Middleware function for requiring admin privileges
   requireAdmin = (req, res, next) => {
     if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin access required' });
+      // Redirect to main page (/) instead of returning JSON error
+      return res.redirect('/');
     }
     next();
   };
@@ -79,7 +76,8 @@ class JWTMiddleware {
   // Middleware function for requiring approved status
   requireApproved = (req, res, next) => {
     if (req.user?.status !== 'approved') {
-      return res.status(403).json({ error: 'Approved user status required' });
+      // Redirect to main page (/) instead of returning JSON error
+      return res.redirect('/');
     }
     next();
   };

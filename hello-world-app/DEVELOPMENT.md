@@ -4,8 +4,18 @@
 
 **Purpose**: Example microservice demonstrating authentication integration pattern  
 **Port**: 3002  
-**Role**: Template for new services, demonstrates auth integration  
+**Role**: Template for creating new authenticated microservices  
 **Dependencies**: auth-service for authentication validation  
+**Security**: Complete authentication protection (express.static removed for security)
+
+## 🛡️ Security Architecture
+
+**Authentication Pattern**: This service demonstrates the secure microservice authentication pattern:
+
+- ❌ **Removed**: `app.use(express.static())` - bypassed authentication completely
+- ✅ **Added**: JWT middleware authentication for ALL routes including root `/`
+- ✅ **Added**: `requireApproved` check to ensure only approved users can access
+- ✅ **Added**: Proper redirect handling to landing page for unauthorized access  
 
 ## 🏗️ Architecture Role
 

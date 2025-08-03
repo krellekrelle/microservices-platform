@@ -64,6 +64,14 @@
 - **Docker Environment Integration**: JWT secrets shared via environment variables
 - **Migration Script**: Automated migration process with comprehensive documentation
 
+### Phase 12: Security Hardening & Authentication Bypass Fix (August 2025)
+- **Critical Security Fix**: Removed express.static middleware that allowed unauthorized access to protected HTML pages
+- **Route-Based Protection**: All HTML files now served through authenticated routes with JWT validation
+- **Static Asset Security**: Implemented protected /static routes that block direct HTML access while allowing CSS/JS/images
+- **Redirect Path Corrections**: Fixed .html extension redirects across all services for seamless navigation
+- **JWT Token Refresh Integration**: Enhanced status checking with automatic token refresh to prevent stale status displays
+- **Consistent Error Handling**: All authentication middleware now redirects to landing page instead of returning JSON errors
+- **Cross-Service Security Pattern**: Applied security fixes consistently across landing-page, hello-world-app, and lol-tracking-service
 ### Phase 11: Match Loading System (August 2025)
 - **Match Database Schema**: Extended database with match, participant, team, and ban tables
 - **Match Loading API**: Admin endpoints for loading match history from Riot API
@@ -97,6 +105,52 @@
 - **Migration Script**: Automated migration process with comprehensive documentation
 
 ## ⚠️ Critical Development Lessons
+
+### Authentication Bypass Vulnerability (FIXED)
+**CRITICAL SECURITY ISSUE DISCOVERED AND RESOLVED**: express.static middleware bypassed authentication!
+
+**Problem**: Using `app.use(express.static())` before authentication middleware allowed direct access to all HTML files, completely bypassing the JWT authentication system.
+
+**Symptoms**:
+- Unauthorized users could access `/dashboard.html`, `/admin.html`, etc. directly
+- Authentication redirects failed because static files were served before auth checks
+- Users could view protected pages even when not logged in or approved
+
+**Root Cause**:
+```javascript
+// VULNERABLE - DO NOT USE
+app.use(express.static(path.join(__dirname, 'public')));
+
+// This bypasses all authentication middleware and serves files directly
+```
+
+**Solution**:
+```javascript
+// SECURE - Serve static files through protected routes
+// 1. Remove express.static middleware completely
+// app.use(express.static(path.join(__dirname, 'public'))); // REMOVED
+
+// 2. Serve HTML files through authenticated routes
+app.get('/dashboard', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// 3. Serve other assets through protected /static route that blocks HTML
+app.use('/static', jwtMiddleware.optionalAuth, (req, res, next) => {
+  if (req.path.endsWith('.html')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  next();
+}, express.static(path.join(__dirname, 'public')));
+```
+
+**Security Pattern Applied**:
+- ✅ landing-page/server.js: Removed express.static, added route-based protection
+- ✅ hello-world-app/server.js: Removed express.static, authentication required for all access
+- ✅ lol-tracking-service/server.js: Removed express.static, admin authentication for all routes
+- ✅ All JWT middleware: Changed error responses from JSON to redirects for better UX
+
+**Lesson**: Never use express.static before authentication middleware in secured applications.
 
 ### Container Rebuilding Requirements
 **MAJOR ISSUE DISCOVERED**: Docker container caching can prevent code changes from taking effect!

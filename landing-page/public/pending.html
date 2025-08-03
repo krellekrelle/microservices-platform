@@ -89,7 +89,7 @@
 
     <script>
         function logout() {
-            fetch('/logout', {
+            fetch('/api/logout', {
                 method: 'POST',
                 credentials: 'include'
             })
@@ -111,29 +111,67 @@
         }
 
         function checkStatus() {
+            console.log('Check status button clicked'); // Debug log
+            
             // Show loading state
             const statusBtn = document.querySelector('.refresh-btn');
             const originalText = statusBtn.textContent;
             statusBtn.textContent = 'Checking...';
             statusBtn.disabled = true;
 
-            fetch('/api/user', {
+            console.log('Refreshing tokens first to get latest user status'); // Debug log
+
+            // First, refresh the tokens to get the latest user status
+            fetch('/auth/refresh', {
+                method: 'POST',
                 credentials: 'include'
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Token refresh response:', response.status); // Debug log
+                if (!response.ok) {
+                    console.log('Token refresh failed, proceeding with current token'); // Debug log
+                }
+                // Continue regardless of refresh success/failure
+                return fetch('/api/user', {
+                    credentials: 'include'
+                });
+            })
+            .then(response => {
+                console.log('API response received:', response.status); // Debug log
+                return response.json();
+            })
             .then(data => {
+                console.log('API data received:', data); // Debug log
+                
                 if (data.authenticated && data.user) {
+                    console.log('User status:', data.user.status); // Debug log
+                    
                     if (data.user.status === 'approved') {
+                        console.log('User approved, redirecting to dashboard'); // Debug log
                         // Redirect to dashboard if approved
-                        window.location.href = '/dashboard.html';
+                        window.location.href = '/dashboard';
                     } else if (data.user.status === 'rejected') {
+                        console.log('User rejected, redirecting to rejected page'); // Debug log
                         // Redirect to rejected page if rejected
-                        window.location.href = '/rejected.html';
+                        window.location.href = '/rejected';
+                    } else if (data.user.status === 'pending' || data.user.status === 'unknown') {
+                        console.log('User still pending/unknown, showing message instead of immediate reload'); // Debug log
+                        // Still pending or unknown, show a message and reset button instead of immediate reload
+                        statusBtn.textContent = 'Still Pending';
+                        setTimeout(() => {
+                            statusBtn.textContent = originalText;
+                            statusBtn.disabled = false;
+                        }, 2000); // Show "Still Pending" for 2 seconds, then reset button
                     } else {
-                        // Still pending, just reload the page
-                        window.location.reload();
+                        console.log('Unknown user status:', data.user.status); // Debug log
+                        statusBtn.textContent = 'Unknown Status';
+                        setTimeout(() => {
+                            statusBtn.textContent = originalText;
+                            statusBtn.disabled = false;
+                        }, 2000);
                     }
                 } else {
+                    console.log('User not authenticated, redirecting to login'); // Debug log
                     // Not authenticated, redirect to login
                     window.location.href = '/';
                 }

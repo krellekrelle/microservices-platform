@@ -6,6 +6,16 @@
 **Port**: 3000  
 **Role**: Main entry point, serves authentication pages, proxies auth decisions  
 **Dependencies**: auth-service for all authentication logic  
+**Security**: Route-based protection with JWT validation (express.static removed for security)
+
+## 🛡️ Security Architecture
+
+**Critical Security Pattern**: This service implements route-based authentication protection:
+
+- ❌ **Removed**: `app.use(express.static())` - bypassed authentication
+- ✅ **Added**: Individual route protection for all HTML pages
+- ✅ **Added**: Protected `/static` route that blocks HTML access while serving assets
+- ✅ **Added**: JWT middleware for token validation and user status checking  
 
 ## 🏗️ Architecture Role
 

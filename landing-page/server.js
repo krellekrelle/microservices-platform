@@ -10,7 +10,8 @@ const PORT = process.env.PORT || 3000;
 // Initialize JWT middleware
 const jwtMiddleware = new JWTMiddleware();
 
-app.use(express.static(path.join(__dirname, 'public')));
+// DO NOT use express.static here - it bypasses authentication
+// app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -151,13 +152,15 @@ async function initializeApp() {
         // Redirect based on user status
         switch (authData.user.status) {
           case 'approved':
-            res.redirect('/dashboard.html');
+            res.redirect('/dashboard');
             break;
           case 'rejected':
-            res.redirect('/rejected.html');
+            res.redirect('/rejected');
             break;
+          case 'pending':
+          case 'unknown':
           default:
-            res.redirect('/pending.html');
+            res.redirect('/pending');
         }
       }
     });
@@ -180,7 +183,7 @@ async function initializeApp() {
     app.get('/pending', (req, res) => {
       const authData = checkAuthJWT(req);
       
-      if (!authData.authenticated || authData.user.status !== 'unknown') {
+      if (!authData.authenticated || (authData.user.status !== 'pending' && authData.user.status !== 'unknown')) {
         res.redirect('/');
         return;
       }
@@ -227,6 +230,15 @@ async function initializeApp() {
       res.clearCookie('refresh-token');
       res.json({ success: true, message: 'Logged out successfully' });
     });
+
+    // Serve static assets (JS, CSS, images) with authentication - but NOT HTML files
+    app.use('/static', jwtMiddleware.optionalAuth, (req, res, next) => {
+      // Block direct access to HTML files through static route
+      if (req.path.endsWith('.html')) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      next();
+    }, express.static(path.join(__dirname, 'public')));
 
     // Health check
     app.get('/health', (req, res) => {

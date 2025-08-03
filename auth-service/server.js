@@ -246,13 +246,13 @@ async function initializeApp() {
         // Redirect based on user status
         switch (user.status) {
           case 'approved':
-            res.redirect(`${frontendUrl}/dashboard.html`);
+            res.redirect(`${frontendUrl}/dashboard`);
             break;
           case 'rejected':
-            res.redirect(`${frontendUrl}/rejected.html`);
+            res.redirect(`${frontendUrl}/rejected`);
             break;
           default: // unknown
-            res.redirect(`${frontendUrl}/pending.html`);
+            res.redirect(`${frontendUrl}/pending`);
         }
       }
     );
