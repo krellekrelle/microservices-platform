@@ -16,16 +16,17 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 Once approved, users have access to:
 
 - **🌍 Hello World App** - Example service demonstrating authentication integration
-- **🎮 LoL Tracker** - League of Legends account management
+- **🎮 LoL Tracker** - League of Legends account management and match tracking
   - Link Riot accounts to your profile
   - View linked accounts and statistics
-  - Admin panel for viewing all accounts across usersOAuth Authentication** with professional sign-in button following Google's design guidelines
+  - Admin panel for viewing all accounts across users
+  - **Match Loading** - Load and analyze match history for date ranges (Admin only)OAuth Authentication** with professional sign-in button following Google's design guidelines
 - **JWT Token Authentication** - secure, stateless authentication with httpOnly cookies
 - **Three-tier User Management** - approval system (unknown/approved/rejected)
 - **PostgreSQL Database** - complete user data persistence with audit trails
 - **Web Admin Panel** - full user management interface with statistics and actions
 - **CLI Admin Tools** - command-line interface for user management and database operations
-- **League of Legends Integration** - Riot Games API integration for account tracking
+- **League of Legends Integration** - Riot Games API integration for account tracking and match loading
 - **Admin Analytics** - comprehensive overview of linked accounts across all users
 - **Microservices Architecture** with Docker containerization
 - **Centralized Authentication** - all auth logic handled by dedicated auth service
@@ -72,8 +73,10 @@ Once approved, users have access to:
 
 6. **LoL Tracking Service** (Port 3003)
    - League of Legends account management and game tracking
-   - Riot Games API integration for account validation
+   - Riot Games API integration for account validation and match data
    - User account linking with PUUID tracking
+   - **Match Loading System** - Admin can load match history for specific date ranges
+   - **Match Analytics** - View loaded matches with known users and statistics
    - Admin panel for viewing all linked accounts across users
    - Accessible via `/lol/` path through reverse proxy
 

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoL Match Management - Admin Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #dc3545;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        .navigation {
+            margin-bottom: 20px;
+        }
+        .nav-link {
+            display: inline-block;
+            margin-right: 10px;
+            color: #007bff;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            background-color: #007bff;
+            color: white;
+        }
+        .load-section {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin: 15px 0;
+            display: inline-block;
+            margin-right: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="date"] {
+            width: 150px;
+        }
+        select {
+            width: 120px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 10px 20px;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #17a2b8;
+        }
+        .stat-label {
+            color: #6c757d;
+        }
+        .matches-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .matches-table th,
+        .matches-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .matches-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .matches-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            margin: 0 5px;
+            padding: 8px 16px;
+            background-color: #007bff;
+        }
+        .pagination button:hover {
+            background-color: #0056b3;
+        }
+        .pagination button:disabled {
+            background-color: #6c757d;
+        }
+        .loading {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .game-mode {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+        .known-users {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="navigation">
+        <a href="/" class="nav-link">← Back to Dashboard</a>
+        <a href="/lol/" class="nav-link">👤 My Accounts</a>
+        <a href="/lol/admin" class="nav-link">👥 All Accounts</a>
+        <a href="/lol/admin/matches-manager" class="nav-link" style="background: #dc3545; color: white;">🎮 Match Management</a>
+    </div>
+    
+    <div class="container">
+        <h1>🎮 LoL Match Management</h1>
+        
+        <div id="message"></div>
+        
+        <!-- Match Loading Section -->
+        <div class="load-section">
+            <h3>📥 Load Matches</h3>
+            <p>Load matches for all registered accounts within a specific date range.</p>
+            
+            <form id="loadMatchesForm">
+                <div class="form-group">
+                    <label for="startDate">Start Date:</label>
+                    <input type="date" id="startDate" name="startDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="endDate">End Date:</label>
+                    <input type="date" id="endDate" name="endDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="region">Region:</label>
+                    <select id="region" name="region">
+                        <option value="europe">Europe</option>
+                        <option value="americas">Americas</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                </div>
+                
+                <button type="submit" id="loadBtn">Load Matches</button>
+            </form>
+            
+            <div id="loadProgress" style="display: none;">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div id="progressText">Loading matches...</div>
+            </div>
+        </div>
+        
+        <!-- Statistics Section -->
+        <div id="stats-section">
+            <h2>📊 Match Statistics</h2>
+            <div class="stats-grid" id="statsGrid">
+                <div class="loading">Loading statistics...</div>
+            </div>
+        </div>
+        
+        <!-- Matches Table Section -->
+        <div id="matches-section">
+            <h2>🏆 Loaded Matches</h2>
+            <div id="matchesContainer">
+                <div class="loading">Loading matches...</div>
+            </div>
+            
+            <div class="pagination" id="pagination" style="display: none;">
+                <button id="prevBtn" onclick="changePage(-1)">← Previous</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextBtn" onclick="changePage(1)">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        
+        // Set default dates (last 7 days)
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+            document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+            
+            loadStats();
+            loadMatches();
+        });
+        
+        // Load match statistics
+        async function loadStats() {
+            try {
+                const response = await fetch('/lol/admin/match-stats');
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load statistics');
+                }
+                
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${data.general.total_matches || 0}</div>
+                        <div class="stat-label">Total Matches</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.general.matches_with_known_users || 0}</div>
+                        <div class="stat-label">Matches with Known Users</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.byGameMode.length || 0}</div>
+                        <div class="stat-label">Game Modes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.general.last_loaded ? new Date(data.general.last_loaded).toLocaleDateString() : 'Never'}</div>
+                        <div class="stat-label">Last Loaded</div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="error">Error loading statistics: ${error.message}</div>
+                `;
+            }
+        }
+        
+        // Load matches with pagination
+        async function loadMatches(page = 1) {
+            try {
+                const response = await fetch(`/lol/admin/matches?page=${page}&limit=20`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load matches');
+                }
+                
+                currentPage = data.pagination.page;
+                totalPages = data.pagination.pages;
+                
+                const container = document.getElementById('matchesContainer');
+                
+                if (data.matches.length === 0) {
+                    container.innerHTML = '<div class="loading">No matches found.</div>';
+                    return;
+                }
+                
+                const table = `
+                    <table class="matches-table">
+                        <thead>
+                            <tr>
+                                <th>Match ID</th>
+                                <th>Date</th>
+                                <th>Mode</th>
+                                <th>Duration</th>
+                                <th>Platform</th>
+                                <th>Known Users</th>
+                                <th>Players</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.matches.map(match => `
+                                <tr>
+                                    <td>${match.match_id}</td>
+                                    <td>${new Date(parseInt(match.game_creation)).toLocaleDateString()}</td>
+                                    <td><span class="game-mode">${match.game_mode}</span></td>
+                                    <td>${Math.floor(match.game_duration / 60)}:${(match.game_duration % 60).toString().padStart(2, '0')}</td>
+                                    <td>${match.platform_id}</td>
+                                    <td><span class="known-users">${match.known_users_count || 0}</span></td>
+                                    <td title="${match.known_summoner_names || 'No known players'}">${match.known_user_names || 'No known users'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                
+                container.innerHTML = table;
+                
+                // Update pagination
+                document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+                document.getElementById('prevBtn').disabled = currentPage <= 1;
+                document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+                document.getElementById('pagination').style.display = totalPages > 1 ? 'flex' : 'none';
+                
+            } catch (error) {
+                document.getElementById('matchesContainer').innerHTML = `
+                    <div class="error">Error loading matches: ${error.message}</div>
+                `;
+            }
+        }
+        
+        // Change page
+        function changePage(direction) {
+            const newPage = currentPage + direction;
+            if (newPage >= 1 && newPage <= totalPages) {
+                loadMatches(newPage);
+            }
+        }
+        
+        // Handle match loading form
+        document.getElementById('loadMatchesForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                startDate: formData.get('startDate'),
+                endDate: formData.get('endDate'),
+                region: formData.get('region')
+            };
+            
+            const loadBtn = document.getElementById('loadBtn');
+            const progressDiv = document.getElementById('loadProgress');
+            const messageDiv = document.getElementById('message');
+            
+            // Validate dates
+            if (new Date(data.startDate) > new Date(data.endDate)) {
+                messageDiv.innerHTML = '<div class="error">Start date cannot be after end date.</div>';
+                return;
+            }
+            
+            try {
+                loadBtn.disabled = true;
+                progressDiv.style.display = 'block';
+                messageDiv.innerHTML = '';
+                
+                const response = await fetch('/lol/admin/load-matches', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to load matches');
+                }
+                
+                // Show results
+                let message = `
+                    <div class="success">
+                        <h4>Match Loading Complete!</h4>
+                        <p><strong>Processed:</strong> ${result.results.processed} matches</p>
+                        <p><strong>New Matches:</strong> ${result.results.newMatches}</p>
+                        <p><strong>Already Existed:</strong> ${result.results.existingMatches}</p>
+                `;
+                
+                if (result.results.errors.length > 0) {
+                    message += `<p><strong>Errors:</strong> ${result.results.errors.length}</p>`;
+                    message += `<details><summary>Show Errors</summary><ul>`;
+                    result.results.errors.forEach(error => {
+                        message += `<li>${error}</li>`;
+                    });
+                    message += `</ul></details>`;
+                }
+                
+                message += `</div>`;
+                messageDiv.innerHTML = message;
+                
+                // Refresh data
+                loadStats();
+                loadMatches(1);
+                
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Error loading matches: ${error.message}</div>`;
+            } finally {
+                loadBtn.disabled = false;
+                progressDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
