@@ -25,7 +25,16 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 
 ## 🎯 Current Status (August 2025)
 
-**Latest Security Updates** (August 4, 2025):
+**Latest Major Update** (August 5, 2025):
+- ✅ **Background Sync System**: Comprehensive automated match loading every 30 minutes with historical backfill
+- ✅ **Gap Recovery**: Automatically catches up on missed matches after server restarts without data loss
+- ✅ **Real-time Admin Dashboard**: Live sync monitoring at `/lol/admin/sync-status-page` with manual controls
+- ✅ **Smart Fine Calculation**: Prevents double fines for users with multiple accounts in same match
+- ✅ **Database Migration System**: Automatic schema updates with ordered execution and trigger creation
+- ✅ **Rate-Limited API Integration**: Conservative usage (80 req/2min) with automatic retry logic
+- ✅ **Enhanced Navigation**: Seamless admin interface navigation with sync status integration
+
+**Previous Security Updates** (August 4, 2025):
 - ✅ **Enhanced Fine Status Display**: Match details now show intelligent reasons why no fines were applied (date restrictions, team splits, insufficient participants)
 - ✅ **Database Connection Fix**: Resolved PostgreSQL client double-release issues in fine calculation system
 - ✅ **Match Management UX**: Expandable match details with role-based team displays and real-time fine status loading
@@ -57,11 +66,18 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 Once approved, users have access to:
 
 - **🌍 Hello World App** - Example service demonstrating authentication integration
-- **🎮 LoL Tracker** - League of Legends account management and match tracking
-  - Link Riot accounts to your profile
-  - View linked accounts and statistics
-  - Admin panel for viewing all accounts across users
-  - **Match Loading** - Load and analyze match history for date ranges (Admin only)
+- **🎮 LoL Tracker** - Advanced League of Legends match tracking and analysis
+  - **User Features**:
+    - Link Riot accounts to your profile
+    - View personal statistics and match history
+    - Real-time fine tracking and leaderboards
+  - **Admin Features**:
+    - **Background Sync Dashboard** - Monitor automatic match loading at `/lol/admin/sync-status-page`
+    - **Match Management** - View and manage all matches at `/lol/admin/matches-manager`
+    - **User Administration** - Manage all linked accounts across users
+    - **Manual Controls** - Trigger sync cycles and reset account status
+    - **Fine Administration** - Calculate and review automated fines
+    - **System Monitoring** - Real-time progress tracking and error resolution
 
 ## 🏗️ Architecture
 
@@ -98,12 +114,15 @@ Once approved, users have access to:
    - Shows user information with JWT token validation
 
 6. **LoL Tracking Service** (Port 3003)
-   - League of Legends account management and game tracking
-   - Riot Games API integration for account validation and match data
-   - User account linking with PUUID tracking
-   - **Match Loading System** - Admin can load match history for specific date ranges
-   - **Match Analytics** - View loaded matches with known users and statistics
-   - Admin panel for viewing all linked accounts across users
+   - **Advanced Match Tracking** with automated background synchronization
+   - **Background Sync System** - Automatically loads matches every 30 minutes
+   - **Historical Backfill** - Processes matches from June 2024 onwards for new accounts
+   - **Intelligent Fine Calculation** - Automated fine processing with multi-account detection
+   - **Real-time Monitoring** - Admin dashboard for sync status and progress tracking
+   - **Gap Recovery** - Automatically catches up on missed matches after server restarts
+   - **Rate-Limited API Usage** - Conservative API usage (80 req/2min) respecting Riot limits
+   - **User Account Management** - Link Riot accounts with PUUID tracking
+   - **Admin Analytics** - Comprehensive match and fine management interface
    - Accessible via `/lol/` path through reverse proxy
 
 ### Authentication Flow

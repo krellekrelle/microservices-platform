@@ -136,6 +136,11 @@ app.get('/admin/matches-manager', checkAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'matches.html'));
 });
 
+// Admin sync status route - serve the sync status interface
+app.get('/admin/sync-status-page', checkAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'sync-status.html'));
+});
+
 // Stats route - serve the statistics interface for all authenticated users
 app.get('/stats', checkAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'stats.html'));
@@ -1292,14 +1297,8 @@ const calculateFinesForMatch = async (matchId) => {
         const gameCreationTimestamp = typeof match.game_creation === 'string' ? 
             parseInt(match.game_creation) : match.game_creation;
         const matchDate = new Date(gameCreationTimestamp).getTime();
-        
-        console.log("Raw game_creation:", match.game_creation, "type:", typeof match.game_creation);
-        console.log("Converted gameCreationTimestamp:", gameCreationTimestamp);
-        console.log("matchDate:", matchDate, "fineSystemStartDate:", fineSystemStartDate);
-        console.log("matchDate < fineSystemStartDate:", matchDate < fineSystemStartDate);
 
         if (matchDate < fineSystemStartDate) {
-            console.log("Skipping fine calculation for match before fine system start date");
             // Mark as calculated but don't apply any fines for pre-fine-system matches
             await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
             await client.query('COMMIT');
@@ -1687,6 +1686,430 @@ app.get('/admin/matches/:matchId/details', checkAdmin, async (req, res) => {
     }
 });
 
+// Admin endpoint to get sync status
+app.get('/admin/sync-status', checkAdmin, async (req, res) => {
+    try {
+        const syncStatus = await pool.query(`
+            SELECT 
+                mss.account_id,
+                ra.summoner_name,
+                ra.summoner_tag,
+                u.name as user_name,
+                mss.sync_status,
+                mss.backfill_complete,
+                mss.last_sync_timestamp,
+                TO_TIMESTAMP(mss.last_sync_timestamp/1000) as last_sync_date,
+                mss.error_message,
+                mss.updated_at
+            FROM match_sync_status mss
+            JOIN riot_accounts ra ON mss.account_id = ra.id
+            JOIN users u ON ra.user_id = u.id
+            ORDER BY mss.updated_at DESC
+        `);
+        
+        const summary = await pool.query(`
+            SELECT 
+                COUNT(*) as total_accounts,
+                COUNT(CASE WHEN backfill_complete = TRUE THEN 1 END) as backfill_complete,
+                COUNT(CASE WHEN sync_status = 'error' THEN 1 END) as error_accounts,
+                COUNT(CASE WHEN sync_status = 'pending' THEN 1 END) as pending_accounts
+            FROM match_sync_status
+        `);
+        
+        res.json({
+            success: true,
+            summary: summary.rows[0],
+            accounts: syncStatus.rows,
+            syncManagerRunning: syncManager.isRunning
+        });
+        
+    } catch (error) {
+        console.error('Error fetching sync status:', error);
+        res.status(500).json({ error: 'Failed to fetch sync status' });
+    }
+});
+
+// Admin endpoint to manually trigger sync cycle
+app.post('/admin/trigger-sync', checkAdmin, async (req, res) => {
+    try {
+        if (syncManager.isRunning) {
+            return res.json({
+                success: false,
+                message: 'Sync cycle is already running'
+            });
+        }
+        
+        // Trigger sync in background
+        syncManager.runSyncCycle().catch(error => {
+            console.error('Manual sync cycle error:', error);
+        });
+        
+        res.json({
+            success: true,
+            message: 'Sync cycle triggered manually'
+        });
+        
+    } catch (error) {
+        console.error('Error triggering sync:', error);
+        res.status(500).json({ error: 'Failed to trigger sync' });
+    }
+});
+
+// Admin endpoint to reset account sync status
+app.post('/admin/reset-account-sync/:accountId', checkAdmin, async (req, res) => {
+    try {
+        const accountId = req.params.accountId;
+        const { resetToDate } = req.body;
+        
+        let timestamp = Date.now();
+        if (resetToDate) {
+            timestamp = new Date(resetToDate).getTime();
+        } else {
+            // Default to June 1, 2024
+            timestamp = new Date('2024-06-01T00:00:00Z').getTime();
+        }
+        
+        await pool.query(`
+            UPDATE match_sync_status 
+            SET 
+                last_sync_timestamp = $1,
+                sync_status = 'pending',
+                backfill_complete = FALSE,
+                error_message = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE account_id = $2
+        `, [timestamp, accountId]);
+        
+        res.json({
+            success: true,
+            message: 'Account sync status reset successfully'
+        });
+        
+    } catch (error) {
+        console.error('Error resetting account sync:', error);
+        res.status(500).json({ error: 'Failed to reset account sync status' });
+    }
+});
+
+// Background Match Sync System
+class MatchSyncManager {
+    constructor() {
+        this.isRunning = false;
+        this.lastRequestTime = 0;
+        this.requestCount = 0;
+        this.requestWindow = 120000; // 2 minutes in milliseconds
+        this.maxRequestsPerWindow = 80; // Conservative rate limit
+    }
+
+    async rateLimit() {
+        const now = Date.now();
+        
+        // Reset counter if window has passed
+        if (now - this.lastRequestTime > this.requestWindow) {
+            this.requestCount = 0;
+            this.lastRequestTime = now;
+        }
+        
+        // If we're at the limit, wait
+        if (this.requestCount >= this.maxRequestsPerWindow) {
+            const waitTime = this.requestWindow - (now - this.lastRequestTime);
+            console.log(`Rate limit reached, waiting ${Math.round(waitTime/1000)}s...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            this.requestCount = 0;
+            this.lastRequestTime = Date.now();
+        }
+        
+        this.requestCount++;
+    }
+
+    async startBackgroundSync() {
+        console.log('🚀 Starting background match sync system...');
+        
+        // Run every 30 minutes
+        setInterval(() => this.runSyncCycle(), 30 * 60 * 1000);
+        
+        // Also run once on startup (after 10 seconds)
+        setTimeout(() => this.runSyncCycle(), 10000);
+    }
+
+    async runSyncCycle() {
+        if (this.isRunning) {
+            console.log('⏳ Sync cycle already running, skipping...');
+            return;
+        }
+        
+        try {
+            this.isRunning = true;
+            console.log('🔄 Starting match sync cycle...');
+            
+            // 1. Historical backfill for accounts that need it
+            await this.runHistoricalBackfill();
+            
+            // 2. Ongoing sync for completed accounts
+            await this.runOngoingSync();
+            
+            // 3. Calculate fines for new matches
+            await this.calculatePendingFines();
+            
+            console.log('✅ Sync cycle completed successfully');
+            
+        } catch (error) {
+            console.error('❌ Sync cycle error:', error);
+            // TODO: Send admin notification
+        } finally {
+            this.isRunning = false;
+        }
+    }
+
+    async runHistoricalBackfill() {
+        console.log('📚 Running historical backfill...');
+        
+        // Get accounts that need backfill
+        const accounts = await pool.query(`
+            SELECT mss.account_id, ra.puuid, ra.summoner_name, mss.last_sync_timestamp
+            FROM match_sync_status mss
+            JOIN riot_accounts ra ON mss.account_id = ra.id
+            WHERE mss.backfill_complete = FALSE AND mss.sync_status != 'error'
+            ORDER BY mss.account_id
+            LIMIT 2
+        `);
+        
+        if (accounts.rows.length === 0) {
+            console.log('✅ All accounts have completed historical backfill');
+            return;
+        }
+        
+        for (const account of accounts.rows) {
+            try {
+                await this.backfillAccountHistory(account);
+            } catch (error) {
+                console.error(`❌ Error backfilling account ${account.summoner_name}:`, error);
+                await this.markAccountError(account.account_id, error.message);
+            }
+        }
+    }
+
+    async backfillAccountHistory(account) {
+        console.log(`📖 Backfilling history for ${account.summoner_name}...`);
+        
+        const startTimestamp = account.last_sync_timestamp;
+        const endTimestamp = Date.now();
+        const oneWeek = 7 * 24 * 60 * 60 * 1000;
+        
+        let currentStart = startTimestamp;
+        let processedMatches = 0;
+        
+        while (currentStart < endTimestamp) {
+            const currentEnd = Math.min(currentStart + oneWeek, endTimestamp);
+            
+            console.log(`  📅 Processing week: ${new Date(currentStart).toDateString()} to ${new Date(currentEnd).toDateString()}`);
+            
+            await this.rateLimit();
+            
+            try {
+                const matchIds = await getMatchIdsForPuuid(
+                    account.puuid, 
+                    Math.floor(currentStart / 1000), 
+                    Math.floor(currentEnd / 1000)
+                );
+                
+                console.log(`  🎮 Found ${matchIds.length} matches`);
+                
+                for (const matchId of matchIds) {
+                    try {
+                        await this.rateLimit();
+                        const matchData = await getMatchDetails(matchId);
+                        const result = await saveMatchToDatabase(matchData);
+                        
+                        if (result.success) {
+                            processedMatches++;
+                            
+                            // Calculate fines immediately for new matches
+                            try {
+                                await calculateFinesForMatch(matchId);
+                            } catch (fineError) {
+                                console.error(`⚠️ Fine calculation failed for match ${matchId}:`, fineError.message);
+                            }
+                        }
+                    } catch (matchError) {
+                        if (matchError.message.includes('404')) {
+                            console.log(`  ⚠️ Match ${matchId} not found (404), skipping...`);
+                        } else {
+                            console.error(`  ❌ Error processing match ${matchId}:`, matchError.message);
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                if (error.message.includes('429')) {
+                    console.log('⏸️ Rate limited, waiting before retry...');
+                    await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 1 minute
+                    continue; // Retry the same week
+                } else {
+                    throw error; // Re-throw other errors
+                }
+            }
+            
+            // Update progress
+            await pool.query(`
+                UPDATE match_sync_status 
+                SET last_sync_timestamp = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE account_id = $2
+            `, [currentEnd, account.account_id]);
+            
+            currentStart = currentEnd;
+        }
+        
+        // Mark backfill as complete
+        await pool.query(`
+            UPDATE match_sync_status 
+            SET backfill_complete = TRUE, sync_status = 'complete', updated_at = CURRENT_TIMESTAMP
+            WHERE account_id = $1
+        `, [account.account_id]);
+        
+        console.log(`✅ Completed backfill for ${account.summoner_name}: ${processedMatches} new matches`);
+    }
+
+    async runOngoingSync() {
+        console.log('🔄 Running ongoing sync...');
+        
+        // Get accounts that have completed backfill
+        const accounts = await pool.query(`
+            SELECT mss.account_id, ra.puuid, ra.summoner_name, mss.last_sync_timestamp
+            FROM match_sync_status mss
+            JOIN riot_accounts ra ON mss.account_id = ra.id
+            WHERE mss.backfill_complete = TRUE AND mss.sync_status != 'error'
+            ORDER BY mss.last_sync_timestamp ASC
+            LIMIT 10
+        `);
+        
+        if (accounts.rows.length === 0) {
+            console.log('ℹ️ No accounts ready for ongoing sync');
+            return;
+        }
+        
+        for (const account of accounts.rows) {
+            try {
+                await this.syncRecentMatches(account);
+            } catch (error) {
+                console.error(`❌ Error syncing recent matches for ${account.summoner_name}:`, error);
+                await this.markAccountError(account.account_id, error.message);
+            }
+        }
+    }
+
+    async syncRecentMatches(account) {
+        const startTimestamp = account.last_sync_timestamp;
+        const endTimestamp = Date.now();
+        
+        if (endTimestamp - startTimestamp < 5 * 60 * 1000) {
+            // Less than 5 minutes since last sync, skip
+            return;
+        }
+        
+        console.log(`🔄 Syncing recent matches for ${account.summoner_name}...`);
+        
+        await this.rateLimit();
+        
+        try {
+            const matchIds = await getMatchIdsForPuuid(
+                account.puuid,
+                Math.floor(startTimestamp / 1000),
+                Math.floor(endTimestamp / 1000)
+            );
+            
+            console.log(`  🎮 Found ${matchIds.length} recent matches`);
+            let processedMatches = 0;
+            
+            for (const matchId of matchIds) {
+                try {
+                    await this.rateLimit();
+                    const matchData = await getMatchDetails(matchId);
+                    const result = await saveMatchToDatabase(matchData);
+                    
+                    if (result.success) {
+                        processedMatches++;
+                        
+                        // Calculate fines immediately
+                        try {
+                            await calculateFinesForMatch(matchId);
+                        } catch (fineError) {
+                            console.error(`⚠️ Fine calculation failed for match ${matchId}:`, fineError.message);
+                        }
+                    }
+                } catch (matchError) {
+                    if (matchError.message.includes('404')) {
+                        console.log(`  ⚠️ Match ${matchId} not found (404), skipping...`);
+                    } else {
+                        console.error(`  ❌ Error processing match ${matchId}:`, matchError.message);
+                    }
+                }
+            }
+            
+            // Update last sync timestamp
+            await pool.query(`
+                UPDATE match_sync_status 
+                SET last_sync_timestamp = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE account_id = $2
+            `, [endTimestamp, account.account_id]);
+            
+            if (processedMatches > 0) {
+                console.log(`✅ Synced ${processedMatches} new matches for ${account.summoner_name}`);
+            }
+            
+        } catch (error) {
+            if (error.message.includes('429')) {
+                console.log('⏸️ Rate limited during ongoing sync');
+                // Don't update timestamp on rate limit, will retry next cycle
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    async calculatePendingFines() {
+        console.log('💰 Calculating fines for uncalculated matches...');
+        
+        const uncalculatedMatches = await pool.query(`
+            SELECT match_id 
+            FROM lol_matches 
+            WHERE fines_calculated = FALSE
+            ORDER BY game_creation DESC
+            LIMIT 10
+        `);
+        
+        if (uncalculatedMatches.rows.length === 0) {
+            console.log('✅ All matches have calculated fines');
+            return;
+        }
+        
+        let calculatedCount = 0;
+        for (const match of uncalculatedMatches.rows) {
+            try {
+                const result = await calculateFinesForMatch(match.match_id);
+                if (result.success || result.alreadyCalculated) {
+                    calculatedCount++;
+                }
+            } catch (error) {
+                console.error(`❌ Fine calculation failed for match ${match.match_id}:`, error.message);
+            }
+        }
+        
+        console.log(`✅ Calculated fines for ${calculatedCount} matches`);
+    }
+
+    async markAccountError(accountId, errorMessage) {
+        await pool.query(`
+            UPDATE match_sync_status 
+            SET sync_status = 'error', error_message = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE account_id = $2
+        `, [errorMessage, accountId]);
+    }
+}
+
+// Initialize background sync manager
+const syncManager = new MatchSyncManager();
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
@@ -1697,6 +2120,13 @@ app.use((error, req, res, next) => {
 app.listen(port, () => {
     console.log(`LoL Tracking Service running on port ${port}`);
     console.log(`Health check: http://localhost:${port}/health`);
+    
+    // Start background sync after server is running
+    if (process.env.RIOT_API_KEY) {
+        syncManager.startBackgroundSync();
+    } else {
+        console.log('⚠️ Riot API key not configured, background sync disabled');
+    }
 });
 
 // Graceful shutdown

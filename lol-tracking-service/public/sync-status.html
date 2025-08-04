@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Sync Status - Admin</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #c89b3c;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .nav-links {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .nav-links a {
+            color: #c89b3c;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .nav-links a:hover {
+            background-color: #f8f9fa;
+        }
+        .nav-links a.active {
+            background-color: #c89b3c;
+            color: white;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #c89b3c;
+            margin-bottom: 5px;
+        }
+        .summary-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .btn {
+            background-color: #c89b3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background-color: #b8941f;
+        }
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .accounts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .accounts-table th,
+        .accounts-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .accounts-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-complete {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-syncing {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        .backfill-status {
+            font-weight: bold;
+        }
+        .backfill-complete {
+            color: #28a745;
+        }
+        .backfill-pending {
+            color: #ffc107;
+        }
+        .error-message {
+            color: #dc3545;
+            font-size: 12px;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        .auto-refresh {
+            margin: 20px 0;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="margin-bottom: 20px;">
+            <a href="/lol/admin" style="background: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                ← Back to Admin
+            </a>
+        </div>
+        
+        <h1>🔄 Match Sync Status</h1>
+
+        <div class="summary-cards" id="summaryCards">
+            <div class="summary-card">
+                <div class="summary-value" id="totalAccounts">-</div>
+                <div class="summary-label">Total Accounts</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="backfillComplete">-</div>
+                <div class="summary-label">Backfill Complete</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="errorAccounts">-</div>
+                <div class="summary-label">Error Accounts</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="pendingAccounts">-</div>
+                <div class="summary-label">Pending Accounts</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="triggerSyncBtn" onclick="triggerSync()">🔄 Trigger Sync Now</button>
+        </div>
+
+        <div class="auto-refresh">
+            Auto-refreshing every 30 seconds... <span id="syncManagerStatus"></span>
+        </div>
+
+        <table class="accounts-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Summoner</th>
+                    <th>Sync Status</th>
+                    <th>Backfill</th>
+                    <th>Last Sync</th>
+                    <th>Error</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="accountsTableBody">
+                <tr>
+                    <td colspan="7" class="loading">Loading sync status...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadSyncStatus() {
+            try {
+                const response = await fetch('/lol/admin/sync-status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load sync status');
+                }
+                
+                // Update summary
+                document.getElementById('totalAccounts').textContent = data.summary.total_accounts;
+                document.getElementById('backfillComplete').textContent = data.summary.backfill_complete;
+                document.getElementById('errorAccounts').textContent = data.summary.error_accounts;
+                document.getElementById('pendingAccounts').textContent = data.summary.pending_accounts;
+                
+                // Update sync manager status
+                const statusEl = document.getElementById('syncManagerStatus');
+                if (data.syncManagerRunning) {
+                    statusEl.textContent = '(Sync Manager: RUNNING)';
+                    statusEl.style.color = '#28a745';
+                } else {
+                    statusEl.textContent = '(Sync Manager: IDLE)';
+                    statusEl.style.color = '#6c757d';
+                }
+                
+                // Update accounts table
+                renderAccountsTable(data.accounts);
+                
+            } catch (error) {
+                console.error('Error loading sync status:', error);
+                document.getElementById('accountsTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="7" style="color: #dc3545; text-align: center;">
+                            Failed to load sync status: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        function renderAccountsTable(accounts) {
+            const tbody = document.getElementById('accountsTableBody');
+            
+            if (!accounts || accounts.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: #6c757d;">
+                            No accounts found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = accounts.map(account => {
+                const statusClass = `status-${account.sync_status}`;
+                const backfillClass = account.backfill_complete ? 'backfill-complete' : 'backfill-pending';
+                const backfillText = account.backfill_complete ? '✅ Complete' : '⏳ Pending';
+                
+                const lastSync = account.last_sync_date ? 
+                    new Date(account.last_sync_date).toLocaleString('en-GB') : 'Never';
+                
+                return `
+                    <tr>
+                        <td>${escapeHtml(account.user_name)}</td>
+                        <td>${escapeHtml(account.summoner_name)}#${escapeHtml(account.summoner_tag)}</td>
+                        <td><span class="status-badge ${statusClass}">${account.sync_status}</span></td>
+                        <td class="backfill-status ${backfillClass}">${backfillText}</td>
+                        <td style="font-size: 12px;">${lastSync}</td>
+                        <td class="error-message">${account.error_message || ''}</td>
+                        <td>
+                            <button class="btn" style="font-size: 12px; padding: 4px 8px;" 
+                                    onclick="resetAccountSync(${account.account_id})">
+                                Reset
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        async function triggerSync() {
+            const btn = document.getElementById('triggerSyncBtn');
+            const originalText = btn.textContent;
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = '⏳ Triggering...';
+                
+                const response = await fetch('/lol/admin/trigger-sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    btn.textContent = '✅ Triggered!';
+                    setTimeout(() => loadSyncStatus(), 2000);
+                } else {
+                    btn.textContent = '❌ ' + result.message;
+                }
+                
+            } catch (error) {
+                console.error('Error triggering sync:', error);
+                btn.textContent = '❌ Error';
+            }
+            
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }, 3000);
+        }
+        
+        async function resetAccountSync(accountId) {
+            if (!confirm('Reset sync status for this account? This will restart backfill from June 2024.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/lol/admin/reset-account-sync/${accountId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Account sync status reset successfully');
+                    loadSyncStatus();
+                } else {
+                    alert('Failed to reset account sync status');
+                }
+                
+            } catch (error) {
+                console.error('Error resetting account sync:', error);
+                alert('Error resetting account sync status');
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load status when page loads
+        document.addEventListener('DOMContentLoaded', loadSyncStatus);
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadSyncStatus, 30000);
+    </script>
+</body>
+</html>

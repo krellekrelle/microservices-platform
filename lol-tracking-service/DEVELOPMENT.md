@@ -2,52 +2,133 @@
 
 ## 🎯 Service Overview
 
-**Purpose**: League of Legends account management and game tracking  
+**Purpose**: League of Legends match tracking with automated background synchronization and intelligent fine calculation  
 **Port**: 3003  
-**Role**: Manage Riot accounts for authenticated users, track game data  
+**Role**: Comprehensive LoL match data management with real-time sync and automated fine processing  
 **Dependencies**: auth-service, PostgreSQL database, Riot Games API  
-**Security**: Admin-only access with route-based protection (express.static removed for security)
+**Security**: Multi-tier access control (user/admin) with protected routes
 
-## 🛡️ Security Architecture
+## � Key Features
 
-**Admin-Only Pattern**: This service implements strict admin access control:
+### Background Sync System
+- **Automatic Match Loading**: Runs every 30 minutes to fetch new matches
+- **Historical Backfill**: Processes matches from June 2024 onwards for new accounts
+- **Gap Recovery**: Automatically catches up on missed matches after server restarts
+- **Rate Limiting**: Conservative API usage (80 requests per 2 minutes) to respect Riot limits
+- **Error Handling**: Automatic retry logic with exponential backoff
 
-- ❌ **Removed**: `app.use(express.static())` - bypassed authentication completely
-- ✅ **Added**: `checkAuth` middleware for user endpoints requiring approved status
-- ✅ **Added**: `checkAdmin` middleware for admin endpoints requiring admin privileges
-- ✅ **Added**: Protected `/static` route for authenticated asset serving
-- ✅ **Added**: Redirect handling to landing page instead of JSON errors for better UX  
+### Intelligent Fine Calculation
+- **Automated Processing**: Fines calculated immediately when new matches are loaded
+- **Multiple Account Detection**: Prevents double fines when users have multiple accounts in the same match
+- **Game Mode Specific**: Different fine rules for ARAM, URF, Nexus Blitz, and normal games
+- **Historical Exclusion**: No fines applied to matches before June 2024
 
-## 🏗️ Architecture Role
+### Admin Features
+- **Real-time Monitoring**: Sync status dashboard with live updates
+- **Manual Controls**: Trigger sync cycles and reset account status
+- **Match Management**: View, filter, and manage matches with bulk operations
+- **Fine Administration**: Calculate and review fines with detailed breakdowns
 
-The lol-tracking-service extends the platform with LoL-specific functionality:
-- **Riot Account Management**: Link summoner accounts to platform users
-- **Game Data Tracking**: Fetch and store match history and statistics
-- **Fine System**: Calculate penalties based on game performance
-- **User Statistics**: Provide insights and leaderboards
+## 🏗️ Architecture Overview
 
-## 📁 File Structure
-
+### Background Sync Manager
+```javascript
+class MatchSyncManager {
+    constructor() {
+        this.isRunning = false;
+        this.rateLimit = new RateLimit(80, 120000); // 80 req/2min
+    }
+    
+    async startBackgroundSync() {
+        // Runs every 30 minutes
+        setInterval(() => this.runSyncCycle(), 30 * 60 * 1000);
+        
+        // Initial run after 10 seconds
+        setTimeout(() => this.runSyncCycle(), 10000);
+    }
+    
+    async runSyncCycle() {
+        // 1. Historical backfill for incomplete accounts
+        await this.runHistoricalBackfill();
+        
+        // 2. Recent match sync for completed accounts
+        await this.runOngoingSync();
+        
+        // 3. Calculate fines for new matches
+        await this.calculatePendingFines();
+    }
+}
 ```
-lol-tracking-service/
-├── server.js              # Main application logic
-├── package.json           # Dependencies and scripts
-├── Dockerfile            # Container configuration
-└── DEVELOPMENT.md        # This documentation
+
+### Database Schema Extensions
+
+#### Match Sync Tracking
+```sql
+CREATE TABLE match_sync_status (
+    account_id INTEGER PRIMARY KEY REFERENCES riot_accounts(id),
+    last_sync_timestamp BIGINT NOT NULL,
+    sync_status VARCHAR(20) DEFAULT 'pending',
+    backfill_complete BOOLEAN DEFAULT FALSE,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Automatic sync status creation for new accounts
+CREATE OR REPLACE FUNCTION create_match_sync_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO match_sync_status (account_id, last_sync_timestamp)
+    VALUES (NEW.id, EXTRACT(EPOCH FROM TIMESTAMP '2024-06-01 00:00:00') * 1000);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_create_match_sync_status
+    AFTER INSERT ON riot_accounts
+    FOR EACH ROW
+    EXECUTE FUNCTION create_match_sync_status();
 ```
 
-## � Development Commands
+#### Enhanced Match Data
+```sql
+-- Core match information
+CREATE TABLE lol_matches (
+    match_id VARCHAR(20) PRIMARY KEY,
+    game_creation BIGINT,
+    game_duration INTEGER,
+    game_mode VARCHAR(20),
+    queue_id INTEGER,
+    fines_calculated BOOLEAN DEFAULT FALSE,
+    loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-### Docker Management
-```bash
-# Rebuild and restart lol-tracking service
-docker compose up lol-tracking-service --build -d
+-- Detailed participant data
+CREATE TABLE lol_participants (
+    id SERIAL PRIMARY KEY,
+    match_id VARCHAR(20) REFERENCES lol_matches(match_id),
+    puuid VARCHAR(78),
+    summoner_name VARCHAR(50),
+    champion_name VARCHAR(30),
+    kills INTEGER,
+    deaths INTEGER,
+    assists INTEGER,
+    win BOOLEAN,
+    lane VARCHAR(20),
+    role VARCHAR(20),
+    team_position VARCHAR(20)
+);
 
-# View service logs
-docker compose logs -f lol-tracking-service
-
-# Stop service
-docker compose stop lol-tracking-service
+-- Fine tracking
+CREATE TABLE lol_fines (
+    id SERIAL PRIMARY KEY,
+    match_id VARCHAR(20) REFERENCES lol_matches(match_id),
+    user_id INTEGER REFERENCES users(id),
+    fine_type VARCHAR(20) NOT NULL,
+    fine_size INTEGER NOT NULL,
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
 
 # Full rebuild (if having issues)
 docker compose down
@@ -294,3 +375,87 @@ curl -X POST -H "Content-Type: application/json" \
 - **POST /admin/matches/:matchId/calculate-fines**: Now returns detailed reasons for fine decisions
 - **Enhanced Response Structure**: Includes `success`, `reason`, and `finesApplied` fields
 - **Better Error Messages**: More descriptive error responses for debugging
+
+## 🆕 Latest Major Update (v3.0): Background Sync System
+
+### Automated Match Synchronization
+- **Background Processing**: Comprehensive match sync system running every 30 minutes
+- **Historical Backfill**: Automatically processes matches from June 2024 onwards
+- **Gap Recovery**: Catches up on missed matches after server restarts without data loss
+- **Rate Limiting**: Conservative API usage (80 requests per 2 minutes) respecting Riot limits
+
+### Enhanced Database Schema
+```sql
+-- New sync tracking table
+CREATE TABLE match_sync_status (
+    account_id INTEGER PRIMARY KEY REFERENCES riot_accounts(id),
+    last_sync_timestamp BIGINT NOT NULL,
+    sync_status VARCHAR(20) DEFAULT 'pending',
+    backfill_complete BOOLEAN DEFAULT FALSE,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Automatic trigger for new accounts
+CREATE TRIGGER trigger_create_match_sync_status
+    AFTER INSERT ON riot_accounts
+    FOR EACH ROW
+    EXECUTE FUNCTION create_match_sync_status();
+```
+
+### Admin Monitoring Dashboard
+- **Real-time Status**: Live sync progress monitoring at `/lol/admin/sync-status-page`
+- **Manual Controls**: Trigger sync cycles and reset account status
+- **Error Tracking**: Comprehensive error reporting and resolution
+- **Progress Visualization**: Summary cards and detailed account tables
+
+### Background Sync Manager Architecture
+```javascript
+class MatchSyncManager {
+    constructor() {
+        this.isRunning = false;
+        this.requestCount = 0;
+        this.maxRequestsPerWindow = 80; // Conservative rate limit
+        this.requestWindow = 120000; // 2 minutes
+    }
+
+    async runSyncCycle() {
+        if (this.isRunning) return;
+        
+        try {
+            this.isRunning = true;
+            
+            // 1. Historical backfill for accounts that need it
+            await this.runHistoricalBackfill();
+            
+            // 2. Ongoing sync for completed accounts
+            await this.runOngoingSync();
+            
+            // 3. Calculate fines for new matches
+            await this.calculatePendingFines();
+            
+        } finally {
+            this.isRunning = false;
+        }
+    }
+}
+```
+
+### Smart Fine Calculation
+- **Multiple Account Detection**: Prevents double fines when users have multiple accounts in same match
+- **Historical Awareness**: Excludes matches before June 2024 from fine system
+- **Immediate Processing**: Fines calculated automatically for newly loaded matches
+- **Detailed Reporting**: Clear reasons provided for all fine decisions
+
+### Performance Optimizations
+- **Database Indexing**: Optimized queries for large match datasets
+- **Connection Pooling**: Efficient database connection management
+- **Error Isolation**: Individual account failures don't affect others
+- **Memory Management**: Efficient processing of large match batches
+
+### Migration and Deployment
+- **Automatic Migration**: Database schema updates on container startup
+- **Backward Compatibility**: Handles existing data gracefully
+- **Zero Downtime**: Background sync starts automatically after brief delay
+- **Docker Integration**: Seamless integration with existing compose setup
