@@ -930,10 +930,21 @@ app.get('/admin/matches', checkAdmin, async (req, res) => {
                     f.fine_type,
                     f.fine_size,
                     u.name as user_name,
-                    ra.summoner_name
+                    -- Get the summoner name used in THIS specific match, fallback to any account
+                    COALESCE(match_participant.summoner_name, first_account.summoner_name) as summoner_name
                 FROM lol_fines f
                 JOIN users u ON f.user_id = u.id
-                LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+                LEFT JOIN (
+                    SELECT p.summoner_name, ra.user_id
+                    FROM lol_participants p
+                    JOIN riot_accounts ra ON p.puuid = ra.puuid
+                    WHERE p.match_id = $1
+                ) match_participant ON match_participant.user_id = u.id
+                LEFT JOIN (
+                    SELECT DISTINCT ON (user_id) user_id, summoner_name
+                    FROM riot_accounts
+                    ORDER BY user_id, id
+                ) first_account ON u.id = first_account.user_id
                 WHERE f.match_id = $1
                 ORDER BY f.fine_type, u.name
             `, [match.match_id]);
@@ -1197,6 +1208,42 @@ const calculateFinesForMatch = async (matchId) => {
             const participants = participantsResult.rows;
             const knownUsers = participants.filter(p => p.user_id);
             
+            // Check for multiple accounts from the same user
+            const userAccountMap = new Map();
+            for (const participant of knownUsers) {
+                if (!userAccountMap.has(participant.user_id)) {
+                    userAccountMap.set(participant.user_id, []);
+                }
+                userAccountMap.get(participant.user_id).push({
+                    summoner_name: participant.account_name,
+                    user_name: participant.user_name
+                });
+            }
+            
+            const usersWithMultipleAccounts = [];
+            for (const [userId, accounts] of userAccountMap) {
+                if (accounts.length > 1) {
+                    usersWithMultipleAccounts.push({
+                        userId,
+                        accountCount: accounts.length,
+                        accounts: accounts.map(acc => acc.summoner_name),
+                        userName: accounts[0].user_name
+                    });
+                }
+            }
+            
+            if (usersWithMultipleAccounts.length > 0) {
+                const accountDetails = usersWithMultipleAccounts.map(user => 
+                    `${user.userName} (${user.accounts.join(', ')})`
+                ).join('; ');
+                
+                return { 
+                    alreadyCalculated: true, 
+                    reason: `No fines applied - ${usersWithMultipleAccounts.length} user(s) have multiple accounts in this match: ${accountDetails}`,
+                    multipleAccountsDetected: true
+                };
+            }
+            
             if (knownUsers.length < 3) {
                 return { 
                     alreadyCalculated: true, 
@@ -1274,6 +1321,49 @@ const calculateFinesForMatch = async (matchId) => {
         
         const participants = participantsResult.rows;
         const knownUsers = participants.filter(p => p.user_id);
+        
+        // Check for multiple accounts from the same user in the match
+        const userAccountMap = new Map();
+        for (const participant of knownUsers) {
+            if (!userAccountMap.has(participant.user_id)) {
+                userAccountMap.set(participant.user_id, []);
+            }
+            userAccountMap.get(participant.user_id).push({
+                summoner_name: participant.account_name,
+                user_name: participant.user_name
+            });
+        }
+        
+        // Find users with multiple accounts
+        const usersWithMultipleAccounts = [];
+        for (const [userId, accounts] of userAccountMap) {
+            if (accounts.length > 1) {
+                usersWithMultipleAccounts.push({
+                    userId,
+                    accountCount: accounts.length,
+                    accounts: accounts.map(acc => acc.summoner_name),
+                    userName: accounts[0].user_name
+                });
+            }
+        }
+        
+        // If any user has multiple accounts, skip fine calculation
+        if (usersWithMultipleAccounts.length > 0) {
+            await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
+            await client.query('COMMIT');
+            
+            const accountDetails = usersWithMultipleAccounts.map(user => 
+                `${user.userName} (${user.accounts.join(', ')})`
+            ).join('; ');
+            
+            return { 
+                success: true, 
+                finesApplied: 0, 
+                reason: `No fines applied - ${usersWithMultipleAccounts.length} user(s) have multiple accounts in this match: ${accountDetails}`,
+                multipleAccountsDetected: true,
+                details: usersWithMultipleAccounts
+            };
+        }
         
         // Check if we have at least 3 known users
         if (knownUsers.length < 3) {
@@ -1564,10 +1654,21 @@ app.get('/admin/matches/:matchId/details', checkAdmin, async (req, res) => {
             SELECT 
                 f.*,
                 u.name as user_name,
-                ra.summoner_name
+                -- Get the summoner name used in THIS specific match, fallback to any account
+                COALESCE(match_participant.summoner_name, first_account.summoner_name) as summoner_name
             FROM lol_fines f
             JOIN users u ON f.user_id = u.id
-            LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+            LEFT JOIN (
+                SELECT p.summoner_name, ra.user_id
+                FROM lol_participants p
+                JOIN riot_accounts ra ON p.puuid = ra.puuid
+                WHERE p.match_id = $1
+            ) match_participant ON match_participant.user_id = u.id
+            LEFT JOIN (
+                SELECT DISTINCT ON (user_id) user_id, summoner_name
+                FROM riot_accounts
+                ORDER BY user_id, id
+            ) first_account ON u.id = first_account.user_id
             WHERE f.match_id = $1
             ORDER BY f.date DESC
         `, [matchId]);

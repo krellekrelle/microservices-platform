@@ -1291,13 +1291,17 @@
                     
                     // Check for already calculated with reason (this is the new enhanced response)
                     if (result.success && result.reason) {
-                        placeholder.innerHTML = `<em>✅ ${result.reason}</em>`;
+                        const icon = result.multipleAccountsDetected ? '👥' : '✅';
+                        const style = result.multipleAccountsDetected ? 'color: #ffc107; font-weight: bold;' : '';
+                        placeholder.innerHTML = `<em style="${style}">${icon} ${result.reason}</em>`;
                         return;
                     }
                     
                     // Legacy check for alreadyCalculated responses
                     if (result.alreadyCalculated && result.reason) {
-                        placeholder.innerHTML = `<em>✅ ${result.reason}</em>`;
+                        const icon = result.multipleAccountsDetected ? '👥' : '✅';
+                        const style = result.multipleAccountsDetected ? 'color: #ffc107; font-weight: bold;' : '';
+                        placeholder.innerHTML = `<em style="${style}">${icon} ${result.reason}</em>`;
                         return;
                     }
                 }
