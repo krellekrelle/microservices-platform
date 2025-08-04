@@ -631,7 +631,7 @@
                                                onclick="event.stopPropagation()">
                                     </td>
                                     <td><span class="expand-icon" id="expand-icon-${match.match_id}">▶</span>${match.match_id}</td>
-                                    <td>${new Date(parseInt(match.game_creation)).toLocaleDateString()}</td>
+                                    <td>${new Date(parseInt(match.game_creation)).toLocaleDateString('en-GB')}</td>
                                     <td><span class="game-mode">${match.game_mode}</span></td>
                                     <td>${Math.floor(match.game_duration / 60)}:${(match.game_duration % 60).toString().padStart(2, '0')}</td>
                                     <td>${match.platform_id}</td>
