@@ -272,7 +272,7 @@
     <script>
         async function loadStats() {
             try {
-                const response = await fetch('/lol/api/stats');
+                const response = await fetch('/api/stats');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

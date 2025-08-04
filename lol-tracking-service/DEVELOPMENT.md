@@ -266,5 +266,31 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-**Last Updated**: August 3, 2025  
-**Service Version**: v1.0 (Basic Account Management)
+**Last Updated**: August 4, 2025  
+**Service Version**: v2.1 (Enhanced Match Management & Fine Status)
+
+## 🆕 Recent Enhancements (v2.1)
+
+### Enhanced Fine Status Display
+- **Intelligent Fine Reasons**: Match details now show specific reasons why no fines were applied
+- **Date-Based Logic**: Matches before June 2024 show "before fine system" messages
+- **Team Analysis**: Displays when known users are on different teams
+- **Participant Requirements**: Shows when insufficient known users participated
+- **Database Connection Fix**: Resolved double client release issue in fine calculation
+
+### Match Management Improvements
+- **Expandable Match Details**: Click any match row to see detailed team compositions
+- **Role-Based Display**: Ranked matches show proper lane assignments (Top, Jungle, Mid, Bot, Support)
+- **Fine Status Integration**: Real-time loading of fine calculation reasons in match details
+- **Enhanced Error Handling**: Better database connection management and error reporting
+
+### Technical Fixes
+- **PostgreSQL Connection Pooling**: Fixed client release lifecycle in `calculateFinesForMatch`
+- **API Response Consistency**: Standardized response structure for fine calculation endpoints
+- **Frontend-Backend Integration**: Improved fine status loading with proper response handling
+- **URL Routing Consistency**: Fixed routing prefix issues across admin endpoints
+
+### API Enhancements
+- **POST /admin/matches/:matchId/calculate-fines**: Now returns detailed reasons for fine decisions
+- **Enhanced Response Structure**: Includes `success`, `reason`, and `finesApplied` fields
+- **Better Error Messages**: More descriptive error responses for debugging

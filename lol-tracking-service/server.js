@@ -980,9 +980,21 @@ app.get('/admin/match-stats', checkAdmin, async (req, res) => {
             ORDER BY count DESC
         `);
         
+        // Add fine system statistics
+        const fineSystemStartTimestamp = new Date('2024-06-01T00:00:00Z').getTime();
+        const fineSystemStats = await pool.query(`
+            SELECT 
+                COUNT(CASE WHEN game_creation >= $1 THEN 1 END) as matches_after_fine_system,
+                COUNT(CASE WHEN game_creation < $1 THEN 1 END) as matches_before_fine_system,
+                COUNT(CASE WHEN game_creation >= $1 AND fines_calculated = true THEN 1 END) as fine_eligible_calculated,
+                COUNT(CASE WHEN game_creation >= $1 AND fines_calculated = false THEN 1 END) as fine_eligible_pending
+            FROM lol_matches
+        `, [fineSystemStartTimestamp]);
+        
         res.json({
             general: stats.rows[0],
-            byGameMode: modeStats.rows
+            byGameMode: modeStats.rows,
+            fineSystemStats: fineSystemStats.rows[0]
         });
         
     } catch (error) {
@@ -1140,19 +1152,116 @@ const calculateFinesForMatch = async (matchId) => {
     try {
         await client.query('BEGIN');
         
-        // Get match details
+        // Get match details - check both calculated and uncalculated matches
         const matchResult = await client.query(`
-            SELECT match_id, game_mode, queue_id 
+            SELECT match_id, game_mode, queue_id, game_creation, fines_calculated
             FROM lol_matches 
-            WHERE match_id = $1 AND fines_calculated = false
+            WHERE match_id = $1
         `, [matchId]);
         
         if (matchResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return { alreadyCalculated: true };
+            return { error: true, reason: 'Match not found' };
         }
         
         const match = matchResult.rows[0];
+        
+        // If already calculated, provide the reason based on match analysis
+        if (match.fines_calculated) {
+            await client.query('ROLLBACK');
+            
+            // Analyze why no fines were applied by checking the same conditions
+            const fineSystemStartDate = new Date('2024-06-01T00:00:00Z').getTime();
+            
+            // Convert game_creation to number if it's a string (bigint from database)
+            const gameCreationTimestamp = typeof match.game_creation === 'string' ? 
+                parseInt(match.game_creation) : match.game_creation;
+            const matchDate = new Date(gameCreationTimestamp).getTime();
+            
+            if (matchDate < fineSystemStartDate) {
+                return { 
+                    alreadyCalculated: true, 
+                    reason: `Match from ${new Date(gameCreationTimestamp).toDateString()} - before fine system (June 2024)` 
+                };
+            }
+            
+            // Check participants for other reasons
+            const participantsResult = await pool.query(`
+                SELECT p.*, ra.user_id, ra.summoner_name as account_name, u.name as user_name
+                FROM lol_participants p
+                LEFT JOIN riot_accounts ra ON p.puuid = ra.puuid
+                LEFT JOIN users u ON ra.user_id = u.id
+                WHERE p.match_id = $1
+            `, [matchId]);
+            
+            const participants = participantsResult.rows;
+            const knownUsers = participants.filter(p => p.user_id);
+            
+            if (knownUsers.length < 3) {
+                return { 
+                    alreadyCalculated: true, 
+                    reason: `Only ${knownUsers.length} known users in match (minimum 3 required)` 
+                };
+            }
+            
+            // Check if users are on different teams
+            const teamResults = knownUsers.map(p => p.win);
+            const uniqueTeamResults = [...new Set(teamResults)];
+            
+            if (uniqueTeamResults.length > 1) {
+                return { 
+                    alreadyCalculated: true, 
+                    reason: 'Known users are on different teams - no fines applied' 
+                };
+            }
+            
+            // Get actual fines to see what was applied
+            const finesResult = await pool.query(`
+                SELECT fine_type, COUNT(*) as count
+                FROM lol_fines 
+                WHERE match_id = $1 
+                GROUP BY fine_type
+            `, [matchId]);
+            
+            if (finesResult.rows.length === 0) {
+                return { 
+                    alreadyCalculated: true, 
+                    reason: 'Fines already calculated - no fine conditions were met' 
+                };
+            } else {
+                const fineTypes = finesResult.rows.map(row => `${row.fine_type} (${row.count})`);
+                return { 
+                    alreadyCalculated: true, 
+                    reason: `Fines already calculated - applied: ${fineTypes.join(', ')}` 
+                };
+            }
+        }
+        
+        // Proceed with calculation for uncalculated matches
+        // Fine system started in June 2024 - don't apply fines to matches before this date
+        const fineSystemStartDate = new Date('2024-06-01T00:00:00Z').getTime();
+        
+        // Convert game_creation to number if it's a string (bigint from database)
+        const gameCreationTimestamp = typeof match.game_creation === 'string' ? 
+            parseInt(match.game_creation) : match.game_creation;
+        const matchDate = new Date(gameCreationTimestamp).getTime();
+        
+        console.log("Raw game_creation:", match.game_creation, "type:", typeof match.game_creation);
+        console.log("Converted gameCreationTimestamp:", gameCreationTimestamp);
+        console.log("matchDate:", matchDate, "fineSystemStartDate:", fineSystemStartDate);
+        console.log("matchDate < fineSystemStartDate:", matchDate < fineSystemStartDate);
+
+        if (matchDate < fineSystemStartDate) {
+            console.log("Skipping fine calculation for match before fine system start date");
+            // Mark as calculated but don't apply any fines for pre-fine-system matches
+            await client.query('UPDATE lol_matches SET fines_calculated = true WHERE match_id = $1', [matchId]);
+            await client.query('COMMIT');
+            return { 
+                success: true, 
+                finesApplied: 0, 
+                reason: `Match from ${new Date(gameCreationTimestamp).toDateString()} - before fine system (June 2024)` 
+            };
+        }
         
         // Get participants with their riot account info
         const participantsResult = await client.query(`
@@ -1269,10 +1378,20 @@ const calculateFinesForMatch = async (matchId) => {
         
         await client.query('COMMIT');
         
+        // Generate reason based on results
+        let reason = '';
+        if (fines.length === 0) {
+            reason = 'No fines applied - no fine conditions were met';
+        } else {
+            const fineTypes = [...new Set(fines.map(f => f.fineType))];
+            reason = `Applied ${fines.length} fine(s): ${fineTypes.join(', ')}`;
+        }
+        
         return {
             success: true,
             finesApplied: fines.length,
-            fines: fines
+            fines: fines,
+            reason: reason
         };
         
     } catch (error) {
@@ -1291,8 +1410,18 @@ app.post('/admin/matches/:matchId/calculate-fines', checkAdmin, async (req, res)
         
         if (result.alreadyCalculated) {
             return res.json({
+                success: true,
+                message: 'Fines already calculated for this match',
+                finesApplied: 0,
+                reason: result.reason || 'Fines already calculated for this match',
+                fines: []
+            });
+        }
+        
+        if (result.error) {
+            return res.status(404).json({
                 success: false,
-                message: 'Fines already calculated for this match'
+                error: result.reason || 'Match not found'
             });
         }
         
@@ -1323,7 +1452,8 @@ app.post('/admin/matches/bulk-calculate-fines', checkAdmin, async (req, res) => 
             processed: 0,
             totalFines: 0,
             alreadyCalculated: 0,
-            errors: []
+            errors: [],
+            details: []
         };
         
         for (const matchId of matchIds) {
@@ -1333,13 +1463,32 @@ app.post('/admin/matches/bulk-calculate-fines', checkAdmin, async (req, res) => 
                 
                 if (result.alreadyCalculated) {
                     results.alreadyCalculated++;
+                    results.details.push({
+                        matchId: matchId,
+                        status: 'already_calculated',
+                        finesApplied: 0,
+                        reason: 'Fines already calculated for this match'
+                    });
                 } else {
                     results.totalFines += result.finesApplied;
+                    results.details.push({
+                        matchId: matchId,
+                        status: 'success',
+                        finesApplied: result.finesApplied,
+                        reason: result.reason,
+                        fines: result.fines
+                    });
                 }
                 
             } catch (error) {
                 console.error(`Error calculating fines for match ${matchId}:`, error);
                 results.errors.push(`Match ${matchId}: ${error.message}`);
+                results.details.push({
+                    matchId: matchId,
+                    status: 'error',
+                    finesApplied: 0,
+                    reason: error.message
+                });
             }
         }
         
