@@ -136,6 +136,11 @@ app.get('/admin/matches-manager', checkAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'matches.html'));
 });
 
+// Stats route - serve the statistics interface for all authenticated users
+app.get('/stats', checkAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'stats.html'));
+});
+
 // Serve static assets for authenticated users
 app.use('/static', checkAuth, express.static(path.join(__dirname, 'public')));
 
@@ -462,6 +467,80 @@ app.get('/riot-accounts/:id', checkAuth, async (req, res) => {
     } catch (error) {
         console.error('Error fetching riot account:', error);
         res.status(500).json({ error: 'Failed to fetch riot account details' });
+    }
+});
+
+// Get statistics for leaderboard (available to all authenticated users)
+app.get('/api/stats', checkAuth, async (req, res) => {
+    try {
+        // Get leaderboard data: users with their total fines, account count, and match count
+        // Fixed query to avoid Cartesian product that was multiplying fines
+        const leaderboardResult = await pool.query(`
+            SELECT 
+                u.id,
+                u.name as user_name,
+                COALESCE(fine_totals.total_fines, 0) as total_fines,
+                COUNT(DISTINCT ra.id) as account_count,
+                STRING_AGG(DISTINCT ra.summoner_name, ', ' ORDER BY ra.summoner_name) as summoner_names,
+                COALESCE(match_counts.match_count, 0) as match_count
+            FROM users u
+            LEFT JOIN riot_accounts ra ON u.id = ra.user_id
+            LEFT JOIN (
+                SELECT user_id, SUM(fine_size) as total_fines
+                FROM lol_fines
+                GROUP BY user_id
+            ) fine_totals ON u.id = fine_totals.user_id
+            LEFT JOIN (
+                SELECT ra2.user_id, COUNT(DISTINCT p.match_id) as match_count
+                FROM riot_accounts ra2
+                LEFT JOIN lol_participants p ON ra2.puuid = p.puuid
+                GROUP BY ra2.user_id
+            ) match_counts ON u.id = match_counts.user_id
+            WHERE u.status = 'approved' AND ra.id IS NOT NULL
+            GROUP BY u.id, u.name, fine_totals.total_fines, match_counts.match_count
+            ORDER BY total_fines DESC, u.name ASC
+        `);
+        
+        // Get summary statistics
+        // Fixed query to avoid Cartesian product in summary as well
+        const summaryResult = await pool.query(`
+            SELECT 
+                (SELECT COUNT(DISTINCT u.id) 
+                 FROM users u 
+                 JOIN riot_accounts ra ON u.id = ra.user_id 
+                 WHERE u.status = 'approved') as total_users,
+                (SELECT COALESCE(SUM(fine_size), 0) 
+                 FROM lol_fines f 
+                 JOIN users u ON f.user_id = u.id 
+                 WHERE u.status = 'approved') as total_fines,
+                (SELECT COUNT(DISTINCT match_id) 
+                 FROM lol_matches) as total_matches
+        `);
+        
+        const summary = summaryResult.rows[0];
+        const avgFinePerUser = summary.total_users > 0 ? summary.total_fines / summary.total_users : 0;
+        
+        res.json({
+            success: true,
+            summary: {
+                totalUsers: parseInt(summary.total_users),
+                totalFines: parseInt(summary.total_fines),
+                totalMatches: parseInt(summary.total_matches),
+                avgFinePerUser: parseFloat(avgFinePerUser)
+            },
+            leaderboard: leaderboardResult.rows.map(row => ({
+                user_id: row.id,
+                user_name: row.user_name,
+                total_fines: parseInt(row.total_fines),
+                account_count: parseInt(row.account_count),
+                summoner_names: row.summoner_names,
+                match_count: parseInt(row.match_count)
+            }))
+        });
+        
+    } catch (error) {
+        console.error('Error fetching statistics:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
     }
 });
 
@@ -948,46 +1027,65 @@ app.delete('/admin/matches/all', checkAdmin, async (req, res) => {
 
 // Admin endpoint to delete a match
 app.delete('/admin/matches/:matchId', checkAdmin, async (req, res) => {
+    const matchId = req.params.matchId;
     const client = await pool.connect();
     
     try {
         await client.query('BEGIN');
         
-        // Get count before deletion for reporting
-        const countResult = await client.query('SELECT COUNT(*) FROM lol_matches');
-        const totalMatches = parseInt(countResult.rows[0].count);
+        // First, check if the match exists
+        const matchExistsResult = await client.query(
+            'SELECT match_id FROM lol_matches WHERE match_id = $1',
+            [matchId]
+        );
         
-        if (totalMatches === 0) {
+        if (matchExistsResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.json({
-                success: true,
-                message: 'No matches to delete',
-                deletedCount: 0
+            return res.status(404).json({
+                success: false,
+                error: 'Match not found'
             });
         }
         
         // Delete in correct order due to foreign key constraints
-        // 1. Delete all fines
-        const finesResult = await client.query('DELETE FROM lol_fines');
+        // 1. Delete fines for this match
+        const finesResult = await client.query(
+            'DELETE FROM lol_fines WHERE match_id = $1',
+            [matchId]
+        );
         
-        // 2. Delete all bans
-        const bansResult = await client.query('DELETE FROM lol_bans');
+        // 2. Delete bans for this match (via teams)
+        const bansResult = await client.query(`
+            DELETE FROM lol_bans 
+            WHERE team_id IN (
+                SELECT team_id FROM lol_teams WHERE match_id = $1
+            )
+        `, [matchId]);
         
-        // 3. Delete all teams
-        const teamsResult = await client.query('DELETE FROM lol_teams');
+        // 3. Delete teams for this match
+        const teamsResult = await client.query(
+            'DELETE FROM lol_teams WHERE match_id = $1',
+            [matchId]
+        );
         
-        // 4. Delete all participants
-        const participantsResult = await client.query('DELETE FROM lol_participants');
+        // 4. Delete participants for this match
+        const participantsResult = await client.query(
+            'DELETE FROM lol_participants WHERE match_id = $1',
+            [matchId]
+        );
         
-        // 5. Delete all matches
-        const matchesResult = await client.query('DELETE FROM lol_matches');
+        // 5. Delete the match itself
+        const matchesResult = await client.query(
+            'DELETE FROM lol_matches WHERE match_id = $1',
+            [matchId]
+        );
         
         await client.query('COMMIT');
         
         res.json({
             success: true,
-            message: 'All matches deleted successfully',
-            deletedCount: totalMatches,
+            message: `Match ${matchId} deleted successfully`,
+            deletedCount: 1,
             details: {
                 matches: matchesResult.rowCount,
                 participants: participantsResult.rowCount,
@@ -999,8 +1097,11 @@ app.delete('/admin/matches/:matchId', checkAdmin, async (req, res) => {
         
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Error deleting all matches:', error);
-        res.status(500).json({ error: 'Failed to delete all matches' });
+        console.error(`Error deleting match ${matchId}:`, error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to delete match' 
+        });
     } finally {
         client.release();
     }
