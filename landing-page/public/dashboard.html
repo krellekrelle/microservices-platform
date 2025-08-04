@@ -157,8 +157,16 @@
             <div class="app-card">
                 <div class="app-icon">🎮</div>
                 <h3 class="app-title">LoL Tracker</h3>
-                <p class="app-description">Link your Riot accounts and track League of Legends game data and fines.</p>
-                <a href="/lol/" class="app-btn">Manage Accounts</a>
+                <p class="app-description">View fine leaderboards, statistics, and track League of Legends game data.</p>
+                <a href="/lol/stats" class="app-btn">View Stats & Leaderboard</a>
+            </div>
+            
+            <!-- Admin section -->
+            <div class="app-card" id="adminSection" style="display: none;">
+                <div class="app-icon">🛡️</div>
+                <h3 class="app-title">LoL Admin Panel</h3>
+                <p class="app-description">Admin tools for managing matches, accounts, and calculating fines.</p>
+                <a href="/lol/admin" class="app-btn" style="background: #dc3545;">Admin Panel</a>
             </div>
         </div>
     </div>
@@ -175,6 +183,7 @@
                     // Show admin link if user is admin
                     if (data.user.isAdmin) {
                         document.getElementById('adminLink').style.display = 'block';
+                        document.getElementById('adminSection').style.display = 'block';
                     }
                 }
             })

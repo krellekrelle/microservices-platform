@@ -74,23 +74,25 @@
         }
         .leaderboard-header {
             display: grid;
-            grid-template-columns: 60px 1fr 120px 120px 120px;
-            gap: 15px;
+            grid-template-columns: 60px 1fr 100px 80px 80px 80px 100px 100px;
+            gap: 10px;
             padding: 15px;
             background-color: #c89b3c;
             color: white;
             border-radius: 4px 4px 0 0;
             font-weight: bold;
+            font-size: 14px;
         }
         .leaderboard-item {
             display: grid;
-            grid-template-columns: 60px 1fr 120px 120px 120px;
-            gap: 15px;
+            grid-template-columns: 60px 1fr 100px 80px 80px 80px 100px 100px;
+            gap: 10px;
             padding: 15px;
             border: 1px solid #e9ecef;
             border-top: none;
             background: white;
             align-items: center;
+            font-size: 14px;
         }
         .leaderboard-item:nth-child(even) {
             background-color: #f8f9fa;
@@ -134,6 +136,15 @@
         }
         .fine-amount.zero {
             color: #6c757d;
+        }
+        .fine-breakdown {
+            text-align: center;
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .fine-breakdown.positive {
+            color: #dc3545;
+            font-weight: 500;
         }
         .account-count {
             text-align: center;
@@ -187,7 +198,7 @@
                 gap: 10px;
                 padding: 10px;
             }
-            .account-count, .match-count {
+            .fine-breakdown, .account-count, .match-count {
                 display: none;
             }
             .stats-summary {
@@ -197,14 +208,17 @@
     </style>
 </head>
 <body>
-    <a href="/lol/" class="logout-btn">← Back to Management</a>
-    
     <div class="container">
+        <div style="margin-bottom: 20px;">
+            <a href="/" style="background: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                ← Back to Dashboard
+            </a>
+        </div>
+        
         <h1>🏆 LoL Fine Leaderboard</h1>
         
         <div class="nav-links">
-            <a href="/lol/">Account Management</a>
-            <a href="/lol/stats" class="active">Statistics</a>
+            <a href="/lol/" class="active">Account Management</a>
         </div>
 
         <div class="stats-summary" id="statsSummary">
@@ -224,6 +238,18 @@
                 <div class="stat-value" id="avgFinePerUser">-</div>
                 <div class="stat-label">Average Fine per User</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalYasouFines">-</div>
+                <div class="stat-label">Yasuo Death Fines</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalLostGameFines">-</div>
+                <div class="stat-label">Lost Game Fines</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalMissedWinFines">-</div>
+                <div class="stat-label">Missed Win Fines</div>
+            </div>
         </div>
 
         <div class="leaderboard">
@@ -231,6 +257,9 @@
                 <div>Rank</div>
                 <div>User</div>
                 <div>Total Fines</div>
+                <div>Yasuo</div>
+                <div>Lost</div>
+                <div>Missed</div>
                 <div>Accounts</div>
                 <div>Matches</div>
             </div>
@@ -260,6 +289,12 @@
                 document.getElementById('totalFines').textContent = data.summary.totalFines;
                 document.getElementById('totalMatches').textContent = data.summary.totalMatches;
                 document.getElementById('avgFinePerUser').textContent = data.summary.avgFinePerUser.toFixed(1);
+                document.getElementById('totalYasouFines').textContent = data.summary.totalYasouFines || 0;
+                document.getElementById('totalLostGameFines').textContent = data.summary.totalLostGameFines || 0;
+                document.getElementById('totalMissedWinFines').textContent = data.summary.totalWonGameNotParticipatedFines || 0;
+                document.getElementById('totalYasouFines').textContent = data.summary.totalYasouFines || 0;
+                document.getElementById('totalLostGameFines').textContent = data.summary.totalLostGameFines || 0;
+                document.getElementById('totalMissedWinFines').textContent = data.summary.totalWonGameNotParticipatedFines || 0;
                 
                 // Render leaderboard
                 renderLeaderboard(data.leaderboard);
@@ -295,6 +330,9 @@
                 else if (rank === 3) rankClass = 'third';
                 
                 const fineClass = user.total_fines > 0 ? 'positive' : 'zero';
+                const yasouClass = user.yasou_fines > 0 ? 'positive' : '';
+                const lostClass = user.lost_game_fines > 0 ? 'positive' : '';
+                const missedClass = user.won_game_not_participated_fines > 0 ? 'positive' : '';
                 
                 return `
                     <div class="leaderboard-item">
@@ -304,6 +342,9 @@
                             <div class="summoner-names">${escapeHtml(user.summoner_names || 'No accounts')}</div>
                         </div>
                         <div class="fine-amount ${fineClass}">${user.total_fines}</div>
+                        <div class="fine-breakdown ${yasouClass}">${user.yasou_fines}</div>
+                        <div class="fine-breakdown ${lostClass}">${user.lost_game_fines}</div>
+                        <div class="fine-breakdown ${missedClass}">${user.won_game_not_participated_fines}</div>
                         <div class="account-count">${user.account_count}</div>
                         <div class="match-count">${user.match_count || 0}</div>
                     </div>

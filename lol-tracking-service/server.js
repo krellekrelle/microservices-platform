@@ -480,13 +480,21 @@ app.get('/api/stats', checkAuth, async (req, res) => {
                 u.id,
                 u.name as user_name,
                 COALESCE(fine_totals.total_fines, 0) as total_fines,
+                COALESCE(fine_totals.yasou_fines, 0) as yasou_fines,
+                COALESCE(fine_totals.lost_game_fines, 0) as lost_game_fines,
+                COALESCE(fine_totals.won_game_not_participated_fines, 0) as won_game_not_participated_fines,
                 COUNT(DISTINCT ra.id) as account_count,
                 STRING_AGG(DISTINCT ra.summoner_name, ', ' ORDER BY ra.summoner_name) as summoner_names,
                 COALESCE(match_counts.match_count, 0) as match_count
             FROM users u
             LEFT JOIN riot_accounts ra ON u.id = ra.user_id
             LEFT JOIN (
-                SELECT user_id, SUM(fine_size) as total_fines
+                SELECT 
+                    user_id, 
+                    SUM(fine_size) as total_fines,
+                    SUM(CASE WHEN fine_type = 'YasouFine' THEN fine_size ELSE 0 END) as yasou_fines,
+                    SUM(CASE WHEN fine_type = 'LostAram' THEN fine_size ELSE 0 END) as lost_game_fines,
+                    SUM(CASE WHEN fine_type = 'WonAram' THEN fine_size ELSE 0 END) as won_game_not_participated_fines
                 FROM lol_fines
                 GROUP BY user_id
             ) fine_totals ON u.id = fine_totals.user_id
@@ -497,7 +505,7 @@ app.get('/api/stats', checkAuth, async (req, res) => {
                 GROUP BY ra2.user_id
             ) match_counts ON u.id = match_counts.user_id
             WHERE u.status = 'approved' AND ra.id IS NOT NULL
-            GROUP BY u.id, u.name, fine_totals.total_fines, match_counts.match_count
+            GROUP BY u.id, u.name, fine_totals.total_fines, fine_totals.yasou_fines, fine_totals.lost_game_fines, fine_totals.won_game_not_participated_fines, match_counts.match_count
             ORDER BY total_fines DESC, u.name ASC
         `);
         
@@ -514,7 +522,19 @@ app.get('/api/stats', checkAuth, async (req, res) => {
                  JOIN users u ON f.user_id = u.id 
                  WHERE u.status = 'approved') as total_fines,
                 (SELECT COUNT(DISTINCT match_id) 
-                 FROM lol_matches) as total_matches
+                 FROM lol_matches) as total_matches,
+                (SELECT COUNT(*) 
+                 FROM lol_fines f 
+                 JOIN users u ON f.user_id = u.id 
+                 WHERE u.status = 'approved' AND f.fine_type = 'YasouFine') as total_yasou_fines,
+                (SELECT COUNT(*) 
+                 FROM lol_fines f 
+                 JOIN users u ON f.user_id = u.id 
+                 WHERE u.status = 'approved' AND f.fine_type = 'LostAram') as total_lost_game_fines,
+                (SELECT COUNT(*) 
+                 FROM lol_fines f 
+                 JOIN users u ON f.user_id = u.id 
+                 WHERE u.status = 'approved' AND f.fine_type = 'WonAram') as total_won_game_not_participated_fines
         `);
         
         const summary = summaryResult.rows[0];
@@ -526,12 +546,18 @@ app.get('/api/stats', checkAuth, async (req, res) => {
                 totalUsers: parseInt(summary.total_users),
                 totalFines: parseInt(summary.total_fines),
                 totalMatches: parseInt(summary.total_matches),
-                avgFinePerUser: parseFloat(avgFinePerUser)
+                avgFinePerUser: parseFloat(avgFinePerUser),
+                totalYasouFines: parseInt(summary.total_yasou_fines),
+                totalLostGameFines: parseInt(summary.total_lost_game_fines),
+                totalWonGameNotParticipatedFines: parseInt(summary.total_won_game_not_participated_fines)
             },
             leaderboard: leaderboardResult.rows.map(row => ({
                 user_id: row.id,
                 user_name: row.user_name,
                 total_fines: parseInt(row.total_fines),
+                yasou_fines: parseInt(row.yasou_fines),
+                lost_game_fines: parseInt(row.lost_game_fines),
+                won_game_not_participated_fines: parseInt(row.won_game_not_participated_fines),
                 account_count: parseInt(row.account_count),
                 summoner_names: row.summoner_names,
                 match_count: parseInt(row.match_count)

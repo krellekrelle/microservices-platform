@@ -117,12 +117,6 @@
         
         <h1>🎮 League of Legends Account Management</h1>
         
-        <div id="adminSection" style="display: none; margin-bottom: 20px;">
-            <a href="/lol/admin" style="background: #dc3545; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
-                🛡️ Admin Panel - View All Accounts
-            </a>
-        </div>
-        
         <div style="margin-bottom: 20px; text-align: center;">
             <a href="/lol/stats" style="background: #c89b3c; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
                 🏆 View Leaderboard & Stats
@@ -198,25 +192,6 @@
                     '<div class="error">Failed to load accounts. Please try refreshing the page.</div>';
             }
         }
-        
-        // Check if user is admin and show admin link
-        async function checkAdminStatus() {
-            try {
-                const response = await fetch('/api/user', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.authenticated && data.user && data.user.isAdmin) {
-                        document.getElementById('adminSection').style.display = 'block';
-                    }
-                }
-            } catch (error) {
-                console.log('Could not check admin status:', error);
-            }
-        }
-        
         // Display accounts
         function displayAccounts(accounts) {
             const container = document.getElementById('accountsList');
@@ -309,9 +284,8 @@
             }
         }
         
-        // Load accounts and check admin status on page load
+        // Load accounts on page load
         loadAccounts();
-        checkAdminStatus();
     </script>
 </body>
 </html>
