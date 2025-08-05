@@ -415,12 +415,13 @@ class HeartsGame {
     }
 
     completeTrick() {
+        console.log('Completed trick!');
         const winner = this.findTrickWinner();
         const points = this.calculateTrickPoints();
         
-        // Update hearts broken status
-        if (points > 0) {
-            this.heartsBreoken = true;
+        // Update hearts broken status (if exactly 13 it is because of the queen and therefore not broken)
+        if (points > 0 && points !== 13) {
+            this.heartsBroken = true;
         }
         
         // Update scores
@@ -441,6 +442,7 @@ class HeartsGame {
         
         // Check if round is complete
         if (this.currentTrick === 13) {
+            console.log('all trcks played')
             return this.completeRound(completedTrick, winner, points);
         }
         
@@ -484,6 +486,7 @@ class HeartsGame {
     }
 
     completeRound(lastTrick, lastWinner, lastPoints) {
+        console.log("completed a round!")
         // Check for shooting the moon
         const moonShooter = this.checkShootingMoon();
         
@@ -538,6 +541,7 @@ class HeartsGame {
     }
 
     startNextRound() {
+        console.log("Starting new round")
         this.currentRound++;
         this.currentTrick = 0;
         this.heartsBreoken = false;

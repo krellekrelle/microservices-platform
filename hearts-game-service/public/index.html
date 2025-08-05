@@ -577,7 +577,6 @@
                     case 'scoring':
                         stateLabel = 'Scoring';
                         // Remove Pass Cards button if present
-                        console.log('BTN REMOVED scroing');
                         const passBtnScore = document.getElementById('pass-cards-btn');
                         if (passBtnScore && passBtnScore.parentElement) passBtnScore.parentElement.remove();
                         // Remove waiting message if present
@@ -587,7 +586,6 @@
                     default:
                         stateLabel = lobbyState.state.charAt(0).toUpperCase() + lobbyState.state.slice(1);
                         // Remove Pass Cards button if present
-                        console.log('BTN REMOVED DEFaULT');
 
                         const passBtnDefault = document.getElementById('pass-cards-btn');
                         if (passBtnDefault && passBtnDefault.parentElement) passBtnDefault.parentElement.remove();
@@ -599,7 +597,6 @@
             } else {
                 labelDiv.innerHTML = '';
                 // Remove Pass Cards button if present
-                console.log('BTN REMOVED qeird');
                 const passBtn = document.getElementById('pass-cards-btn');
                 if (passBtn && passBtn.parentElement) passBtn.parentElement.remove();
                 // Remove waiting message if present
@@ -699,7 +696,7 @@ window.playCard = function(card) {
         body: JSON.stringify({ card })
     })
     .then(async (res) => {
-        console.log('[DEBUG] playCard response:', res);
+        // console.log('[DEBUG] playCard response:', res);
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) {
             // Show error and re-enable pointer events
@@ -771,11 +768,8 @@ window.toggleCard = function(card) {
 
         // Enable/disable Pass Cards button
         function updatePassButton() {
-            console.log('BTN from function');
             const btn = document.getElementById('pass-cards-btn');
             if (!btn) return;
-            console.log('BTN logic');
-            console.log((window.selectedCards && window.selectedCards.length === 3))
             btn.disabled = !(window.selectedCards && window.selectedCards.length === 3);
         }
 

@@ -257,13 +257,22 @@ class SocketHandler {
             }
             // If trick is complete, emit trick-completed event
             if (result.trickComplete) {
-                this.io.to(`game-${result.gameId}`).emit('trick-completed', {
+                // If roundComplete, include scores and moonShooter
+                const trickCompletedPayload = {
                     winner: result.winner,
                     points: result.points,
                     trickCards: result.trickCards,
                     nextLeader: result.nextLeader,
-                    roundComplete: result.roundComplete
-                });
+                    roundComplete: result.roundComplete || false
+                };
+                if (result.roundComplete) {
+                    trickCompletedPayload.roundScores = result.roundScores;
+                    trickCompletedPayload.totalScores = result.totalScores;
+                    trickCompletedPayload.moonShooter = result.moonShooter;
+                    trickCompletedPayload.gameEnded = result.gameEnded;
+                    trickCompletedPayload.nextRound = result.nextRound;
+                }
+                this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
             }
             // If round is complete, you may want to emit a round-completed event (not implemented here)
         } catch (error) {
