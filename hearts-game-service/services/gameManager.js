@@ -36,13 +36,57 @@ class GameManager {
         }
     }
 
-    // Pass cards for a player (atomic passing phase)
-    passCards(gameId, seat, cards) {
-        const game = this.activeGames.get(gameId);
-        if (!game) throw new Error('Game not found');
-        // Use new ready-to-pass logic
-        const result = game.passCards(seat, cards);
-        return result;
+    // Pass cards for a player (atomic passing phase, refactored for socketHandler)
+    async passCards(userId, cards) {
+        // Only support lobbyGame for now
+        if (!this.lobbyGame || this.lobbyGame.state !== 'passing') {
+            return { error: 'No game in passing phase' };
+        }
+        // Find the player's seat
+        let seat = null;
+        for (const [seatNum, player] of this.lobbyGame.players) {
+            if (player.userId === userId) {
+                seat = seatNum;
+                break;
+            }
+        }
+        if (seat === null) {
+            return { error: 'You are not seated in the game' };
+        }
+        const player = this.lobbyGame.players.get(seat);
+        if (!player) {
+            return { error: 'Player not found in game.' };
+        }
+        if (player.readyToPass) {
+            return { error: 'You have already passed cards.' };
+        }
+        // Validate cards (HeartsGame will also validate, but we check here for socket errors)
+        if (!Array.isArray(cards) || cards.length !== 3) {
+            return { error: 'You must select exactly 3 cards to pass.' };
+        }
+        // Call HeartsGame.passCards, which returns { allCardsPassed, trickLeader }
+        let passResult;
+        try {
+            passResult = this.lobbyGame.passCards(seat, cards);
+        } catch (err) {
+            return { error: err.message };
+        }
+        // If allCardsPassed, update state and return info for socketHandler
+        if (passResult.allCardsPassed) {
+            return {
+                allPassed: true,
+                trickLeader: passResult.trickLeader,
+                gameId: this.lobbyGame.id,
+                emitGameState: true
+            };
+        } else {
+            // Not all passed yet
+            return {
+                allPassed: false,
+                gameId: this.lobbyGame.id,
+                emitGameState: false
+            };
+        }
     }
 
     async loadExistingLobby(lobbyData) {

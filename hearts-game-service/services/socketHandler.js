@@ -181,123 +181,37 @@ class SocketHandler {
     async handlePassCards(socket, data) {
         try {
             const userId = socket.user.id;
-            if (!gameManager.lobbyGame) {
-                socket.emit('error', { message: 'No game in progress' });
-                return;
-            }
-            // Find the player's seat
-            let seat = null;
-            for (const [seatNum, player] of gameManager.lobbyGame.players) {
-                if (player.userId === userId) {
-                    seat = seatNum;
-                    break;
-                }
-            }
-            if (seat === null) {
-                socket.emit('error', { message: 'You are not seated in the game' });
-                return;
-            }
-            // Validate cards
             const cards = Array.isArray(data.cards) ? data.cards : [];
+            // Only basic input validation here
             if (cards.length !== 3) {
                 socket.emit('error', { message: 'You must select exactly 3 cards to pass.' });
                 return;
             }
-            // Save the seat number and cards
-            const player = gameManager.lobbyGame.players.get(seat);
-            if (!player) {
-                socket.emit('error', { message: 'Player not found in game.' });
+            // Delegate all game logic to gameManager
+            const result = await gameManager.passCards(userId, cards);
+            if (result.error) {
+                socket.emit('error', { message: result.error });
                 return;
             }
-            if (player.readyToPass) {
-                socket.emit('error', { message: 'You have already passed cards.' });
-                return;
-            }
-            player.readyToPass = true;
-            player.pendingPassedCards = [...cards];
-
-            // Check if all seats have passed
-            let allPassed = true;
-            for (const p of gameManager.lobbyGame.players.values()) {
-                if (!p.readyToPass || !Array.isArray(p.pendingPassedCards) || p.pendingPassedCards.length !== 3) {
-                    allPassed = false;
-                    break;
-                }
-            }
-
-            // If not all have passed, just emit updated game state
-            const room = this.io.sockets.adapter.rooms.get(`game-${gameManager.lobbyGame.id}`);
-            if (room) {
-                for (const socketId of room) {
-                    const s = this.io.sockets.sockets.get(socketId);
-                    if (s && s.user && s.user.id) {
-                        const gameState = gameManager.getGameState(gameManager.lobbyGame.id, s.user.id);
-                        // s.emit('game-state', gameState);
+            // Notify the user of success
+            socket.emit('pass-cards-success', { success: true });
+            // Emit updated game state to all players (if provided)
+            if (result.emitGameState) {
+                const room = this.io.sockets.adapter.rooms.get(`game-${result.gameId}`);
+                if (room) {
+                    for (const socketId of room) {
+                        const s = this.io.sockets.sockets.get(socketId);
+                        if (s && s.user && s.user.id) {
+                            const gameState = gameManager.getGameState(result.gameId, s.user.id);
+                            s.emit('game-state', gameState);
+                        }
                     }
                 }
             }
-            // socket.emit('pass-cards-success', { success: true });
-
-            if (!allPassed) {
-                return;
+            // If all have passed, emit all-cards-passed event
+            if (result.allPassed && result.trickLeader !== undefined) {
+                this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: result.trickLeader });
             }
-
-            // All have passed: update hands and start playing round
-            // Perform the card passing
-            const passMap = {
-                'left': { 0: 1, 1: 2, 2: 3, 3: 0 },
-                'right': { 0: 3, 1: 0, 2: 1, 3: 2 },
-                'across': { 0: 2, 1: 3, 2: 0, 3: 1 }
-            };
-            const direction = gameManager.lobbyGame.passDirection;
-            const distribution = passMap[direction];
-            // Remove passed cards from each hand
-            for (const [seatNum, p] of gameManager.lobbyGame.players) {
-                if (p.pendingPassedCards) {
-                    for (const card of p.pendingPassedCards) {
-                        const idx = p.hand.indexOf(card);
-                        if (idx !== -1) p.hand.splice(idx, 1);
-                    }
-                }
-            }
-            // Distribute passed cards
-            for (const [fromSeat, p] of gameManager.lobbyGame.players) {
-                const toSeat = distribution[fromSeat];
-                const receiver = gameManager.lobbyGame.players.get(toSeat);
-                if (receiver && p.pendingPassedCards) {
-                    receiver.hand.push(...p.pendingPassedCards);
-                    // Sort hand by suit and then rank
-                    receiver.hand = this.sortHand(receiver.hand);
-                }
-            }
-            // Clear passing state
-            for (const p of gameManager.lobbyGame.players.values()) {
-                delete p.pendingPassedCards;
-                delete p.readyToPass;
-            }
-            // Set state to playing and find trick leader
-            gameManager.lobbyGame.state = 'playing';
-            // Find trick leader (2C)
-            let trickLeader = null;
-            for (const [seatNum, p] of gameManager.lobbyGame.players) {
-                if (p.hand.includes('2C')) {
-                    trickLeader = seatNum;
-                    break;
-                }
-            }
-            gameManager.lobbyGame.trickLeader = trickLeader;
-
-            // Emit updated game state to all
-            if (room) {
-                for (const socketId of room) {
-                    const s = this.io.sockets.sockets.get(socketId);
-                    if (s && s.user && s.user.id) {
-                        const gameState = gameManager.getGameState(gameManager.lobbyGame.id, s.user.id);
-                        s.emit('game-state', gameState);
-                    }
-                }
-            }
-            this.io.to(`game-${gameManager.lobbyGame.id}`).emit('all-cards-passed', { trickLeader });
         } catch (error) {
             console.error('Pass cards error:', error);
             socket.emit('error', { message: error.message });
