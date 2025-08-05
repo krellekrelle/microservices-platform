@@ -257,7 +257,6 @@ class GameManager {
 
         try {
             const gameResult = this.lobbyGame.startGame();
-            
             // Update database
             await db.query(
                 'UPDATE hearts_games SET game_state = $1, started_at = $2, current_round = $3, pass_direction = $4 WHERE id = $5',
@@ -272,8 +271,7 @@ class GameManager {
                 );
             }
 
-            // Create new lobby for next game
-            await this.createLobbyGame();
+            // Do NOT create a new lobby here. Wait until the game is finished.
 
             return {
                 success: true,
