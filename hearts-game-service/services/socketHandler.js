@@ -266,8 +266,23 @@ class SocketHandler {
                 const receiver = gameManager.lobbyGame.players.get(toSeat);
                 if (receiver && p.pendingPassedCards) {
                     receiver.hand.push(...p.pendingPassedCards);
-                    // Sort hand if needed
-                    receiver.hand = receiver.hand.sort();
+                    // Sort hand by suit and then rank
+                    receiver.hand = receiver.hand.sort((a, b) => {
+                        const suitOrder = { 'C': 0, 'D': 1, 'H': 2, 'S': 3 };
+                        const rankOrder = {
+                            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+                            '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
+                        };
+                        const parse = (card) => {
+                            const match = card.match(/^(10|[2-9JQKA])([CDHS])$/);
+                            if (!match) return { rank: 0, suit: 0 };
+                            return { rank: rankOrder[match[1]], suit: suitOrder[match[2]] };
+                        };
+                        const ca = parse(a);
+                        const cb = parse(b);
+                        if (ca.suit !== cb.suit) return ca.suit - cb.suit;
+                        return ca.rank - cb.rank;
+                    });
                 }
             }
             // Clear passing state
