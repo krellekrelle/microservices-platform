@@ -256,14 +256,16 @@ class GameManager {
         }
 
         try {
-            const gameResult = this.lobbyGame.startGame();
-            // Update database
+            // 1. Deal cards to all players
+            const gameResult = this.lobbyGame.startGame(); // Should deal and assign hands
+
+            // 2. Update database with new game state
             await db.query(
                 'UPDATE hearts_games SET game_state = $1, started_at = $2, current_round = $3, pass_direction = $4 WHERE id = $5',
                 ['passing', this.lobbyGame.startedAt, this.lobbyGame.currentRound, this.lobbyGame.passDirection, this.lobbyGame.id]
             );
 
-            // Save initial hands
+            // 3. Save each player's hand to the database
             for (const [seat, player] of this.lobbyGame.players) {
                 await db.query(
                     'UPDATE hearts_players SET hand_cards = $1 WHERE game_id = $2 AND seat_position = $3',
@@ -271,14 +273,15 @@ class GameManager {
                 );
             }
 
-            // Do NOT create a new lobby here. Wait until the game is finished.
+            // 4. Emit 'cards-dealt' event to each player (to be handled in socketHandler)
+            // (This requires access to the Socket.IO server, so actual emission should be handled in the socket handler after calling startGame)
 
             return {
                 success: true,
                 gameStarted: true,
                 gameId: this.lobbyGame.id,
                 passDirection: this.lobbyGame.passDirection,
-                hands: gameResult.hands
+                hands: gameResult.hands // hands: { seat: [cards] }
             };
         } catch (error) {
             throw new Error(`Failed to start game: ${error.message}`);

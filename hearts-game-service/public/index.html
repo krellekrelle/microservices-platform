@@ -361,7 +361,7 @@
 
             <div id="game-section" class="hidden">
                 <h2>Game in Progress</h2>
-                <p>Game functionality will be implemented in Phase 2!</p>
+                <div id="hand-area" style="margin: 2rem 0; text-align: center;"></div>
                 <div style="margin-top: 2rem;">
                     <button class="btn" onclick="location.reload()">
                         Return to Lobby
@@ -416,8 +416,35 @@
 
             socket.on('cards-dealt', (data) => {
                 console.log('🃏 Cards dealt:', data);
-                // TODO: Display cards in game interface
+                showHand(data.hand);
             });
+
+        // Map card code (e.g. 'QS') to local SVG in bridge3-box-qr-Large
+        function getCardImageUrl(cardCode) {
+            if (!cardCode || cardCode.length < 2) return '';
+            // Normalize 10s: 'T' or '10' to 'T'
+            let rank = cardCode[0];
+            let suit = cardCode[1];
+            if (rank === '1' && cardCode[1] === '0') { rank = 'T'; suit = cardCode[2]; }
+            // Map to file: e.g. 'QS' => 'QS.svg', 'TH' => 'TH.svg', etc.
+            // All files are uppercase, so ensure uppercase
+            const fileName = (rank + suit).toUpperCase() + '.svg';
+            // https://kl-pi.tail9f5728.ts.net/hearts/bridge3-box-qr-Large/6C.svg
+            return `/hearts/bridge3-box-qr-Large/${fileName}`;
+        }
+
+        // Show the player's hand as card images
+        function showHand(hand) {
+            const handArea = document.getElementById('hand-area');
+            if (!handArea) return;
+            if (!hand || !Array.isArray(hand)) {
+                handArea.innerHTML = '<em>No cards dealt.</em>';
+                return;
+            }
+            handArea.innerHTML = hand.map(card =>
+                `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;">`
+            ).join('');
+        }
 
             socket.on('ready-to-start', (data) => {
                 showSuccessMessage(data.message);
