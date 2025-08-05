@@ -363,6 +363,7 @@
                 <h2>Game in Progress</h2>
                 <div id="game-state-label" style="margin-bottom:1rem;font-size:1.2rem;font-weight:500;letter-spacing:0.5px;"></div>
                 <div id="hand-area" style="margin: 2rem 0; text-align: center;"></div>
+                <div id="trick-area" style="margin: 2rem 0; text-align: center;"></div>
                 <!-- <div style="margin-top: 2rem;">
                     <button class="btn" onclick="location.reload()">
                         Return to Lobby
@@ -447,6 +448,8 @@
                     } else {
                         console.log('[DEBUG] No hand found for my seat', mySeat, 'in game-state:', data);
                     }
+                    // Show the current trick
+                    showTrick(data.currentTrickCards || []);
                 } else if (data.state === 'passing') {
                     // In passing phase
                     if (myHand) {
@@ -458,8 +461,40 @@
                         // Optionally, show a waiting message
                         document.getElementById('hand-area').innerHTML += '<div style="margin-top:1rem;color:#ffeb3b;">Waiting for other players to pass cards...</div>';
                     }
+                    // Hide trick area in passing phase
+                    showTrick([]);
+                } else {
+                    // Hide trick area in other phases
+                    showTrick([]);
                 }
             }); // End socket.on('game-state')
+            // Listen for trick-completed event
+            socket.on('trick-completed', (data) => {
+                // Show the completed trick and highlight the winner
+                showTrick(data.trickCards || [], data.winner);
+                // Optionally, clear the trick area after a short delay
+                setTimeout(() => showTrick([]), 2000);
+            });
+        // Show the current trick in the trick area
+        function showTrick(trickCards, winnerSeat) {
+            const trickArea = document.getElementById('trick-area');
+            if (!trickArea) return;
+            if (!trickCards || trickCards.length === 0) {
+                trickArea.innerHTML = '';
+                return;
+            }
+            // Render each card in the trick with player info
+            trickArea.innerHTML = '<div style="font-size:1.1rem;margin-bottom:0.5rem;">Current Trick:</div>' +
+                '<div style="display:flex;justify-content:center;gap:24px;">' +
+                trickCards.map(play => {
+                    const highlight = (typeof winnerSeat !== 'undefined' && play.seat === winnerSeat) ? 'box-shadow:0 0 12px 4px #ffeb3b;' : '';
+                    return `<div style="text-align:center;">
+                        <img src="${getCardImageUrl(play.card)}" alt="${play.card}" title="${play.card}" style="width:60px;height:90px;margin-bottom:6px;border-radius:7px;background:#fff;${highlight}">
+                        <div style="font-size:0.95rem;margin-top:2px;">${play.player || 'Player ' + (play.seat+1)}</div>
+                    </div>`;
+                }).join('') +
+                '</div>';
+        }
 
         // Update the game state label in its own element
         function updateGameStateLabel() {
@@ -468,6 +503,7 @@
             if (!labelDiv || !handArea) return;
             if (lobbyState && lobbyState.state) {
                 let stateLabel = '';
+                let turnLabel = '';
                 switch (lobbyState.state) {
                     case 'passing':
                         stateLabel = 'Passing Round';
@@ -524,6 +560,19 @@
                         // Clear selected cards and update UI when entering playing state
                         window.selectedCards = [];
                         updateCardSelectionUI();
+                        // Show whose turn it is
+                        if (typeof lobbyState.currentTurnSeat === 'number' && lobbyState.players) {
+                            if (mySeat === lobbyState.currentTurnSeat) {
+                                turnLabel = '<span style="color:#4caf50;font-weight:bold;">Your turn!</span>';
+                            } else {
+                                const turnPlayer = lobbyState.players[lobbyState.currentTurnSeat];
+                                if (turnPlayer && turnPlayer.userName) {
+                                    turnLabel = `${turnPlayer.userName}'s turn`;
+                                } else {
+                                    turnLabel = `Player ${lobbyState.currentTurnSeat + 1}'s turn`;
+                                }
+                            }
+                        }
                         break;
                     case 'scoring':
                         stateLabel = 'Scoring';
@@ -546,7 +595,7 @@
                         const waitMsgDefault = document.getElementById('waiting-pass-msg');
                         if (waitMsgDefault) waitMsgDefault.remove();
                 }
-                labelDiv.innerHTML = `Game State: <span style="color:#ffeb3b;">${stateLabel}</span>`;
+                labelDiv.innerHTML = `Game State: <span style="color:#ffeb3b;">${stateLabel}</span>` + (turnLabel ? ` &mdash; <span style="color:#fff;">${turnLabel}</span>` : '');
             } else {
                 labelDiv.innerHTML = '';
                 // Remove Pass Cards button if present
@@ -589,18 +638,76 @@
                 return;
             }
 
-            // Card selection state
-            window.selectedCards = [];
+            // Debug: show previous and current phase
+            if (!window._lastPhase) window._lastPhase = null;
+            const currentPhase = lobbyState ? lobbyState.state : null;
+            if (!window.selectedCards) window.selectedCards = [];
+            if (window._lastPhase !== currentPhase) {
+                console.log('[DEBUG] Phase changed from', window._lastPhase, 'to', currentPhase);
+                // Only clear selection if entering playing phase
+                if (currentPhase === 'playing') {
+                    window.selectedCards = [];
+                }
+                // Optionally, clear on entering passing phase too
+                if (currentPhase === 'passing') {
+                    window.selectedCards = [];
+                }
+                window._lastPhase = currentPhase;
+            }
 
             // Only render hand cards (no game state label or pass button)
             handArea.innerHTML = '<div id="hand-cards"></div>';
             const handCardsDiv = document.getElementById('hand-cards');
             handCardsDiv.innerHTML = hand.map(card => {
+                // Always allow toggleCard in passing phase, playCard in playing phase and your turn
+                let clickHandler = '';
+                if (lobbyState && lobbyState.state === 'passing') {
+                    // clickHandler = `onclick=\"window.toggleCard('${card}')\"`;
                 return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;
+                } else if (lobbyState && lobbyState.state === 'playing' && typeof mySeat === 'number' && mySeat === lobbyState.currentTurnSeat) {
+                    // clickHandler = `onclick=\"window.playCard('${card}')\"`;
+                    return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.playCard('${card}')">`;
+                } else {
+                    return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;   
+                }
+                clickHandler = `onclick=\"window.playCard('${card}')\"`;
+                // return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" ${clickHandler}>`;
+            // Show debug overlay for phase and selection
+            let debugDiv = document.getElementById('debug-overlay');
+            if (!debugDiv) {
+                debugDiv = document.createElement('div');
+                debugDiv.id = 'debug-overlay';
+                debugDiv.style.position = 'fixed';
+                debugDiv.style.bottom = '10px';
+                debugDiv.style.right = '10px';
+                debugDiv.style.background = 'rgba(0,0,0,0.7)';
+                debugDiv.style.color = '#ffeb3b';
+                debugDiv.style.padding = '8px 16px';
+                debugDiv.style.borderRadius = '8px';
+                debugDiv.style.fontSize = '1rem';
+                debugDiv.style.zIndex = 9999;
+                document.body.appendChild(debugDiv);
+            }
+            debugDiv.innerHTML = `<b>Phase:</b> ${currentPhase} <br><b>Selected:</b> ${(window.selectedCards||[]).join(', ')}`;
             }).join('');
             console.log('[DEBUG] showHand rendered hand:', JSON.stringify(hand));
             // Update selection UI
             updateCardSelectionUI();
+
+// Play a card (only allowed if it's your turn and in playing state)
+window.playCard = function(card) {
+    if (!lobbyState || lobbyState.state !== 'playing' || typeof mySeat !== 'number' || mySeat !== lobbyState.currentTurnSeat) {
+        return;
+    }
+    // Prevent double-clicks
+    const handCardsDiv = document.getElementById('hand-cards');
+    if (handCardsDiv) {
+        Array.from(handCardsDiv.children).forEach(img => {
+            img.style.pointerEvents = 'none';
+        });
+    }
+    socket.emit('play-card', { card });
+};
         } // End showHand
 
         // Update card selection UI only (no re-render of SVGs)
@@ -625,15 +732,21 @@
 window.toggleCard = function(card) {
     // Only allow selection in 'passing' state
     if (!lobbyState || lobbyState.state !== 'passing') {
+        console.log('[DEBUG] toggleCard: not in passing phase, ignoring click');
         return;
     }
+    console.log('[DEBUG] toggleCard: clicked', card, 'selectedCards before:', window.selectedCards.slice());
     const idx = window.selectedCards.indexOf(card);
     if (idx === -1) {
         if (window.selectedCards.length < 3) {
             window.selectedCards.push(card);
+            console.log('[DEBUG] toggleCard: added', card, 'selectedCards now:', window.selectedCards.slice());
+        } else {
+            console.log('[DEBUG] toggleCard: already 3 selected, ignoring');
         }
     } else {
         window.selectedCards.splice(idx, 1);
+        console.log('[DEBUG] toggleCard: removed', card, 'selectedCards now:', window.selectedCards.slice());
     }
     updateCardSelectionUI();
 };

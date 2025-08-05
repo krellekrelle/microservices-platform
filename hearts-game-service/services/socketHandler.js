@@ -234,9 +234,38 @@ class SocketHandler {
     async handlePlayCard(socket, data) {
         try {
             const userId = socket.user.id;
-            // TODO: Implement card playing logic
-            console.log(`Play card from ${userId}:`, data.card);
-            socket.emit('error', { message: 'Card playing not yet implemented' });
+            const card = data.card;
+            if (!card) {
+                socket.emit('error', { message: 'No card provided' });
+                return;
+            }
+            const result = await gameManager.playCard(userId, card);
+            if (result.error) {
+                socket.emit('error', { message: result.error });
+                return;
+            }
+            // Always emit updated game state to all players
+            const room = this.io.sockets.adapter.rooms.get(`game-${result.gameId}`);
+            if (room) {
+                for (const socketId of room) {
+                    const s = this.io.sockets.sockets.get(socketId);
+                    if (s && s.user && s.user.id) {
+                        const gameState = gameManager.getGameState(result.gameId, s.user.id);
+                        s.emit('game-state', gameState);
+                    }
+                }
+            }
+            // If trick is complete, emit trick-completed event
+            if (result.trickComplete) {
+                this.io.to(`game-${result.gameId}`).emit('trick-completed', {
+                    winner: result.winner,
+                    points: result.points,
+                    trickCards: result.trickCards,
+                    nextLeader: result.nextLeader,
+                    roundComplete: result.roundComplete
+                });
+            }
+            // If round is complete, you may want to emit a round-completed event (not implemented here)
         } catch (error) {
             console.error('Play card error:', error);
             socket.emit('error', { message: error.message });

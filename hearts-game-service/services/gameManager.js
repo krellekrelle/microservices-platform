@@ -2,6 +2,43 @@ const HeartsGame = require('../models/HeartsGame');
 const db = require('../db/database');
 
 class GameManager {
+    // Play a card for a player (called by socket handler)
+    async playCard(userId, card) {
+        if (!this.lobbyGame || this.lobbyGame.state !== 'playing') {
+            return { error: 'No game in playing phase' };
+        }
+        // Find the player's seat
+        let seat = null;
+        for (const [seatNum, player] of this.lobbyGame.players) {
+            if (player.userId === userId) {
+                seat = seatNum;
+                break;
+            }
+        }
+        if (seat === null) {
+            return { error: 'You are not seated in the game' };
+        }
+        const player = this.lobbyGame.players.get(seat);
+        if (!player) {
+            return { error: 'Player not found in game.' };
+        }
+        // Validate card (HeartsGame will also validate, but we check here for socket errors)
+        if (!player.hand.includes(card)) {
+            return { error: 'Card not in your hand.' };
+        }
+        // Call HeartsGame.playCard, which returns trick/round info
+        let playResult;
+        try {
+            playResult = this.lobbyGame.playCard(seat, card);
+        } catch (err) {
+            return { error: err.message };
+        }
+        // Always include gameId for socket handler
+        return {
+            ...playResult,
+            gameId: this.lobbyGame.id
+        };
+    }
     constructor() {
         this.activeGames = new Map(); // gameId -> HeartsGame instance
         this.playerToGame = new Map(); // userId -> gameId
@@ -406,6 +443,18 @@ class GameManager {
         const game = this.activeGames.get(gameId);
         if (!game) return null;
 
+        // Determine whose turn it is (seat number)
+        let currentTurnSeat = null;
+        if (game.state === 'playing') {
+            if (game.currentTrickCards.length === 0) {
+                currentTurnSeat = game.trickLeader;
+            } else {
+                // Next seat in order
+                const lastSeat = game.currentTrickCards[game.currentTrickCards.length - 1].seat;
+                currentTurnSeat = (lastSeat + 1) % 4;
+            }
+        }
+
         return {
             gameId: game.id,
             state: game.state,
@@ -415,6 +464,7 @@ class GameManager {
             passDirection: game.passDirection,
             trickLeader: game.trickLeader,
             currentTrickCards: game.currentTrickCards,
+            currentTurnSeat,
             players: this.getPlayersState(game, forUserId),
             scores: {
                 round: game.getRoundScores(),
