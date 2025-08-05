@@ -251,6 +251,20 @@ class GameManager {
     }
 
     async startGame() {
+
+        // Fill empty seats with bots before checking canStartGame
+        for (let seat = 0; seat < 4; seat++) {
+            if (!this.lobbyGame.players.has(seat)) {
+                // Add a bot to this seat
+                const botName = seat === 2 ? 'TestBot A' : seat === 3 ? 'TestBot B' : `Bot${seat+1}`;
+                this.lobbyGame.addPlayer(`bot${seat}`, botName, seat);
+                // Mark bot as ready
+                this.lobbyGame.players.get(seat).isReady = true;
+                this.lobbyGame.players.get(seat).isBot = true;
+            }
+        }
+
+        // Now check if game can start
         if (!this.lobbyGame || !this.lobbyGame.canStartGame()) {
             throw new Error('Cannot start game');
         }

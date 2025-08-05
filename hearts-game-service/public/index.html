@@ -489,9 +489,35 @@
         function updateLobbyDisplay(state) {
             lobbyState = state;
             
-            // Update player count
-            const playerCount = Object.values(state.players).filter(p => p !== null).length;
+
+            // Count real and dummy players for player count and readiness
+            let playerCount = 0;
+            let readyCount = 0;
+            let allReady = true;
+            for (let seat = 0; seat < 4; seat++) {
+                let player = state.players[seat];
+                if (!player && (seat === 2 || seat === 3)) {
+                    player = {
+                        userId: `dummy${seat}`,
+                        userName: seat === 2 ? 'TestBot A' : 'TestBot B',
+                        isReady: true,
+                        isConnected: true,
+                        isBot: true
+                    };
+                }
+                if (player) {
+                    playerCount++;
+                    if (player.isReady && player.isConnected) {
+                        readyCount++;
+                    } else {
+                        allReady = false;
+                    }
+                } else {
+                    allReady = false;
+                }
+            }
             document.getElementById('player-count').textContent = playerCount;
+
 
             // Update lobby leader
             let leaderName = 'None';
@@ -500,16 +526,29 @@
             }
             document.getElementById('lobby-leader').textContent = leaderName;
 
+            // Patch canStartGame if only dummy bots are missing
+            // (so Start Game button is enabled for 2 real + 2 dummy)
+            if (playerCount === 4 && readyCount === 4) {
+                state.canStartGame = true;
+            }
+
             // Update seats
             for (let seat = 0; seat < 4; seat++) {
                 const seatEl = document.querySelector(`[data-seat="${seat}"]`);
-                const player = state.players[seat];
-                
+                let player = state.players[seat];
+                // Inject dummy users for seats 2 and 3 (seat 2 = index 2, seat 3 = index 3) if empty
+                if (!player && (seat === 2 || seat === 3)) {
+                    player = {
+                        userId: `dummy${seat}`,
+                        userName: seat === 2 ? 'TestBot A' : 'TestBot B',
+                        isReady: true,
+                        isConnected: true,
+                        isBot: true
+                    };
+                }
                 seatEl.className = 'seat';
-                
                 if (player) {
                     seatEl.classList.add('occupied');
-                    
                     // Check if this is my seat
                     const isMySeat = player.userId === currentUser?.id;
                     if (isMySeat) {
@@ -517,13 +556,11 @@
                         mySeat = seat;
                         isReady = player.isReady;
                     }
-                    
                     // Add leave seat option for my seat when not ready
                     const leaveOption = isMySeat && !player.isReady ? 
                         `<div class="seat-leave" onclick="leaveSeat()" style="margin-top: 0.5rem;">
                             <small style="color: #ff9800; cursor: pointer; text-decoration: underline;">Leave Seat</small>
                          </div>` : '';
-                    
                     seatEl.innerHTML = `
                         <div class="seat-number">Seat ${seat + 1}</div>
                         <div class="seat-content">
