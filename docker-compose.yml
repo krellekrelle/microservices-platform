@@ -98,6 +98,22 @@ services:
     networks:
       - app-network
 
+  hearts-game-service:
+    build: ./hearts-game-service
+    environment:
+      - PORT=3004
+      - JWT_SECRET=7aa5c54ef4656dc9141d86d0448995227515021093db7bad9c10a085bef3b00fab31da0e2bdde0a55b481a66f233127f3c74eeb9cb035595bbfa6f5e478795fd
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=${FRONTEND_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+    depends_on:
+      database:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - app-network
+
   prometheus:
     image: prom/prometheus:latest
     volumes:

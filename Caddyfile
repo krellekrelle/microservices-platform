@@ -19,6 +19,16 @@
         reverse_proxy lol-tracking-service:3003
     }
     
+    # Hearts Game Service routes - strip /hearts prefix with WebSocket support
+    handle_path /hearts/* {
+        reverse_proxy hearts-game-service:3004 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+    
     # System Monitor routes - preserve /monitor prefix for Grafana sub-path
     handle /monitor/* {
         reverse_proxy grafana:3000
@@ -47,6 +57,16 @@ kl-pi.tail9f5728.ts.net {
     # LoL Tracking Service routes - strip /lol prefix
     handle_path /lol/* {
         reverse_proxy lol-tracking-service:3003
+    }
+    
+    # Hearts Game Service routes - strip /hearts prefix with WebSocket support
+    handle_path /hearts/* {
+        reverse_proxy hearts-game-service:3004 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
     
     # System Monitor routes - preserve /monitor prefix for Grafana sub-path
