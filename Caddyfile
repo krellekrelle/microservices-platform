@@ -19,6 +19,11 @@
         reverse_proxy lol-tracking-service:3003
     }
     
+    # System Monitor routes - preserve /monitor prefix for Grafana sub-path
+    handle /monitor/* {
+        reverse_proxy grafana:3000
+    }
+    
     # Main landing page (default catch-all)
     reverse_proxy landing-page:3000
 }
@@ -42,6 +47,11 @@ kl-pi.tail9f5728.ts.net {
     # LoL Tracking Service routes - strip /lol prefix
     handle_path /lol/* {
         reverse_proxy lol-tracking-service:3003
+    }
+    
+    # System Monitor routes - preserve /monitor prefix for Grafana sub-path
+    handle /monitor/* {
+        reverse_proxy grafana:3000
     }
     
     # Main landing page (default catch-all)

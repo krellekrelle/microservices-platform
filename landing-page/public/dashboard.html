@@ -168,6 +168,14 @@
                 <p class="app-description">Admin tools for managing matches, accounts, and calculating fines.</p>
                 <a href="/lol/admin" class="app-btn" style="background: #dc3545;">Admin Panel</a>
             </div>
+            
+            <!-- System Monitor Admin section -->
+            <div class="app-card" id="monitorSection" style="display: none;">
+                <div class="app-icon">📊</div>
+                <h3 class="app-title">System Monitor</h3>
+                <p class="app-description">Real-time system metrics including CPU, memory, disk, and network usage.</p>
+                <a href="/monitor/" class="app-btn" style="background: #17a2b8;">View Metrics</a>
+            </div>
         </div>
     </div>
 
@@ -184,6 +192,7 @@
                     if (data.user.isAdmin) {
                         document.getElementById('adminLink').style.display = 'block';
                         document.getElementById('adminSection').style.display = 'block';
+                        document.getElementById('monitorSection').style.display = 'block';
                     }
                 }
             })

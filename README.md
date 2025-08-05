@@ -22,10 +22,14 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 - **Real-time Status Checking** - users can check approval status without page refresh
 - **Secure Static File Serving** - authentication bypass vulnerability fixed with route-based protection
 - **JWT Token Refresh** - automatic token refresh for seamless user experience
+- **System Monitoring** - Prometheus + Grafana stack for comprehensive infrastructure monitoring
 
 ## 🎯 Current Status (August 2025)
 
 **Latest Major Update** (August 5, 2025):
+- ✅ **System Monitoring**: Added Prometheus + Grafana stack for comprehensive infrastructure monitoring
+- ✅ **Admin-only Monitoring**: System metrics accessible at `/monitor/` with JWT authentication integration
+- ✅ **Zero-maintenance Monitoring**: Pure configuration approach using industry-standard tools
 - ✅ **Background Sync System**: Comprehensive automated match loading every 30 minutes with historical backfill
 - ✅ **Gap Recovery**: Automatically catches up on missed matches after server restarts without data loss
 - ✅ **Real-time Admin Dashboard**: Live sync monitoring at `/lol/admin/sync-status-page` with manual controls
@@ -78,6 +82,12 @@ Once approved, users have access to:
     - **Manual Controls** - Trigger sync cycles and reset account status
     - **Fine Administration** - Calculate and review automated fines
     - **System Monitoring** - Real-time progress tracking and error resolution
+- **📊 System Monitor** - Comprehensive system monitoring (Admin only)
+  - **Real-time Metrics** - Live CPU, memory, disk, and network usage
+  - **Grafana Dashboards** - Professional monitoring interface with customizable views
+  - **Historical Data** - System performance trends and historical analysis
+  - **Infrastructure Monitoring** - Prometheus-based metrics collection and alerting
+  - **Host System Visibility** - Detailed insights into Raspberry Pi performance
 
 ## 🏗️ Architecture
 
@@ -124,6 +134,16 @@ Once approved, users have access to:
    - **User Account Management** - Link Riot accounts with PUUID tracking
    - **Admin Analytics** - Comprehensive match and fine management interface
    - Accessible via `/lol/` path through reverse proxy
+
+7. **System Monitor** (Internal Ports: 9090, 3000, 9100)
+   - **Prometheus + Grafana Stack** - Industry-standard monitoring solution
+   - **System Metrics Collection** - CPU, memory, disk, and network statistics
+   - **Real-time Dashboards** - Comprehensive Grafana visualizations
+   - **Admin-only Access** - Integrated with JWT authentication system
+   - **No Custom Code** - Pure infrastructure monitoring with proven tools
+   - **Zero Maintenance** - Configuration-only approach with no application logic
+   - **Host System Monitoring** - Node Exporter provides detailed system metrics
+   - Accessible via `/monitor/` path through reverse proxy (admin authentication required)
 
 ### Authentication Flow
 
@@ -240,6 +260,10 @@ Internet → Tailscale Funnel → Caddy (Port 80) → Internal Services
 4. **Access the application**
    - **Local**: http://localhost:3000
    - **Public** (with Tailscale): https://your-domain.ts.net
+   - **System Monitoring** (Admin only): https://your-domain.ts.net/monitor/
+     - Username: `admin`
+     - Password: `admin`
+     - **Note**: Must be logged in as admin user in the main application first
 
 5. **Stop services**
    ```bash
@@ -256,6 +280,9 @@ docker compose up auth-service --build -d
 docker compose up lol-tracking-service --build -d
 docker compose up landing-page --build -d
 docker compose up hello-world-app --build -d
+
+# Monitoring services (no rebuild needed for config changes)
+docker compose restart prometheus grafana node-exporter
 
 # For major changes or persistent issues, rebuild without cache
 docker compose down
