@@ -267,22 +267,7 @@ class SocketHandler {
                 if (receiver && p.pendingPassedCards) {
                     receiver.hand.push(...p.pendingPassedCards);
                     // Sort hand by suit and then rank
-                    receiver.hand = receiver.hand.sort((a, b) => {
-                        const suitOrder = { 'C': 0, 'D': 1, 'H': 2, 'S': 3 };
-                        const rankOrder = {
-                            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
-                            '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
-                        };
-                        const parse = (card) => {
-                            const match = card.match(/^(10|[2-9JQKA])([CDHS])$/);
-                            if (!match) return { rank: 0, suit: 0 };
-                            return { rank: rankOrder[match[1]], suit: suitOrder[match[2]] };
-                        };
-                        const ca = parse(a);
-                        const cb = parse(b);
-                        if (ca.suit !== cb.suit) return ca.suit - cb.suit;
-                        return ca.rank - cb.rank;
-                    });
+                    receiver.hand = this.sortHand(receiver.hand);
                 }
             }
             // Clear passing state
@@ -317,6 +302,19 @@ class SocketHandler {
             console.error('Pass cards error:', error);
             socket.emit('error', { message: error.message });
         }
+    }
+
+    sortHand(hand) {
+        const suitOrder = { 'C': 0, 'D': 1, 'H': 2, 'S': 3 };
+        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, 
+                           '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+        
+        return hand.sort((a, b) => {
+            const suitA = suitOrder[a[1]];
+            const suitB = suitOrder[b[1]];
+            if (suitA !== suitB) return suitA - suitB;
+            return rankOrder[a[0]] - rankOrder[b[0]];
+        });
     }
 
     async handlePlayCard(socket, data) {
