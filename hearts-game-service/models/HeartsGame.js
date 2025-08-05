@@ -302,7 +302,39 @@ class HeartsGame {
             throw new Error('Card not in hand');
         }
         
-        // Validate play
+        // Validate play, with detailed error messages
+        const isFirstTrick = this.currentTrick === 0;
+        const isLeading = this.currentTrickCards.length === 0;
+        // First trick: must lead with 2C
+        if (isFirstTrick && isLeading && card !== '2C') {
+            throw new Error('First trick must start with 2♣ (2C)');
+        }
+        // First trick: no hearts or QS unless only hearts/QS left
+        if (isFirstTrick && (card[1] === 'H' || card === 'QS')) {
+            const nonHearts = this.players.get(seat).hand.filter(c => c[1] !== 'H' && c !== 'QS');
+            if (nonHearts.length > 0) {
+                throw new Error('Cannot play hearts or Queen of Spades on the first trick unless you have only hearts/QS');
+            }
+        }
+        // Leading: cannot lead hearts unless broken (or only hearts left)
+        if (isLeading && card[1] === 'H' && !this.heartsBreoken) {
+            const nonHearts = this.players.get(seat).hand.filter(c => c[1] !== 'H');
+            if (nonHearts.length > 0) {
+                throw new Error('Cannot lead hearts until hearts have been broken (unless you only have hearts)');
+            }
+        }
+        // Following suit: must follow if possible
+        if (!isLeading) {
+            const leadSuit = this.currentTrickCards[0].card[1];
+            const cardSuit = card[1];
+            if (cardSuit !== leadSuit) {
+                const suitCards = this.players.get(seat).hand.filter(c => c[1] === leadSuit);
+                if (suitCards.length > 0) {
+                    throw new Error(`You must follow suit (${leadSuit}) if possible`);
+                }
+            }
+        }
+        // If not valid for any other reason
         if (!this.isValidPlay(seat, card)) {
             throw new Error('Invalid card play');
         }

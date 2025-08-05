@@ -74,6 +74,40 @@ app.get('/', requireAuth, requireApproved, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Play card endpoint (HTTP, not socket)
+app.post('/play-card', requireAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const { card } = req.body;
+        if (!user || !card) {
+            return res.status(400).json({ success: false, error: 'Missing user or card' });
+        }
+        // Simulate a socket for the HTTP user
+        const fakeSocket = {
+            user,
+            emit: (event, data) => {
+                // Optionally, collect error for HTTP response
+                if (event === 'error') {
+                    fakeSocket._error = data;
+                }
+            }
+        };
+        // Call the socket handler's play card logic
+        await socketHandler.handlePlayCard(fakeSocket, { card });
+        if (fakeSocket._error) {
+            return res.status(400).json({ success: false, error: fakeSocket._error.message });
+        }
+        // Respond with success (actual state will be sent via sockets)
+        return res.json({ success: true });
+    } catch (err) {
+        console.error('Error in /hearts/play-card:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// Make io available in req.app for HTTP endpoints
+app.set('io', io);
+
 app.get('/health', (req, res) => {
     res.json({ 
         status: 'healthy', 

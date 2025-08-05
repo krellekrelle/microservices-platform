@@ -1,3 +1,18 @@
+## Card Play Flow (Backend)
+
+### HTTP Endpoint (`/play-card`)
+
+- The `/play-card` endpoint now delegates card play logic to the same handler as the socket event (`handlePlayCard` in `socketHandler`).
+- When a card is played via HTTP, the backend simulates a socket event for the user, ensuring all validation, state updates, and broadcasts are handled identically to socket.io clients.
+- After a valid play, the backend emits a personalized `game-state` event to each connected player (each player only sees their own hand), and a `trick-completed` event if a trick is finished.
+- The HTTP response only contains `{ success: true }` or an error; all real-time updates are delivered via socket.io.
+- This ensures consistent game logic and state delivery for both HTTP and socket clients.
+
+### Notes
+- The HTTP endpoint does not itself broadcast to other HTTP clients; all real-time updates are via socket.io.
+- If you want the HTTP response to include the updated game state for the user, you can fetch it from `gameManager.getGameState(gameId, userId)` after the play.
+
+---
 # Hearts Game Service - Development Guide
 
 ## 🎯 Service Overview

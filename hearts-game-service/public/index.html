@@ -662,33 +662,15 @@
                 // Always allow toggleCard in passing phase, playCard in playing phase and your turn
                 let clickHandler = '';
                 if (lobbyState && lobbyState.state === 'passing') {
-                    // clickHandler = `onclick=\"window.toggleCard('${card}')\"`;
+                    // onclick="window.toggleCard('${card}'
                 return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;
                 } else if (lobbyState && lobbyState.state === 'playing' && typeof mySeat === 'number' && mySeat === lobbyState.currentTurnSeat) {
-                    // clickHandler = `onclick=\"window.playCard('${card}')\"`;
+                    // onclick="window.playCard('${card}')
                     return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.playCard('${card}')">`;
                 } else {
+                    // onclick="window.toggleCard('${card}'
                     return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;   
                 }
-                clickHandler = `onclick=\"window.playCard('${card}')\"`;
-                // return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" ${clickHandler}>`;
-            // Show debug overlay for phase and selection
-            let debugDiv = document.getElementById('debug-overlay');
-            if (!debugDiv) {
-                debugDiv = document.createElement('div');
-                debugDiv.id = 'debug-overlay';
-                debugDiv.style.position = 'fixed';
-                debugDiv.style.bottom = '10px';
-                debugDiv.style.right = '10px';
-                debugDiv.style.background = 'rgba(0,0,0,0.7)';
-                debugDiv.style.color = '#ffeb3b';
-                debugDiv.style.padding = '8px 16px';
-                debugDiv.style.borderRadius = '8px';
-                debugDiv.style.fontSize = '1rem';
-                debugDiv.style.zIndex = 9999;
-                document.body.appendChild(debugDiv);
-            }
-            debugDiv.innerHTML = `<b>Phase:</b> ${currentPhase} <br><b>Selected:</b> ${(window.selectedCards||[]).join(', ')}`;
             }).join('');
             console.log('[DEBUG] showHand rendered hand:', JSON.stringify(hand));
             // Update selection UI
@@ -706,7 +688,41 @@ window.playCard = function(card) {
             img.style.pointerEvents = 'none';
         });
     }
-    socket.emit('play-card', { card });
+
+    // Use HTTP POST to /hearts/play-card instead of socket.emit
+    fetch('/hearts/play-card', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ card })
+    })
+    .then(async (res) => {
+        console.log('[DEBUG] playCard response:', res);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            // Show error and re-enable pointer events
+            showErrorMessage(data.error || 'Invalid card or server error');
+            const handCardsDiv = document.getElementById('hand-cards');
+            if (handCardsDiv) {
+                Array.from(handCardsDiv.children).forEach(img => {
+                    img.style.pointerEvents = 'auto';
+                });
+            }
+            return;
+        }
+        // Success: do nothing, wait for game-state update from server
+    })
+    .catch((err) => {
+        showErrorMessage('Network/server error');
+        const handCardsDiv = document.getElementById('hand-cards');
+        if (handCardsDiv) {
+            Array.from(handCardsDiv.children).forEach(img => {
+                img.style.pointerEvents = 'auto';
+            });
+        }
+    });
 };
         } // End showHand
 
