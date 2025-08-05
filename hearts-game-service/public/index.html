@@ -361,12 +361,13 @@
 
             <div id="game-section" class="hidden">
                 <h2>Game in Progress</h2>
+                <div id="game-state-label" style="margin-bottom:1rem;font-size:1.2rem;font-weight:500;letter-spacing:0.5px;"></div>
                 <div id="hand-area" style="margin: 2rem 0; text-align: center;"></div>
-                <div style="margin-top: 2rem;">
+                <!-- <div style="margin-top: 2rem;">
                     <button class="btn" onclick="location.reload()">
                         Return to Lobby
                     </button>
-                </div>
+                </div> -->
             </div>
         </div>
     </div>
@@ -416,8 +417,147 @@
 
             socket.on('cards-dealt', (data) => {
                 console.log('🃏 Cards dealt:', data);
+                window.currentHand = data.hand;
+                console.log('[DEBUG] Initial hand dealt:', JSON.stringify(window.currentHand));
                 showHand(data.hand);
             });
+
+            // Listen for game state updates (after passing, etc)
+            socket.on('game-state', (data) => {
+                console.log('🎲 Game state update:', data);
+                lobbyState = data;
+                // Only update hand and UI if in 'playing' state, or if in 'passing' state and I haven't passed yet
+                let myHand = null;
+                let hasPassed = false;
+                if (typeof mySeat === 'number' && data.players && data.players[mySeat]) {
+                    myHand = data.players[mySeat].hand;
+                    // If hand is missing but handSize is 10, assume passed
+                    if (!myHand && typeof data.players[mySeat].handSize === 'number' && data.players[mySeat].handSize < 13) {
+                        hasPassed = true;
+                    }
+                }
+                // Update label and UI
+                updateGameStateLabel();
+                if (data.state === 'playing') {
+                    // All cards have been passed, update hand
+                    if (myHand) {
+                        console.log('[DEBUG] Updating hand for seat', mySeat, 'Hand:', JSON.stringify(myHand));
+                        window.currentHand = myHand;
+                        showHand(myHand);
+                    } else {
+                        console.log('[DEBUG] No hand found for my seat', mySeat, 'in game-state:', data);
+                    }
+                } else if (data.state === 'passing') {
+                    // In passing phase
+                    if (myHand) {
+                        // I haven't passed yet, show my hand
+                        window.currentHand = myHand;
+                        showHand(myHand);
+                    } else if (hasPassed) {
+                        // I have passed, keep showing previous hand (do not update)
+                        // Optionally, show a waiting message
+                        document.getElementById('hand-area').innerHTML += '<div style="margin-top:1rem;color:#ffeb3b;">Waiting for other players to pass cards...</div>';
+                    }
+                }
+            }); // End socket.on('game-state')
+
+        // Update the game state label in its own element
+        function updateGameStateLabel() {
+            const labelDiv = document.getElementById('game-state-label');
+            const handArea = document.getElementById('hand-area');
+            if (!labelDiv || !handArea) return;
+            if (lobbyState && lobbyState.state) {
+                let stateLabel = '';
+                switch (lobbyState.state) {
+                    case 'passing':
+                        stateLabel = 'Passing Round';
+                        // Always show Pass Cards button during passing phase
+                        let passBtn = document.getElementById('pass-cards-btn');
+                        if (!passBtn) {
+                            const btnDiv = document.createElement('div');
+                            btnDiv.style.marginTop = '1.5rem';
+                            btnDiv.innerHTML = `<button id="pass-cards-btn" class="btn primary" disabled onclick="passSelectedCards()">Pass Cards</button>`;
+                            handArea.appendChild(btnDiv);
+                            passBtn = document.getElementById('pass-cards-btn');
+                            console.log(' BTN CREATED!')
+                        }
+                        // Use readyToPass to determine if user has passed
+                        let hasPassed = false;
+                        if (typeof mySeat === 'number' && lobbyState.players && lobbyState.players[mySeat]) {
+                            const myPlayer = lobbyState.players[mySeat];
+                            if (myPlayer.readyToPass) {
+                                hasPassed = true;
+                            }
+                        }
+                        // Button is enabled only if 3 cards are selected and user hasn't passed
+                        if (passBtn) {
+                            passBtn.disabled = hasPassed || !(window.selectedCards && window.selectedCards.length === 3);
+                        }
+                        // Show waiting message if user has passed
+                        let waitMsg = document.getElementById('waiting-pass-msg');
+                        if (hasPassed) {
+                            if (!waitMsg) {
+                                waitMsg = document.createElement('div');
+                                waitMsg.id = 'waiting-pass-msg';
+                                waitMsg.style.marginTop = '1rem';
+                                waitMsg.style.color = '#ffeb3b';
+                                waitMsg.textContent = 'Waiting for other players to pass cards...';
+                                handArea.appendChild(waitMsg);
+                            } else {
+                                // Move message to end of handArea if needed
+                                handArea.appendChild(waitMsg);
+                                waitMsg.style.display = '';
+                            }
+                        } else if (waitMsg) {
+                            waitMsg.style.display = 'none';
+                        }
+                        break;
+                    case 'playing':
+                        stateLabel = 'Trick Play';
+                        // Remove Pass Cards button if present
+                        console.log('BTN REMOVED PLAYING');
+                        const passBtnPlay = document.getElementById('pass-cards-btn');
+                        if (passBtnPlay && passBtnPlay.parentElement) passBtnPlay.parentElement.remove();
+                        // Remove waiting message if present
+                        const waitMsgPlay = document.getElementById('waiting-pass-msg');
+                        if (waitMsgPlay) waitMsgPlay.remove();
+                        // Clear selected cards and update UI when entering playing state
+                        window.selectedCards = [];
+                        updateCardSelectionUI();
+                        break;
+                    case 'scoring':
+                        stateLabel = 'Scoring';
+                        // Remove Pass Cards button if present
+                        console.log('BTN REMOVED scroing');
+                        const passBtnScore = document.getElementById('pass-cards-btn');
+                        if (passBtnScore && passBtnScore.parentElement) passBtnScore.parentElement.remove();
+                        // Remove waiting message if present
+                        const waitMsgScore = document.getElementById('waiting-pass-msg');
+                        if (waitMsgScore) waitMsgScore.remove();
+                        break;
+                    default:
+                        stateLabel = lobbyState.state.charAt(0).toUpperCase() + lobbyState.state.slice(1);
+                        // Remove Pass Cards button if present
+                        console.log('BTN REMOVED DEFaULT');
+
+                        const passBtnDefault = document.getElementById('pass-cards-btn');
+                        if (passBtnDefault && passBtnDefault.parentElement) passBtnDefault.parentElement.remove();
+                        // Remove waiting message if present
+                        const waitMsgDefault = document.getElementById('waiting-pass-msg');
+                        if (waitMsgDefault) waitMsgDefault.remove();
+                }
+                labelDiv.innerHTML = `Game State: <span style="color:#ffeb3b;">${stateLabel}</span>`;
+            } else {
+                labelDiv.innerHTML = '';
+                // Remove Pass Cards button if present
+                console.log('BTN REMOVED qeird');
+                const passBtn = document.getElementById('pass-cards-btn');
+                if (passBtn && passBtn.parentElement) passBtn.parentElement.remove();
+                // Remove waiting message if present
+                const waitMsg = document.getElementById('waiting-pass-msg');
+                if (waitMsg) waitMsg.remove();
+            }
+        }
 
         // Map card code (e.g. 'QS') to local SVG in bridge3-box-qr-Large
         function getCardImageUrl(cardCode) {
@@ -437,14 +577,91 @@
         function showHand(hand) {
             const handArea = document.getElementById('hand-area');
             if (!handArea) return;
-            if (!hand || !Array.isArray(hand)) {
-                handArea.innerHTML = '<em>No cards dealt.</em>';
+            // If in passing phase and user has already passed (no hand), do NOT clear hand area or remove Pass Cards button
+            if ((!hand || !Array.isArray(hand)) && lobbyState && lobbyState.state === 'passing') {
+                // Just return, keep previous hand/cards and Pass Cards button/waiting message
+                console.log('[DEBUG] showHand called with no hand during passing phase, keeping UI.');
                 return;
             }
-            handArea.innerHTML = hand.map(card =>
-                `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;">`
-            ).join('');
+            if (!hand || !Array.isArray(hand)) {
+                handArea.innerHTML = '<em>No cards dealt.</em>';
+                console.log('[DEBUG] showHand called with no hand:', hand);
+                return;
+            }
+
+            // Card selection state
+            window.selectedCards = [];
+
+            // Only render hand cards (no game state label or pass button)
+            handArea.innerHTML = '<div id="hand-cards"></div>';
+            const handCardsDiv = document.getElementById('hand-cards');
+            handCardsDiv.innerHTML = hand.map(card => {
+                return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;
+            }).join('');
+            console.log('[DEBUG] showHand rendered hand:', JSON.stringify(hand));
+            // Update selection UI
+            updateCardSelectionUI();
+        } // End showHand
+
+        // Update card selection UI only (no re-render of SVGs)
+        function updateCardSelectionUI() {
+            const hand = window.currentHand || [];
+            const handCardsDiv = document.getElementById('hand-cards');
+            if (!handCardsDiv) return;
+            Array.from(handCardsDiv.children).forEach((img, idx) => {
+                const card = hand[idx];
+                if (window.selectedCards.includes(card)) {
+                    img.classList.add('selected');
+                    img.style.outline = '3px solid #ffeb3b';
+                } else {
+                    img.classList.remove('selected');
+                    img.style.outline = 'none';
+                }
+            });
+            updatePassButton();
         }
+
+        // Make toggleCard globally accessible for inline onclick
+window.toggleCard = function(card) {
+    // Only allow selection in 'passing' state
+    if (!lobbyState || lobbyState.state !== 'passing') {
+        return;
+    }
+    const idx = window.selectedCards.indexOf(card);
+    if (idx === -1) {
+        if (window.selectedCards.length < 3) {
+            window.selectedCards.push(card);
+        }
+    } else {
+        window.selectedCards.splice(idx, 1);
+    }
+    updateCardSelectionUI();
+};
+
+        // Remove toggleCardHandler, now using window.toggleCard directly
+
+        // Enable/disable Pass Cards button
+        function updatePassButton() {
+            console.log('BTN from function');
+            const btn = document.getElementById('pass-cards-btn');
+            if (!btn) return;
+            console.log('BTN logic');
+            console.log((window.selectedCards && window.selectedCards.length === 3))
+            btn.disabled = !(window.selectedCards && window.selectedCards.length === 3);
+        }
+
+        // Pass selected cards to server
+window.passSelectedCards = function() {
+    if (!window.selectedCards || window.selectedCards.length !== 3) return;
+    // Only notify backend that user is ready to pass (do not send cards)
+    console.log('[DEBUG] Marking ready to pass (sending cards)');
+    console.log(window.selectedCards)
+    socket.emit('pass-cards', {cards: window.selectedCards});
+    const btn = document.getElementById('pass-cards-btn');
+    if (!btn) return;
+    btn.disabled = true;
+
+};
 
             socket.on('ready-to-start', (data) => {
                 showSuccessMessage(data.message);

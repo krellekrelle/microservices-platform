@@ -170,56 +170,77 @@ class HeartsGame {
         return directions[(round - 1) % 4];
     }
 
-    // Pass cards
+    // Pass cards: mark player as ready and store their selection, but do not remove cards yet
     passCards(seat, cards) {
         if (this.state !== 'passing') {
             throw new Error('Not in passing phase');
         }
-        
         if (this.passDirection === 'none') {
             throw new Error('No passing this round');
         }
-        
         if (!this.players.has(seat)) {
             throw new Error('Player not found');
         }
-        
         if (cards.length !== 3) {
             throw new Error('Must pass exactly 3 cards');
         }
-        
         const player = this.players.get(seat);
-        
         // Validate cards are in player's hand
         for (const card of cards) {
             if (!player.hand.includes(card)) {
                 throw new Error(`Card ${card} not in hand`);
             }
         }
-        
-        // Remove cards from hand temporarily
-        cards.forEach(card => {
-            const index = player.hand.indexOf(card);
-            player.hand.splice(index, 1);
-        });
-        
-        player.passedCards = cards;
-        
-        return this.checkAllCardsPassed();
+        // Mark as ready and store selection
+        player.readyToPass = true;
+        player.pendingPassedCards = [...cards];
+        return this.checkAllPlayersReadyToPass();
     }
 
-    checkAllCardsPassed() {
-        const allPassed = Array.from(this.players.values())
-            .every(p => p.passedCards && p.passedCards.length === 3);
-            
-        if (allPassed) {
-            this.distributePassedCards();
+    checkAllPlayersReadyToPass() {
+        const allReady = Array.from(this.players.values())
+            .every(p => p.readyToPass && p.pendingPassedCards && p.pendingPassedCards.length === 3);
+        if (allReady) {
+            this.performCardPassing();
             this.state = 'playing';
             this.findTrickLeader();
             return { allCardsPassed: true, trickLeader: this.trickLeader };
         }
-        
         return { allCardsPassed: false };
+    }
+
+    // Actually perform the card passing for all players at once
+    performCardPassing() {
+        if (this.passDirection === 'none') return;
+        const passMap = {
+            'left': { 0: 1, 1: 2, 2: 3, 3: 0 },
+            'right': { 0: 3, 1: 0, 2: 1, 3: 2 },
+            'across': { 0: 2, 1: 3, 2: 0, 3: 1 }
+        };
+        const distribution = passMap[this.passDirection];
+        // Remove passed cards from each hand
+        for (const [seat, player] of this.players) {
+            if (player.pendingPassedCards) {
+                for (const card of player.pendingPassedCards) {
+                    const idx = player.hand.indexOf(card);
+                    if (idx !== -1) player.hand.splice(idx, 1);
+                }
+            }
+        }
+        // Distribute passed cards
+        for (const [fromSeat, player] of this.players) {
+            const toSeat = distribution[fromSeat];
+            const receiver = this.players.get(toSeat);
+            if (receiver && player.pendingPassedCards) {
+                receiver.hand.push(...player.pendingPassedCards);
+                receiver.hand = this.sortHand(receiver.hand);
+            }
+        }
+        // Clear passing state
+        this.players.forEach(player => {
+            delete player.pendingPassedCards;
+            delete player.readyToPass;
+        });
     }
 
     distributePassedCards() {

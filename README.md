@@ -67,6 +67,19 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 
 ### Available Applications
 
+---
+
+## 🂡 Hearts Game Service (Port 3004)
+
+- **Real-time multiplayer Hearts card game** with lobby, seat management, and persistent game tracking
+- **Atomic Card Passing Phase**: Each player selects 3 cards and presses Pass Cards. The backend only exchanges cards and starts the playing round when all players have passed.
+- **Frontend**: The Pass Cards button is enabled only when 3 cards are selected. After passing, the button is disabled and a waiting message is shown. The hand is only updated after all players have passed and the backend starts the playing phase.
+- **Backend**: The backend saves each player's seat and selected cards. When all 4 players have passed, it updates all hands, clears the passing state, and starts the playing phase.
+- **Socket.IO**: Real-time updates for lobby, game state, and passing phase. All game actions are validated on the server.
+- **Security**: JWT authentication required. Only approved users can play.
+
+See `hearts-game-service/DEVELOPMENT.md` for full technical details and development notes.
+
 Once approved, users have access to:
 
 - **🌍 Hello World App** - Example service demonstrating authentication integration

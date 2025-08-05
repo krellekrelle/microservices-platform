@@ -36,6 +36,15 @@ class GameManager {
         }
     }
 
+    // Pass cards for a player (atomic passing phase)
+    passCards(gameId, seat, cards) {
+        const game = this.activeGames.get(gameId);
+        if (!game) throw new Error('Game not found');
+        // Use new ready-to-pass logic
+        const result = game.passCards(seat, cards);
+        return result;
+    }
+
     async loadExistingLobby(lobbyData) {
         try {
             // Load players for this lobby
@@ -273,13 +282,30 @@ class GameManager {
             // 1. Deal cards to all players
             const gameResult = this.lobbyGame.startGame(); // Should deal and assign hands
 
-            // 2. Update database with new game state
+
+            // 2. Let bots pass cards immediately if in passing phase
+            if (this.lobbyGame.state === 'passing') {
+                for (const [seat, player] of this.lobbyGame.players) {
+                    if (player.isBot && (!player.readyToPass || !player.pendingPassedCards || player.pendingPassedCards.length !== 3)) {
+                        // Pick 3 random cards from hand
+                        const handCopy = [...player.hand];
+                        const botPass = [];
+                        for (let i = 0; i < 3; i++) {
+                            const idx = Math.floor(Math.random() * handCopy.length);
+                            botPass.push(handCopy.splice(idx, 1)[0]);
+                        }
+                        this.passCards(this.lobbyGame.id, seat, botPass);
+                    }
+                }
+            }
+
+            // 3. Update database with new game state
             await db.query(
                 'UPDATE hearts_games SET game_state = $1, started_at = $2, current_round = $3, pass_direction = $4 WHERE id = $5',
                 ['passing', this.lobbyGame.startedAt, this.lobbyGame.currentRound, this.lobbyGame.passDirection, this.lobbyGame.id]
             );
 
-            // 3. Save each player's hand to the database
+            // 4. Save each player's hand to the database
             for (const [seat, player] of this.lobbyGame.players) {
                 await db.query(
                     'UPDATE hearts_players SET hand_cards = $1 WHERE game_id = $2 AND seat_position = $3',
@@ -332,7 +358,7 @@ class GameManager {
         };
     }
 
-    getGameState(gameId) {
+    getGameState(gameId, forUserId = null) {
         const game = this.activeGames.get(gameId);
         if (!game) return null;
 
@@ -345,7 +371,7 @@ class GameManager {
             passDirection: game.passDirection,
             trickLeader: game.trickLeader,
             currentTrickCards: game.currentTrickCards,
-            players: this.getPlayersState(game),
+            players: this.getPlayersState(game, forUserId),
             scores: {
                 round: game.getRoundScores(),
                 total: game.getTotalScores()
@@ -353,7 +379,7 @@ class GameManager {
         };
     }
 
-    getPlayersState(game) {
+    getPlayersState(game, forUserId = null) {
         const players = {};
         for (const [seat, player] of game.players) {
             players[seat] = {
@@ -363,8 +389,15 @@ class GameManager {
                 isBot: player.isBot,
                 handSize: player.hand.length,
                 roundScore: player.roundScore,
-                totalScore: player.totalScore
+                totalScore: player.totalScore,
+                // Expose passing state for frontend
+                readyToPass: !!player.readyToPass,
+                pendingPassedCards: Array.isArray(player.pendingPassedCards) ? player.pendingPassedCards.slice() : undefined
             };
+            // Only include the hand for the requesting user
+            if (forUserId && player.userId === forUserId) {
+                players[seat].hand = [...player.hand];
+            }
         }
         return players;
     }

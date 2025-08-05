@@ -6,6 +6,7 @@ class SocketHandler {
         this.io = null;
         this.connectedUsers = new Map(); // socketId -> userId
         this.userSockets = new Map(); // userId -> Set of socketIds
+        // Do not assign this.gameManager; use imported gameManager directly
     }
 
     initialize(io) {
@@ -75,16 +76,10 @@ class SocketHandler {
             const userName = socket.user.name || socket.user.email;
 
             const result = await gameManager.joinLobby(userId, userName);
-            
-            // Join the lobby room
+            // ...existing code...
             socket.join(`lobby-${result.gameId}`);
-            
-            // Send lobby state to user
             socket.emit('lobby-updated', result.lobbyState);
-            
-            // Notify others in lobby
             socket.to(`lobby-${result.gameId}`).emit('lobby-updated', result.lobbyState);
-
             console.log(`${userName} joined lobby ${result.gameId}`);
         } catch (error) {
             console.error('Join lobby error:', error);
@@ -103,13 +98,8 @@ class SocketHandler {
             }
 
             const result = await gameManager.takeSeat(userId, userName, seat);
-            
-            // Join the lobby room if not already joined
             socket.join(`lobby-${result.lobbyState.gameId}`);
-            
-            // Broadcast updated lobby state to all users
             this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
-
             console.log(`${userName} took seat ${seat}`);
         } catch (error) {
             console.error('Take seat error:', error);
@@ -123,12 +113,9 @@ class SocketHandler {
             const userName = socket.user.name || socket.user.email;
 
             const result = await gameManager.leaveSeat(userId);
-            
-            // Broadcast updated lobby state
             if (result.lobbyState) {
                 this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
             }
-
             console.log(`${userName} left their seat`);
         } catch (error) {
             console.error('Leave seat error:', error);
@@ -142,17 +129,12 @@ class SocketHandler {
             const userName = socket.user.name || socket.user.email;
 
             const result = await gameManager.toggleReady(userId);
-            
-            // Broadcast updated lobby state
             this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
-
-            // If game can start, notify players
             if (result.canStartGame) {
                 this.io.to(`lobby-${result.lobbyState.gameId}`).emit('ready-to-start', {
                     message: 'All players ready! Game can start now.'
                 });
             }
-
             console.log(`${userName} toggled ready status: ${result.isReady}`);
         } catch (error) {
             console.error('Toggle ready error:', error);
@@ -165,17 +147,14 @@ class SocketHandler {
             const userId = socket.user.id;
             const userName = socket.user.name || socket.user.email;
 
-            // Check if user is lobby leader (this will be implemented in gameManager)
             const result = await gameManager.startGame();
-            
+            console.log("Trying to start game...");
             if (result.success) {
-                // Notify all players that game started
+                console.log("Game started succesful");
                 this.io.to(`lobby-${result.gameId}`).emit('game-started', {
                     gameId: result.gameId,
                     passDirection: result.passDirection
                 });
-
-                // Send individual hands to each player
                 for (const [seat, hand] of Object.entries(result.hands)) {
                     const player = gameManager.lobbyGame?.players.get(parseInt(seat));
                     if (player) {
@@ -186,10 +165,11 @@ class SocketHandler {
                         });
                     }
                 }
-
-                // Move players to game room
+                console.log(`Lobby name: lobby-${result.gameId}`);
+                console.log(`Game name: game-${result.gameId}`);
                 this.io.to(`lobby-${result.gameId}`).socketsJoin(`game-${result.gameId}`);
-
+                const gameState = gameManager.getGameState(result.gameId);
+                this.io.to(`game-${result.gameId}`).emit('game-state', gameState);
                 console.log(`${userName} started game ${result.gameId}`);
             }
         } catch (error) {
@@ -201,9 +181,123 @@ class SocketHandler {
     async handlePassCards(socket, data) {
         try {
             const userId = socket.user.id;
-            // TODO: Implement card passing logic
-            console.log(`Pass cards from ${userId}:`, data.cards);
-            socket.emit('error', { message: 'Card passing not yet implemented' });
+            if (!gameManager.lobbyGame) {
+                socket.emit('error', { message: 'No game in progress' });
+                return;
+            }
+            // Find the player's seat
+            let seat = null;
+            for (const [seatNum, player] of gameManager.lobbyGame.players) {
+                if (player.userId === userId) {
+                    seat = seatNum;
+                    break;
+                }
+            }
+            if (seat === null) {
+                socket.emit('error', { message: 'You are not seated in the game' });
+                return;
+            }
+            // Validate cards
+            const cards = Array.isArray(data.cards) ? data.cards : [];
+            if (cards.length !== 3) {
+                socket.emit('error', { message: 'You must select exactly 3 cards to pass.' });
+                return;
+            }
+            // Save the seat number and cards
+            const player = gameManager.lobbyGame.players.get(seat);
+            if (!player) {
+                socket.emit('error', { message: 'Player not found in game.' });
+                return;
+            }
+            if (player.readyToPass) {
+                socket.emit('error', { message: 'You have already passed cards.' });
+                return;
+            }
+            player.readyToPass = true;
+            player.pendingPassedCards = [...cards];
+
+            // Check if all seats have passed
+            let allPassed = true;
+            for (const p of gameManager.lobbyGame.players.values()) {
+                if (!p.readyToPass || !Array.isArray(p.pendingPassedCards) || p.pendingPassedCards.length !== 3) {
+                    allPassed = false;
+                    break;
+                }
+            }
+
+            // If not all have passed, just emit updated game state
+            const room = this.io.sockets.adapter.rooms.get(`game-${gameManager.lobbyGame.id}`);
+            if (room) {
+                for (const socketId of room) {
+                    const s = this.io.sockets.sockets.get(socketId);
+                    if (s && s.user && s.user.id) {
+                        const gameState = gameManager.getGameState(gameManager.lobbyGame.id, s.user.id);
+                        // s.emit('game-state', gameState);
+                    }
+                }
+            }
+            // socket.emit('pass-cards-success', { success: true });
+
+            if (!allPassed) {
+                return;
+            }
+
+            // All have passed: update hands and start playing round
+            // Perform the card passing
+            const passMap = {
+                'left': { 0: 1, 1: 2, 2: 3, 3: 0 },
+                'right': { 0: 3, 1: 0, 2: 1, 3: 2 },
+                'across': { 0: 2, 1: 3, 2: 0, 3: 1 }
+            };
+            const direction = gameManager.lobbyGame.passDirection;
+            const distribution = passMap[direction];
+            // Remove passed cards from each hand
+            for (const [seatNum, p] of gameManager.lobbyGame.players) {
+                if (p.pendingPassedCards) {
+                    for (const card of p.pendingPassedCards) {
+                        const idx = p.hand.indexOf(card);
+                        if (idx !== -1) p.hand.splice(idx, 1);
+                    }
+                }
+            }
+            // Distribute passed cards
+            for (const [fromSeat, p] of gameManager.lobbyGame.players) {
+                const toSeat = distribution[fromSeat];
+                const receiver = gameManager.lobbyGame.players.get(toSeat);
+                if (receiver && p.pendingPassedCards) {
+                    receiver.hand.push(...p.pendingPassedCards);
+                    // Sort hand if needed
+                    receiver.hand = receiver.hand.sort();
+                }
+            }
+            // Clear passing state
+            for (const p of gameManager.lobbyGame.players.values()) {
+                delete p.pendingPassedCards;
+                delete p.readyToPass;
+            }
+            // Set state to playing and find trick leader
+            gameManager.lobbyGame.state = 'playing';
+            // Find trick leader (2C)
+            let trickLeader = null;
+            for (const [seatNum, p] of gameManager.lobbyGame.players) {
+                if (p.hand.includes('2C')) {
+                    trickLeader = seatNum;
+                    break;
+                }
+            }
+            gameManager.lobbyGame.trickLeader = trickLeader;
+
+            // Emit updated game state to all
+            if (room) {
+                for (const socketId of room) {
+                    const s = this.io.sockets.sockets.get(socketId);
+                    if (s && s.user && s.user.id) {
+                        const gameState = gameManager.getGameState(gameManager.lobbyGame.id, s.user.id);
+                        s.emit('game-state', gameState);
+                    }
+                }
+            }
+            this.io.to(`game-${gameManager.lobbyGame.id}`).emit('all-cards-passed', { trickLeader });
         } catch (error) {
             console.error('Pass cards error:', error);
             socket.emit('error', { message: error.message });
@@ -248,7 +342,6 @@ class SocketHandler {
 
     handleGetLobbyState(socket) {
         try {
-            // Send current lobby state
             if (gameManager.lobbyGame) {
                 const lobbyState = gameManager.getLobbyState(gameManager.lobbyGame);
                 socket.emit('lobby-updated', lobbyState);

@@ -19,11 +19,13 @@
 - **Winner**: Player with lowest score when game ends
 
 ### Card Passing System
-- **Round 1**: Pass 3 cards to left neighbor
-- **Round 2**: Pass 3 cards to right neighbor  
-- **Round 3**: Pass 3 cards to across neighbor
-- **Round 4**: No passing
-- **Repeat**: Cycle continues (left, right, across, none)
+
+### Card Passing System (Atomic Passing Phase)
+- **Passing Rounds**: Each player selects 3 cards to pass (left, right, across, or none depending on round)
+- **Atomic Passing**: When a player selects 3 cards and presses Pass Cards, their selection is saved, but cards are not exchanged yet.
+- **Waiting State**: The Pass Cards button is disabled after passing, and a waiting message is shown until all players have passed.
+- **Backend Logic**: The backend saves each player's seat and selected cards. Only when all 4 players have passed, the backend performs the card exchange and starts the playing phase.
+- **Frontend Logic**: The Pass Cards button is only enabled when 3 cards are selected. After passing, the button is disabled and a waiting message is shown. The hand is only updated after all players have passed and the playing phase begins.
 
 ### Trick Playing
 - **Leading**: Player with 2 of Clubs leads first trick
@@ -177,6 +179,17 @@ CREATE INDEX idx_hearts_results_user ON hearts_game_results(user_id);
 ```
 
 ## 🎮 Core Game Logic
+
+### Atomic Card Passing Implementation
+
+#### Backend
+- The `pass-cards` event saves the seat and 3 selected cards for each player.
+- When all players have passed, the backend updates all hands, clears the passing state, sets the game to the playing round, and emits the new game state.
+
+#### Frontend
+- The Pass Cards button is enabled only when 3 cards are selected.
+- After passing, the button is disabled and a waiting message is shown.
+- The hand is only updated after all players have passed and the backend starts the playing phase.
 
 ### Game State Machine
 ```javascript
