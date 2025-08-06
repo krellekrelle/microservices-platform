@@ -60,8 +60,9 @@
         .main-container {
             flex: 1;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
             padding: 2rem;
         }
 
@@ -71,12 +72,30 @@
             padding: 2rem;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            max-width: 1000px;
-            width: 100%;
+            width: 800px;
+            height: 700px;
+            max-width: 90vw;
+            max-height: 90vh;
+            min-width: 320px;
+            min-height: 400px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: stretch;
+            position: relative;
+            overflow: hidden;
         }
 
         .lobby-section {
             text-align: center;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: stretch;
+            height: 100%;
+            position: relative;
         }
 
         .lobby-title {
@@ -99,11 +118,9 @@
                 ".    seat3    .";
             grid-template-columns: 1fr 1fr 1fr;
             grid-template-rows: 1fr 1fr 1fr;
-            gap: 2rem;
-            margin: 2rem 0;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
+            gap: 4rem 10rem;
+            margin: 0;
+            max-width: 1000px;
             justify-items: center;
             align-items: center;
         }
@@ -151,9 +168,10 @@
         }
 
         .seat-number {
-            font-size: 1.5rem;
+            font-size: 1rem;
             font-weight: bold;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.3rem;
+            margin-top: 0.3rem;
             opacity: 0.7;
         }
 
@@ -184,11 +202,20 @@
         }
 
         .lobby-controls {
-            margin-top: 2rem;
+            margin: 0;
+            padding: 1rem 0 0 0;
             display: flex;
             justify-content: center;
             gap: 1rem;
             flex-wrap: wrap;
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(30, 60, 114, 0.7);
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            z-index: 2;
         }
 
         .btn {
@@ -265,7 +292,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 0rem;
             font-size: 1.1rem;
         }
 
@@ -318,11 +345,10 @@
     </div>
 
     <div class="main-container">
+        <h2 class="lobby-title" style="margin-bottom:0.5rem;">Game Lobby</h2>
+        <p class="lobby-subtitle" style="margin-bottom:1.5rem;">Take a seat and get ready to play Hearts!</p>
         <div class="game-area">
             <div id="lobby-section" class="lobby-section">
-                <h2 class="lobby-title">Game Lobby</h2>
-                <p class="lobby-subtitle">Take a seat and get ready to play Hearts!</p>
-                
                 <div id="error-container"></div>
                 <div id="success-container"></div>
 
@@ -900,11 +926,6 @@ window.passSelectedCards = function() {
                         mySeat = seat;
                         isReady = player.isReady;
                     }
-                    // Add leave seat option for my seat when not ready
-                    const leaveOption = isMySeat && !player.isReady ? 
-                        `<div class="seat-leave" onclick="leaveSeat()" style="margin-top: 0.5rem;">
-                            <small style="color: #ff9800; cursor: pointer; text-decoration: underline;">Leave Seat</small>
-                         </div>` : '';
                     // Only show first name (remove surnames)
                     const firstName = player.userName ? player.userName.split(' ')[0] : '';
                     seatEl.innerHTML = `
@@ -914,7 +935,6 @@ window.passSelectedCards = function() {
                             <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                                 ${player.isReady ? 'Ready' : 'Not Ready'}
                             </div>
-                            ${leaveOption}
                         </div>
                     `;
                 } else {
