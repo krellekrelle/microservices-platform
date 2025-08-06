@@ -329,7 +329,7 @@ export const useGameStore = defineStore('game', {
         myPosition: null,
         lobbyLeader: null,
         currentPlayer: null,
-        heartsBreoken: false,
+        heartsBroken: false,
         passDirection: null
     }),
     

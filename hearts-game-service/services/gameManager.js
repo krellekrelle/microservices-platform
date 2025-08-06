@@ -460,7 +460,7 @@ class GameManager {
             state: game.state,
             currentRound: game.currentRound,
             currentTrick: game.currentTrick,
-            heartsBreoken: game.heartsBreoken,
+            heartsBroken: game.heartsBroken,
             passDirection: game.passDirection,
             trickLeader: game.trickLeader,
             currentTrickCards: game.currentTrickCards,

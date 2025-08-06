@@ -11,7 +11,7 @@ class HeartsGame {
         // Game state
         this.currentRound = 1;
         this.currentTrick = 0;
-        this.heartsBreoken = false;
+        this.heartsBroken = false;
         this.passDirection = this.getPassDirection(1); // left, right, across, none
         
         // Trick state
@@ -317,7 +317,7 @@ class HeartsGame {
             }
         }
         // Leading: cannot lead hearts unless broken (or only hearts left)
-        if (isLeading && card[1] === 'H' && !this.heartsBreoken) {
+        if (isLeading && card[1] === 'H' && !this.heartsBroken) {
             const nonHearts = this.players.get(seat).hand.filter(c => c[1] !== 'H');
             if (nonHearts.length > 0) {
                 throw new Error('Cannot lead hearts until hearts have been broken (unless you only have hearts)');
@@ -392,7 +392,7 @@ class HeartsGame {
         }
         
         // Leading: cannot lead hearts unless broken (or only hearts left)
-        if (isLeading && card[1] === 'H' && !this.heartsBreoken) {
+        if (isLeading && card[1] === 'H' && !this.heartsBroken) {
             const player = this.players.get(seat);
             const nonHearts = player.hand.filter(c => c[1] !== 'H');
             return nonHearts.length === 0;
@@ -544,7 +544,7 @@ class HeartsGame {
         console.log("Starting new round")
         this.currentRound++;
         this.currentTrick = 0;
-        this.heartsBreoken = false;
+        this.heartsBroken = false;
         this.passDirection = this.getPassDirection(this.currentRound);
         this.tricksWon.clear();
         
@@ -638,7 +638,7 @@ class HeartsGame {
             lobbyLeader: this.lobbyLeader,
             currentRound: this.currentRound,
             currentTrick: this.currentTrick,
-            heartsBreoken: this.heartsBreoken,
+            heartsBroken: this.heartsBroken,
             passDirection: this.passDirection,
             currentTrickCards: this.currentTrickCards,
             trickLeader: this.trickLeader,

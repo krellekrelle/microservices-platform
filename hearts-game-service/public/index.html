@@ -437,8 +437,6 @@
                         hasPassed = true;
                     }
                 }
-                // Update label and UI
-                updateGameStateLabel();
                 if (data.state === 'playing') {
                     // All cards have been passed, update hand
                     if (myHand) {
@@ -450,6 +448,7 @@
                     }
                     // Show the current trick
                     showTrick(data.currentTrickCards || []);
+                    updateGameStateLabel();
                 } else if (data.state === 'passing') {
                     // In passing phase
                     if (myHand) {
@@ -463,9 +462,12 @@
                     }
                     // Hide trick area in passing phase
                     showTrick([]);
+                    // Call updateGameStateLabel after hand is rendered so Pass Cards button is created
+                    updateGameStateLabel();
                 } else {
                     // Hide trick area in other phases
                     showTrick([]);
+                    updateGameStateLabel();
                 }
             }); // End socket.on('game-state')
             // Listen for trick-completed event
@@ -509,15 +511,7 @@
                         stateLabel = 'Passing Round';
                         // Always show Pass Cards button during passing phase
                         let passBtn = document.getElementById('pass-cards-btn');
-                        if (!passBtn) {
-                            const btnDiv = document.createElement('div');
-                            btnDiv.style.marginTop = '1.5rem';
-                            btnDiv.innerHTML = `<button id="pass-cards-btn" class="btn primary" disabled onclick="passSelectedCards()">Pass Cards</button>`;
-                            handArea.appendChild(btnDiv);
-                            passBtn = document.getElementById('pass-cards-btn');
-                            console.log(' BTN CREATED!')
-                        }
-                        // Use readyToPass to determine if user has passed
+                        console.log('passBTN: ', passBtn);
                         let hasPassed = false;
                         if (typeof mySeat === 'number' && lobbyState.players && lobbyState.players[mySeat]) {
                             const myPlayer = lobbyState.players[mySeat];
@@ -525,6 +519,20 @@
                                 hasPassed = true;
                             }
                         }
+                        console.log('has passed: ', hasPassed);
+                        // Remove and recreate the Pass Cards button every time in passing phase to ensure it is present
+                        if (passBtn && passBtn.parentElement) {
+                            console.log('passBtn parent element: ', passBtn.parentElement);
+                            passBtn.parentElement.remove();
+                        }
+                        if (!hasPassed) {
+                            console.log('[DEBUG] Creating Pass Cards button');
+                            const btnDiv = document.createElement('div');
+                            btnDiv.style.marginTop = '1.5rem';
+                            btnDiv.innerHTML = `<button id="pass-cards-btn" class="btn primary" disabled onclick="passSelectedCards()">Pass Cards</button>`;
+                            handArea.appendChild(btnDiv);
+                        }
+                        passBtn = document.getElementById('pass-cards-btn');
                         // Button is enabled only if 3 cards are selected and user hasn't passed
                         if (passBtn) {
                             passBtn.disabled = hasPassed || !(window.selectedCards && window.selectedCards.length === 3);
@@ -657,7 +665,6 @@
             const handCardsDiv = document.getElementById('hand-cards');
             handCardsDiv.innerHTML = hand.map(card => {
                 // Always allow toggleCard in passing phase, playCard in playing phase and your turn
-                let clickHandler = '';
                 if (lobbyState && lobbyState.state === 'passing') {
                     // onclick="window.toggleCard('${card}'
                 return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:70px;height:100px;margin:0 6px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;" onclick="window.toggleCard('${card}')">`;
