@@ -158,18 +158,28 @@ class SocketHandler {
                 for (const [seat, hand] of Object.entries(result.hands)) {
                     const player = gameManager.lobbyGame?.players.get(parseInt(seat));
                     if (player) {
-                        this.sendToUser(player.userId, 'cards-dealt', {
-                            hand: hand,
-                            seat: parseInt(seat),
-                            passDirection: result.passDirection
-                        });
+                        // console.log('sending cards dealt')
+                        // this.sendToUser(player.userId, 'cards-dealt', {
+                        //     hand: hand,
+                        //     seat: parseInt(seat),
+                        //     passDirection: result.passDirection
+                        // });
+                        // console.log('sending new game state.')
+                        // Also send game state
+                        const gameState = gameManager.getGameState(result.gameId, player.userId);
+                        // console.log('game-state: ', gameState)
+
+                        this.sendToUser(player.userId, 'game-state', gameState);
+
+                        // this.io.to(`game-${result.gameId}`).emit('game-state', gameState);
                     }
                 }
                 console.log(`Lobby name: lobby-${result.gameId}`);
                 console.log(`Game name: game-${result.gameId}`);
+                // Joining the lobby with the game socket.
                 this.io.to(`lobby-${result.gameId}`).socketsJoin(`game-${result.gameId}`);
-                const gameState = gameManager.getGameState(result.gameId);
-                this.io.to(`game-${result.gameId}`).emit('game-state', gameState);
+                // const gameState = gameManager.getGameState(result.gameId);
+                // this.io.to(`game-${result.gameId}`).emit('game-state', gameState);
                 console.log(`${userName} started game ${result.gameId}`);
             }
         } catch (error) {
@@ -180,15 +190,18 @@ class SocketHandler {
 
     async handlePassCards(socket, data) {
         try {
+            console.log('[DEBUG] handlePassCards called. data:', data, 'user:', socket.user && socket.user.id);
             const userId = socket.user.id;
             const cards = Array.isArray(data.cards) ? data.cards : [];
             // Only basic input validation here
             if (cards.length !== 3) {
+                console.log('[DEBUG] handlePassCards: Invalid number of cards:', cards);
                 socket.emit('error', { message: 'You must select exactly 3 cards to pass.' });
                 return;
             }
             // Delegate all game logic to gameManager
             const result = await gameManager.passCards(userId, cards);
+            console.log('[DEBUG] handlePassCards: gameManager.passCards result:', result);
             if (result.error) {
                 socket.emit('error', { message: result.error });
                 return;
