@@ -91,13 +91,27 @@
 
         .seats-container {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-areas:
+                ".    seat0    ."
+                "seat1  .    seat2"
+                ".    seat3    .";
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
             gap: 2rem;
             margin: 2rem 0;
-            max-width: 600px;
+            max-width: 500px;
             margin-left: auto;
             margin-right: auto;
+            justify-items: center;
+            align-items: center;
         }
+        .seat {
+            /* ...existing code... */
+        }
+        .seat-upper { grid-area: seat0; }
+        .seat-left { grid-area: seat1; }
+        .seat-right { grid-area: seat2; }
+        .seat-lower { grid-area: seat3; }
 
         .seat {
             background: rgba(255, 255, 255, 0.1);
@@ -320,25 +334,25 @@
                 </div>
 
                 <div class="seats-container">
-                    <div class="seat" data-seat="0" onclick="handleSeatClick(0)">
+                    <div class="seat seat-upper" data-seat="0" onclick="handleSeatClick(0)">
                         <div class="seat-number">Seat 1</div>
                         <div class="seat-content">
                             <div class="empty-seat">Click to sit</div>
                         </div>
                     </div>
-                    <div class="seat" data-seat="1" onclick="handleSeatClick(1)">
+                    <div class="seat seat-left" data-seat="1" onclick="handleSeatClick(1)">
                         <div class="seat-number">Seat 2</div>
                         <div class="seat-content">
                             <div class="empty-seat">Click to sit</div>
                         </div>
                     </div>
-                    <div class="seat" data-seat="2" onclick="handleSeatClick(2)">
+                    <div class="seat seat-right" data-seat="2" onclick="handleSeatClick(2)">
                         <div class="seat-number">Seat 3</div>
                         <div class="seat-content">
                             <div class="empty-seat">Click to sit</div>
                         </div>
                     </div>
-                    <div class="seat" data-seat="3" onclick="handleSeatClick(3)">
+                    <div class="seat seat-lower" data-seat="3" onclick="handleSeatClick(3)">
                         <div class="seat-number">Seat 4</div>
                         <div class="seat-content">
                             <div class="empty-seat">Click to sit</div>
@@ -880,6 +894,7 @@ window.passSelectedCards = function() {
             }
 
             // Update seats
+            const seatClassMap = ['seat-upper', 'seat-left', 'seat-right', 'seat-lower'];
             for (let seat = 0; seat < 4; seat++) {
                 const seatEl = document.querySelector(`[data-seat="${seat}"]`);
                 let player = state.players[seat];
@@ -893,7 +908,7 @@ window.passSelectedCards = function() {
                         isBot: true
                     };
                 }
-                seatEl.className = 'seat';
+                seatEl.className = `seat ${seatClassMap[seat]}`;
                 if (player) {
                     seatEl.classList.add('occupied');
                     // Check if this is my seat
