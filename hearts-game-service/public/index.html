@@ -114,7 +114,7 @@
             display: grid;
             grid-template-areas:
                 ".    seat0    ."
-                "seat1  .    seat2"
+                "seat1  controls    seat2"
                 ".    seat3    .";
             grid-template-columns: 1fr 1fr 1fr;
             grid-template-rows: 1fr 1fr 1fr;
@@ -131,6 +131,7 @@
         .seat-left { grid-area: seat1; }
         .seat-right { grid-area: seat2; }
         .seat-lower { grid-area: seat3; }
+        .lobby-controls { grid-area: controls; }
 
         .seat {
             background: rgba(255, 255, 255, 0.1);
@@ -182,7 +183,7 @@
         }
 
         .seat-status {
-            font-size: 0.9rem;
+            font-size: 0.6rem;
             padding: 0.3rem 0.8rem;
             border-radius: 15px;
             margin-top: 0.5rem;
@@ -202,29 +203,27 @@
         }
 
         .lobby-controls {
-            margin: 0;
-            padding: 1rem 0 0 0;
+            margin: 0 auto;
+            padding: 1.5rem 0 0 0;
             display: flex;
             justify-content: center;
-            gap: 1rem;
+            align-items: center;
+            gap: 1.5rem;
             flex-wrap: wrap;
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(30, 60, 114, 0.7);
-            border-bottom-left-radius: 20px;
-            border-bottom-right-radius: 20px;
+            background: transparent;
+            border-radius: 20px;
+            position: static;
             z-index: 2;
+            max-width: 80%;
         }
 
         .btn {
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: white;
-            padding: 1rem 2rem;
+            padding: 0.3rem;
             border-radius: 30px;
-            font-size: 1.1rem;
+            font-size: 1.0rem;
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
@@ -374,6 +373,17 @@
                             <div class="empty-seat">Click to sit</div>
                         </div>
                     </div>
+                    <div class="lobby-controls">
+                        <button id="leave-seat-btn" class="btn danger hidden" onclick="leaveSeat()">
+                            Leave Seat
+                        </button>
+                        <button id="ready-btn" class="btn primary hidden" onclick="toggleReady()">
+                            Ready
+                        </button>
+                        <button id="start-game-btn" class="btn success hidden" onclick="startGame()">
+                            Start Game
+                        </button>
+                    </div>
                     <div class="seat seat-right" data-seat="2" onclick="handleSeatClick(2)">
                         <div class="seat-number">Seat 3</div>
                         <div class="seat-content">
@@ -386,18 +396,6 @@
                             <div class="empty-seat">Click to sit</div>
                         </div>
                     </div>
-                </div>
-
-                <div class="lobby-controls">
-                    <button id="leave-seat-btn" class="btn danger hidden" onclick="leaveSeat()">
-                        Leave Seat
-                    </button>
-                    <button id="ready-btn" class="btn primary hidden" onclick="toggleReady()">
-                        Ready for Game
-                    </button>
-                    <button id="start-game-btn" class="btn success hidden" onclick="startGame()">
-                        Start Game
-                    </button>
                 </div>
             </div>
 
@@ -902,7 +900,8 @@ window.passSelectedCards = function() {
             // Update lobby leader
             let leaderName = 'None';
             if (state.lobbyLeader !== null && state.players[state.lobbyLeader]) {
-                leaderName = state.players[state.lobbyLeader].userName;
+                const fullName = state.players[state.lobbyLeader].userName;
+                leaderName = fullName ? fullName.split(' ')[0] : '';
             }
             document.getElementById('lobby-leader').textContent = leaderName;
 
@@ -960,7 +959,7 @@ window.passSelectedCards = function() {
             if (mySeat !== null) {
                 leaveSeatBtn.classList.remove('hidden');
                 readyBtn.classList.remove('hidden');
-                readyBtn.textContent = isReady ? 'Not Ready' : 'Ready for Game';
+                readyBtn.textContent = isReady ? 'Not Ready' : 'Ready';
                 readyBtn.className = isReady ? 'btn danger' : 'btn primary';
             } else {
                 leaveSeatBtn.classList.add('hidden');
