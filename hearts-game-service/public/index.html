@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" href="/static/favicon.svg">
     <title>Hearts Game</title>
     <style>
         * {
@@ -851,21 +853,12 @@ window.passSelectedCards = function() {
             lobbyState = state;
             
 
-            // Count real and dummy players for player count and readiness
+            // Count real players for player count and readiness
             let playerCount = 0;
             let readyCount = 0;
             let allReady = true;
             for (let seat = 0; seat < 4; seat++) {
                 let player = state.players[seat];
-                if (!player && (seat === 2 || seat === 3)) {
-                    player = {
-                        userId: `dummy${seat}`,
-                        userName: seat === 2 ? 'TestBot A' : 'TestBot B',
-                        isReady: true,
-                        isConnected: true,
-                        isBot: true
-                    };
-                }
                 if (player) {
                     playerCount++;
                     if (player.isReady && player.isConnected) {
@@ -887,8 +880,7 @@ window.passSelectedCards = function() {
             }
             document.getElementById('lobby-leader').textContent = leaderName;
 
-            // Patch canStartGame if only dummy bots are missing
-            // (so Start Game button is enabled for 2 real + 2 dummy)
+            // Only allow start if all 4 real players are ready
             if (playerCount === 4 && readyCount === 4) {
                 state.canStartGame = true;
             }
@@ -898,16 +890,6 @@ window.passSelectedCards = function() {
             for (let seat = 0; seat < 4; seat++) {
                 const seatEl = document.querySelector(`[data-seat="${seat}"]`);
                 let player = state.players[seat];
-                // Inject dummy users for seats 2 and 3 (seat 2 = index 2, seat 3 = index 3) if empty
-                if (!player && (seat === 2 || seat === 3)) {
-                    player = {
-                        userId: `dummy${seat}`,
-                        userName: seat === 2 ? 'TestBot A' : 'TestBot B',
-                        isReady: true,
-                        isConnected: true,
-                        isBot: true
-                    };
-                }
                 seatEl.className = `seat ${seatClassMap[seat]}`;
                 if (player) {
                     seatEl.classList.add('occupied');
@@ -923,10 +905,12 @@ window.passSelectedCards = function() {
                         `<div class="seat-leave" onclick="leaveSeat()" style="margin-top: 0.5rem;">
                             <small style="color: #ff9800; cursor: pointer; text-decoration: underline;">Leave Seat</small>
                          </div>` : '';
+                    // Only show first name (remove surnames)
+                    const firstName = player.userName ? player.userName.split(' ')[0] : '';
                     seatEl.innerHTML = `
                         <div class="seat-number">Seat ${seat + 1}</div>
                         <div class="seat-content">
-                            <div class="seat-player">${player.userName}</div>
+                            <div class="seat-player">${firstName}</div>
                             <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                                 ${player.isReady ? 'Ready' : 'Not Ready'}
                             </div>

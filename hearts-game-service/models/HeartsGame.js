@@ -52,7 +52,7 @@ class HeartsGame {
             hand: [],
             totalScore: 0,
             roundScore: 0,
-            isBot: false
+            // isBot removed
         };
         
         this.players.set(seat, player);

@@ -63,7 +63,7 @@ class SocketHandler {
 
         // Admin events (lobby leader only)
         socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
-        socket.on('replace-with-bot', (data) => this.handleReplaceWithBot(socket, data));
+
 
         // Request current state
         socket.on('get-lobby-state', () => this.handleGetLobbyState(socket));
@@ -293,17 +293,7 @@ class SocketHandler {
         }
     }
 
-    async handleReplaceWithBot(socket, data) {
-        try {
-            const userId = socket.user.id;
-            // TODO: Implement replace with bot logic (lobby leader only)
-            console.log(`Replace with bot request from ${userId}:`, data.targetUserId);
-            socket.emit('error', { message: 'Replace with bot not yet implemented' });
-        } catch (error) {
-            console.error('Replace with bot error:', error);
-            socket.emit('error', { message: error.message });
-        }
-    }
+
 
     handleGetLobbyState(socket) {
         try {
