@@ -29,7 +29,8 @@ app.use((req, res, next) => {
 });
 
 // Import middleware and routes
-const { requireAuth, requireApproved } = require('./middleware/auth');
+const JWTMiddleware = require('./jwt-middleware');
+const jwtMiddleware = new JWTMiddleware();
 const gameManager = require('./services/gameManager');
 const socketHandler = require('./services/socketHandler');
 
@@ -39,8 +40,13 @@ app.use(cors({
     credentials: true
 }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static assets before auth middleware
+app.use('/bridge3-box-qr-Large', express.static(path.join(__dirname, 'public/bridge3-box-qr-Large')));
+app.use('/favicon.svg', express.static(path.join(__dirname, 'public/favicon.svg')));
+// Protect all other public files with authentication using JWTMiddleware
 app.use(cookieParser());
+app.use(jwtMiddleware.authenticate, jwtMiddleware.requireApproved);
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Initialize Socket.IO handler
 socketHandler.initialize(io);
@@ -70,12 +76,12 @@ app.use('/static', express.static(path.join(__dirname, 'public'), {
 }));
 
 // Routes
-app.get('/', requireAuth, requireApproved, (req, res) => {
+app.get('/', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Play card endpoint (HTTP, not socket)
-app.post('/play-card', requireAuth, async (req, res) => {
+app.post('/play-card', jwtMiddleware.authenticate, async (req, res) => {
     try {
         const user = req.user;
         const { card } = req.body;
@@ -118,7 +124,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes (with authentication)
-app.use('/api', requireAuth, requireApproved, require('./routes/api'));
+app.use('/api', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, require('./routes/api'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
