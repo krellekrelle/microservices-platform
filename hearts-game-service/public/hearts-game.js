@@ -248,29 +248,30 @@ function showHand(hand) {
             const player = lobbyState.players[seatIdx];
             const cell = gameSeatsContainer.querySelector('.'+areaMap[i]);
             if (!cell) continue;
+            const isTurn = lobbyState.currentTurnSeat === seatIdx;
             if (i === 0) {
                 // My seat (bottom): show hand
                 if (!hand || !Array.isArray(hand) || hand.length === 0) {
                     cell.innerHTML = '<em>No cards dealt.</em>';
                 } else {
-                    console.log('updating hand!')
-                    cell.innerHTML = '<div id="hand-cards"></div>';
+                    const name = player ? (player.userName ? player.userName.split(' ')[0] : 'You') : 'You';
+                    const highlightClass = isTurn ? 'player-name current-turn' : 'player-name';
+                    cell.innerHTML = `<div class="${highlightClass}" style="text-align:center;margin-bottom:6px;">${name}</div><div id="hand-cards"></div>`;
                     const handCardsDiv = cell.querySelector('#hand-cards');
                     handCardsDiv.innerHTML = hand.map(card => {
-                        // Is this card selected?
                         const isSelected = window.selectedCards && window.selectedCards.includes(card);
-                        // Add selected class and outline if selected
                         const selectedClass = isSelected ? ' selected' : '';
                         const outline = isSelected ? 'outline:3px solid #ffeb3b;' : 'outline:none;';
-                        // Do NOT add inline onclick; use only delegated event listener
                         return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img${selectedClass}" style="width:50px;height:72px;margin:0 1px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;${outline}cursor:pointer;">`;
                     }).join('');
                 }
             } else {
                 // Other players: show only the player's name (first name or Player N)
+                const name = player ? (player.userName ? player.userName.split(' ')[0] : 'Player '+(seatIdx+1)) : 'Empty';
+                const highlightClass = isTurn ? 'opponent-name current-turn' : 'opponent-name';
                 cell.innerHTML = `
-                    <div class="opponent-info${lobbyState.currentTurnSeat===seatIdx?' current-turn':''}">
-                        <div class="opponent-name">${player ? (player.userName ? player.userName.split(' ')[0] : 'Player '+(seatIdx+1)) : 'Empty'}</div>
+                    <div class="opponent-info${isTurn?' current-turn':''}">
+                        <div class="${highlightClass}">${name}</div>
                     </div>
                 `;
             }
