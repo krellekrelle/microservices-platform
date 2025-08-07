@@ -236,7 +236,7 @@ function showHand(hand) {
         });
         // Map logical seat numbers to visual positions so that the order is consistent with the lobby
         // areaMap: [bottom, right, top, left]
-        const areaMap = ['game-seat-hand','game-seat-right','game-seat-upper','game-seat-left'];
+        const areaMap = ['game-seat-hand','game-seat-left','game-seat-upper','game-seat-right'];
         let seatOrder = [0,1,2,3];
         if (typeof mySeat === 'number') {
             // My seat is always at the bottom
@@ -286,29 +286,7 @@ function showHand(hand) {
         updateCardSelectionUI();
         return;
     } 
-    // else { // if not the playing or passing phase.
-    //     // Only show hand in hand-area in the lobby phase
-    //     handArea.style.display = '';
-    //     if (!hand || !Array.isArray(hand)) {
-    //         handArea.innerHTML = '<em>No cards dealt.</em>';
-    //         return;
-    //     }
-    //     if (!window._lastPhase) window._lastPhase = null;
-    //     const currentPhase = lobbyState ? lobbyState.state : null;
-    //     if (!window.selectedCards) window.selectedCards = [];
-    //     if (window._lastPhase !== currentPhase) {
-    //         if (currentPhase === 'playing' || currentPhase === 'passing') {
-    //             window.selectedCards = [];
-    //         }
-    //         window._lastPhase = currentPhase;
-    //     }
-    //     handArea.innerHTML = '<div id="hand-cards"></div>';
-    //     const handCardsDiv = document.getElementById('hand-cards');
-    //     handCardsDiv.innerHTML = hand.map(card =>
-    //         `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img" style="width:56px;height:80px;margin:0 1px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;outline:none;cursor:pointer;">`
-    //     ).join('');
-    //     updateCardSelectionUI();
-    // }
+
 }
 
 // Play a card (only allowed if it's your turn and in playing state)
@@ -619,17 +597,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('leave-seat-btn').addEventListener('click', leaveSeat);
     document.getElementById('ready-btn').addEventListener('click', toggleReady);
     document.getElementById('start-game-btn').addEventListener('click', startGame);
-    // Hand card click handlers (delegated) for lobby hand area
-    // document.getElementById('hand-area').addEventListener('click', function(e) {
-    //     if (e.target && e.target.classList.contains('card-img')) {
-    //         const card = e.target.getAttribute('data-card');
-    //         if (lobbyState && lobbyState.state === 'passing') {
-    //             toggleCard(card);
-    //         } else if (lobbyState && lobbyState.state === 'playing' && typeof mySeat === 'number' && mySeat === lobbyState.currentTurnSeat) {
-    //             playCard(card);
-    //         }
-    //     }
-    // });
     // Hand card click handlers (delegated) for diamond layout (game phase)
     const gameSeatsContainer = document.querySelector('.game-seats-container');
     if (gameSeatsContainer) {
