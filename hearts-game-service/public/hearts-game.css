@@ -93,8 +93,8 @@ body {
     display: grid;
     grid-template-areas:
         ".    seat0    ."
-        "seat1  controls    seat2"
-        ".    seat3    .";
+        "seat3  controls    seat1"
+        ".    seat2    .";
     grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: 1fr 1fr 1fr;
     gap: 4rem 10rem;
@@ -103,6 +103,7 @@ body {
     justify-items: center;
     align-items: center;
 }
+
 .game-seats-container {
     display: grid;
     grid-template-areas:
@@ -128,9 +129,9 @@ body {
     /* ...existing code... */
 }
 .seat-upper { grid-area: seat0; }
-.seat-left { grid-area: seat1; }
-.seat-right { grid-area: seat2; }
-.seat-lower { grid-area: seat3; }
+.seat-right { grid-area: seat1; }
+.seat-lower { grid-area: seat2; }
+.seat-left { grid-area: seat3; }
 .lobby-controls { grid-area: controls; }
 .seat {
     background: rgba(255, 255, 255, 0.1);
