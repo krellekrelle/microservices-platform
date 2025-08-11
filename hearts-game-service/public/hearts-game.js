@@ -64,42 +64,50 @@ function initializeSocket() {
             let handToShow = myHand || [];
             window.currentHand = handToShow;
 
-            const passBtn = document.getElementById('pass-cards-btn');
+            const passArrowContainer = document.getElementById('pass-arrow-container');
             const trickArea = document.getElementById('trick-area');
             if (data.state === 'passing') {
                 hasPassed = false;
-                if (passBtn) {
-                    passBtn.classList.remove('hidden');
-                }
-                if (trickArea) {
-                    trickArea.classList.add('hidden');
-                }
-            } else {
-                console.log('game stat playing. Clearing selected cards');
-                // no selected cards if in playing
-                window.selectedCards = [];
-                if (passBtn) {
-                    passBtn.classList.add('hidden');
-                }
-                if (trickArea) {
-                    trickArea.classList.remove('hidden');
-                }
+                if (passArrowContainer) {
+                    // Determine direction: left, right, up
+                    let direction = 'left';
+                    console.log("[DEBUG] Passing direction:", data.passDirection);
+                    if (data.passDirection === 'right') direction = 'right';
+                    if (data.passDirection === 'up') direction = 'up';
+                    let arrowSrc = `/hearts/icons/${direction}-arrow.svg`;
+                    let disabled = !(window.selectedCards && window.selectedCards.length === 3);
+                    passArrowContainer.innerHTML = `<img id="pass-arrow-img" src="${arrowSrc}" alt="Pass ${direction}" style="width:64px;height:64px;cursor:pointer;opacity:${disabled?0.5:1};">`;
+                    passArrowContainer.classList.remove('hidden');
+                    const arrowImg = document.getElementById('pass-arrow-img');
+                    if (arrowImg) {
+                        arrowImg.onclick = function() {
+                            let disabled2 = !(window.selectedCards && window.selectedCards.length === 3);
+                            console.log("[DEBUG] Pass arrow clicked. Selected cards:", window.selectedCards, "length:", window.selectedCards.length);
+                            console.log("[DEBUG] Has passed:", hasPassed, 'disabled:', disabled2);
+                            if (!disabled2 && !hasPassed) passSelectedCards();
+                        };
+                    }
             }
-            // console.log('showHand():, ', handToShow);
+            if (trickArea) trickArea.classList.add('hidden');
+            } else if (data.state === 'playing') {
+                console.log('game stat playing. Clearing selected cards');
+                window.selectedCards = [];
+                if (passArrowContainer) passArrowContainer.classList.add('hidden');
+                if (trickArea) trickArea.classList.remove('hidden');
+            }
             showHand(handToShow);
             if (data.state === 'playing') {
-                console.log('showTrick()');
                 showTrick(data.currentTrickCards || []);
             } else {
                 showTrick([]);
             }
-            // updateGameStateLabel();
-        } else {
-            // Hide trick area in other phases
-            showTrick([]);
-            // updateGameStateLabel();
-        }
-    }); // End socket.on('game-state')
+        // updateGameStateLabel();
+    } else {
+        // Hide trick area in other phases
+        showTrick([]);
+        // updateGameStateLabel();
+    }
+}); // End socket.on('game-state')
     // Listen for trick-completed event
     socket.on('trick-completed', (data) => {
         // Show the completed trick and highlight the winner
@@ -237,10 +245,8 @@ function showHand(hand) {
     // console.log("handarea:", handArea);
     // if (!handArea) return;
     const gameSeatsContainer = document.querySelector('.game-seats-container');
-    console.log('gameseatscontainer: ', gameSeatsContainer);
     // Always use diamond layout for both passing and playing phases
     if (lobbyState && (lobbyState.state === 'playing' || lobbyState.state === 'passing') && gameSeatsContainer) {
-        console.log("Doing show hand seat selection!");
         // Clear only the player seat cells, NOT the center cell
         const seatClassesToClear = ['game-seat-hand','game-seat-right','game-seat-upper','game-seat-left'];
         seatClassesToClear.forEach(cls => {
@@ -348,7 +354,6 @@ function playCard(card) {
 
 // Update card selection UI only (no re-render of SVGs)
 function updateCardSelectionUI() {
-    console.log("Updating card selectionUI")
     const hand = window.currentHand || [];
     const handCardsDiv = document.getElementById('hand-cards');
     if (!handCardsDiv) return;
@@ -367,7 +372,7 @@ function updateCardSelectionUI() {
 
 // Make toggleCard globally accessible for inline onclick
 function toggleCard(card) {
-    console.log('[DEBUG] toggleCard called:', card, 'selectedCards:', window.selectedCards);
+    // console.log('[DEBUG] toggleCard called:', card, 'selectedCards:', window.selectedCards);
     if (!lobbyState || lobbyState.state !== 'passing') {
         console.log('[DEBUG] Not in passing phase, ignoring card click.');
         return;
@@ -390,9 +395,13 @@ function toggleCard(card) {
 
 // Enable/disable Pass Cards button
 function updatePassButton() {
-    const btn = document.getElementById('pass-cards-btn');
-    if (!btn) return;
-    btn.disabled = !(window.selectedCards && window.selectedCards.length === 3);
+    const passArrowContainer = document.getElementById('pass-arrow-container');
+    let disabled = !(window.selectedCards && window.selectedCards.length === 3);
+    if (passArrowContainer && !passArrowContainer.classList.contains('hidden')) {
+        const arrowImg = document.getElementById('pass-arrow-img');
+        if (arrowImg) arrowImg.style.opacity = disabled ? 0.5 : 1;
+        if (arrowImg) arrowImg.style.pointerEvents = disabled ? 'none' : 'auto';
+    }
 }
 
 // Pass selected cards to server
@@ -405,9 +414,15 @@ function passSelectedCards() {
     console.log('[DEBUG] Emitting pass-cards event:', window.selectedCards);
     socket.emit('pass-cards', {cards: window.selectedCards});
 
-    const btn = document.getElementById('pass-cards-btn');
-    if (!btn) return;
-    btn.disabled = true;
+    // Disable arrow after passing
+    const passArrowContainer = document.getElementById('pass-arrow-container');
+    if (passArrowContainer) {
+        const arrowImg = document.getElementById('pass-arrow-img');
+        if (arrowImg) {
+            arrowImg.style.opacity = '0.5';
+            arrowImg.style.pointerEvents = 'none';
+        }
+    }
 }
 
 function updateConnectionStatus(connected) {
@@ -625,9 +640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    document.getElementById('pass-cards-btn').addEventListener('click', function() {
-        passSelectedCards();
-    });
+    // No pass-cards-btn anymore; passing is handled by arrow image click
     try {
         await getCurrentUser();
     } catch (error) {
