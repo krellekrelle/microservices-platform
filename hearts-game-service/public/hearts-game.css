@@ -121,8 +121,9 @@ body {
         "left  center    right"
         "hand  hand  hand";
     grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 1fr 1fr auto;
-    gap: 2.5rem 7rem;
+    /* grid-template-rows: 1fr 1fr auto; */
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 10.5rem 10rem;
     margin: 0;
     max-width: 1000px;
     min-height: 400px;

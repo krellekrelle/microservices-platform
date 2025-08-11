@@ -85,7 +85,7 @@ function initializeSocket() {
                     trickArea.classList.remove('hidden');
                 }
             }
-            console.log('showHand():, ', handToShow);
+            // console.log('showHand():, ', handToShow);
             showHand(handToShow);
             if (data.state === 'playing') {
                 console.log('showTrick()');
@@ -269,7 +269,7 @@ function showHand(hand) {
                 } else {
                     const name = player ? (player.userName ? player.userName.split(' ')[0] : 'You') : 'You';
                     const highlightClass = isTurn ? 'player-name current-turn' : 'player-name';
-                    cell.innerHTML = `<div class="${highlightClass}" style="text-align:center;margin-bottom:6px;">${name}</div><div id="hand-cards"></div>`;
+                    cell.innerHTML = `<div class="${highlightClass}" style="text-align:center;margin-bottom:6px;">${name}</div><div id="hand-cards" style="display:flex;justify-content:center;align-items:center;"></div>`;
                     const handCardsDiv = cell.querySelector('#hand-cards');
                     handCardsDiv.innerHTML = hand.map(card => {
                         const isSelected = window.selectedCards && window.selectedCards.includes(card);
