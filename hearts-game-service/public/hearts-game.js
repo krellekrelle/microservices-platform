@@ -45,6 +45,23 @@ function initializeSocket() {
     // cards-dealt event is no longer needed; hand is always included in game-state
     // Listen for game state updates (after passing, etc)
     socket.on('game-state', (data) => {
+    // Update scoreboard after each round
+    function updateScoreboard() {
+        const rowsDiv = document.getElementById('scoreboard-rows');
+        if (!rowsDiv || !data.players) return;
+        let html = '';
+        for (let i = 0; i < 4; i++) {
+            const player = data.players[i];
+            let name = player ? (player.userName ? player.userName.split(' ')[0] : `Player ${i+1}`) : `Player ${i+1}`;
+            let score = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
+            html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span>${name}</span>
+                <span style="font-weight:bold;">${score}</span>
+            </div>`;
+        }
+        rowsDiv.innerHTML = html;
+    }
+    updateScoreboard();
         ensureGameSectionVisible();
         console.log('🎲 Game state update:', data);
         lobbyState = data;
@@ -73,7 +90,7 @@ function initializeSocket() {
                     let direction = 'left';
                     console.log("[DEBUG] Passing direction:", data.passDirection);
                     if (data.passDirection === 'right') direction = 'right';
-                    if (data.passDirection === 'up') direction = 'up';
+                    if (data.passDirection === 'across') direction = 'up';
                     let arrowSrc = `/hearts/icons/${direction}-arrow.svg`;
                     let disabled = !(window.selectedCards && window.selectedCards.length === 3);
                     passArrowContainer.innerHTML = `<img id="pass-arrow-img" src="${arrowSrc}" alt="Pass ${direction}" style="width:64px;height:64px;cursor:pointer;opacity:${disabled?0.5:1};">`;
