@@ -138,12 +138,15 @@ function showTrick(trickCards, winnerSeat) {
         {left: 0, top: -36},  // top: offset up
         {left: -36, top: 0}   // right: offset left (swapped)
     ];
-    let stackedCards = seatOrder.map((seatIdx, i) => {
-        const play = trickCards.find(card => card.seat === seatIdx);
-        if (!play) return '';
+    // Map seat to offset index for current POV
+    const seatToOffsetIdx = {};
+    seatOrder.forEach((seat, idx) => { seatToOffsetIdx[seat] = idx; });
+    let stackedCards = trickCards.map((play, i) => {
+        const offsetIdx = seatToOffsetIdx[play.seat];
+        if (typeof offsetIdx === 'undefined') return '';
+        const offset = offsets[offsetIdx];
         const highlight = (typeof winnerSeat !== 'undefined' && play.seat === winnerSeat) ? 'box-shadow:0 0 12px 4px #ffeb3b;' : '';
-        const offset = offsets[i];
-        return `<img src="${getCardImageUrl(play.card)}" alt="${play.card}" title="${play.card}" style="width:60px;height:90px;position:absolute;left:${30+offset.left}px;top:${30+offset.top}px;border-radius:7px;background:#fff;${highlight}">`;
+        return `<img src="${getCardImageUrl(play.card)}" alt="${play.card}" title="${play.card}" style="width:60px;height:90px;position:absolute;left:${30+offset.left}px;top:${30+offset.top}px;z-index:${i+1};border-radius:7px;background:#fff;${highlight}">`;
     }).join('');
     trickArea.innerHTML = `<div style="position:relative;width:120px;height:120px;margin:auto;">${stackedCards}</div>`;
 }
