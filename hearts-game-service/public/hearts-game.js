@@ -134,9 +134,9 @@ function showTrick(trickCards, winnerSeat) {
     const seatOrder = [mySeat, (mySeat+3)%4, (mySeat+2)%4, (mySeat+1)%4];
     const offsets = [
         {left: 0, top: 36},   // bottom: offset down
-        {left: -36, top: 0},  // left: offset left
+        {left: 36, top: 0},   // left: offset right (swapped)
         {left: 0, top: -36},  // top: offset up
-        {left: 36, top: 0}    // right: offset right
+        {left: -36, top: 0}   // right: offset left (swapped)
     ];
     let stackedCards = seatOrder.map((seatIdx, i) => {
         const play = trickCards.find(card => card.seat === seatIdx);
