@@ -125,17 +125,27 @@ function showTrick(trickCards, winnerSeat) {
         trickArea.innerHTML = '';
         return;
     }
-    // Render each card in the trick with player info
-    trickArea.innerHTML = '<div style="font-size:1.1rem;margin-bottom:0.5rem;">Current Trick:</div>' +
-        '<div style="display:flex;justify-content:center;gap:24px;">' +
-        trickCards.map(play => {
-            const highlight = (typeof winnerSeat !== 'undefined' && play.seat === winnerSeat) ? 'box-shadow:0 0 12px 4px #ffeb3b;' : '';
-            return `<div style="text-align:center;">
-                <img src="${getCardImageUrl(play.card)}" alt="${play.card}" title="${play.card}" style="width:60px;height:90px;margin-bottom:6px;border-radius:7px;background:#fff;${highlight}">
-                <div style="font-size:0.95rem;margin-top:2px;">${play.player || 'Player ' + (play.seat+1)}</div>
-            </div>`;
-        }).join('') +
-        '</div>';
+    // Offset each card in the direction of the seat that played it, rotated for player POV
+    if (typeof mySeat !== 'number') {
+        trickArea.innerHTML = '';
+        return;
+    }
+    // seatOrder: [bottom, left, top, right] from current player's POV
+    const seatOrder = [mySeat, (mySeat+3)%4, (mySeat+2)%4, (mySeat+1)%4];
+    const offsets = [
+        {left: 0, top: 36},   // bottom: offset down
+        {left: -36, top: 0},  // left: offset left
+        {left: 0, top: -36},  // top: offset up
+        {left: 36, top: 0}    // right: offset right
+    ];
+    let stackedCards = seatOrder.map((seatIdx, i) => {
+        const play = trickCards.find(card => card.seat === seatIdx);
+        if (!play) return '';
+        const highlight = (typeof winnerSeat !== 'undefined' && play.seat === winnerSeat) ? 'box-shadow:0 0 12px 4px #ffeb3b;' : '';
+        const offset = offsets[i];
+        return `<img src="${getCardImageUrl(play.card)}" alt="${play.card}" title="${play.card}" style="width:60px;height:90px;position:absolute;left:${30+offset.left}px;top:${30+offset.top}px;border-radius:7px;background:#fff;${highlight}">`;
+    }).join('');
+    trickArea.innerHTML = `<div style="position:relative;width:120px;height:120px;margin:auto;">${stackedCards}</div>`;
 }
 
 // // Update the game state label in its own element
