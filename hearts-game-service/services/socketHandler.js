@@ -1,5 +1,6 @@
 const { socketAuth } = require('../middleware/auth');
 const gameManager = require('./gameManager');
+const db = require('../db/database');
 
 // Timing configuration (milliseconds). Can be overridden with environment variables.
 // TRICK_DISPLAY_MS: how long clients should be able to see a completed trick
@@ -27,6 +28,123 @@ class SocketHandler {
         });
 
         console.log('Socket.IO handler initialized');
+    }
+
+    // Persist a completed trick and update player scores/hand snapshot
+    async persistTrickAndScores(gameId, payload) {
+        try {
+            const game = gameManager.activeGames.get(gameId);
+            if (!game) return;
+
+            // Determine correct round and trick numbers.
+            // Note: HeartsGame increments currentTrick and may advance currentRound when completing the last trick.
+            // If payload.roundComplete is true, the completed trick belongs to the previous round and is trick 13.
+            let roundNumber = game.currentRound || 1;
+            let trickNumber = game.currentTrick || 0; // default (may be adjusted below)
+            if (payload && payload.roundComplete) {
+                // The game.currentRound has already been advanced to next round in the model.
+                roundNumber = (game.currentRound && game.currentRound > 1) ? (game.currentRound - 1) : 1;
+                trickNumber = 13;
+            } else {
+                // For non-final tricks, currentTrick was incremented after completion, we want 1-based trick number
+                trickNumber = game.currentTrick || 1;
+            }
+
+            const trickCards = payload.trickCards || [];
+            const leaderSeat = (trickCards.length > 0 && typeof trickCards[0].seat !== 'undefined') ? parseInt(trickCards[0].seat) : null;
+            const winnerSeat = (typeof payload.winner !== 'undefined' && payload.winner !== null) ? parseInt(payload.winner) : null;
+
+            // Compute points: prefer payload.points but fall back to computing from trickCards
+            let points = (typeof payload.points === 'number') ? payload.points : null;
+            if (points === null) {
+                try {
+                    points = 0;
+                    for (const t of trickCards) {
+                        const card = (typeof t === 'string') ? t : (t.card || null);
+                        if (!card) continue;
+                        if (card === 'QS') points += 13;
+                        else if (card[1] === 'H') points += 1;
+                    }
+                } catch (e) {
+                    points = 0;
+                }
+            }
+
+            // Insert trick row if not already present (avoid duplicates)
+            try {
+                const existsRes = await db.query(
+                    'SELECT 1 FROM hearts_tricks WHERE game_id = $1 AND round_number = $2 AND trick_number = $3 LIMIT 1',
+                    [gameId, roundNumber, trickNumber]
+                );
+                if (existsRes.rows.length === 0) {
+                    await db.query(
+                        `INSERT INTO hearts_tricks (game_id, round_number, trick_number, leader_seat, winner_seat, cards_played, points_in_trick, completed_at)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+                        [gameId, roundNumber, trickNumber, leaderSeat, winnerSeat, JSON.stringify(trickCards), points]
+                    );
+                } else {
+                    console.log(`Trick row already exists for game=${gameId} r=${roundNumber} t=${trickNumber}, skipping insert`);
+                }
+            } catch (e) {
+                console.error('Failed to insert trick row:', e.message || e);
+            }
+
+            // Update player round_score and current_score from in-memory game
+            try {
+                const roundScores = game.getRoundScores(); // object seat->score
+                const totalScores = game.getTotalScores();
+                for (const [seat, player] of game.players) {
+                    const r = roundScores[seat] || 0;
+                    const t = totalScores[seat] || 0;
+                    await db.query(
+                        'UPDATE hearts_players SET round_score = $1, current_score = $2, hand_cards = $3 WHERE game_id = $4 AND seat_position = $5',
+                        [r, t, JSON.stringify(player.hand || []), gameId, seat]
+                    );
+                }
+            } catch (e) {
+                console.error('Failed to update player scores/hand snapshot:', e.message || e);
+            }
+
+            // If the game ended with this trick, persist final results and mark game finished
+            if (payload && payload.gameEnded) {
+                try {
+                    // Build array of players with seat, userId, and final score
+                    const totalScores = game.getTotalScores();
+                    const playersArr = [];
+                    for (const [seat, player] of game.players) {
+                        playersArr.push({ seat, userId: player.userId || null, score: totalScores[seat] || 0 });
+                    }
+                    // Sort ascending (lowest score = winner)
+                    playersArr.sort((a, b) => a.score - b.score);
+
+                    // Remove any previous results for this game and insert fresh results
+                    await db.query('DELETE FROM hearts_game_results WHERE game_id = $1', [gameId]);
+
+                    for (let i = 0; i < playersArr.length; i++) {
+                        const p = playersArr[i];
+                        const place = i + 1;
+                        const tricksWon = game.tricksWon.get(p.seat) || 0;
+                        await db.query(
+                            `INSERT INTO hearts_game_results (game_id, user_id, seat_position, final_score, place_finished, hearts_taken, queen_taken, shot_moon, tricks_won, created_at)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+                            [gameId, p.userId, p.seat, p.score, place, 0, false, 0, tricksWon]
+                        );
+                    }
+
+                    // Update hearts_games to finished and set winner_id
+                    const winnerUserId = playersArr.length > 0 ? playersArr[0].userId : null;
+                    await db.query(
+                        'UPDATE hearts_games SET game_state = $1, finished_at = NOW(), winner_id = $2, current_round = $3, current_trick = $4 WHERE id = $5',
+                        ['finished', winnerUserId, game.currentRound, game.currentTrick, gameId]
+                    );
+                } catch (e) {
+                    console.error('Failed to persist final game results:', e.message || e);
+                }
+            }
+
+        } catch (error) {
+            console.error('persistTrickAndScores error:', error.message || error);
+        }
     }
 
     handleConnection(socket) {
@@ -275,6 +393,7 @@ class SocketHandler {
                             }
                             // If bots finishing triggers all passed, emit event
                             if (passResult && passResult.allCardsPassed) {
+                                console.log("All cards passed!")
                                 this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: passResult.trickLeader });
                                 // Start bot auto-play loop now that passing completed
                                 try {
@@ -306,6 +425,12 @@ class SocketHandler {
                                                             trickCompletedPayload.moonShooter = playResult.moonShooter;
                                                             trickCompletedPayload.gameEnded = playResult.gameEnded;
                                                             trickCompletedPayload.nextRound = playResult.nextRound;
+                                                        }
+                                                        // Persist trick and scores before emitting so DB reflects client-visible state
+                                                        try {
+                                                            await this.persistTrickAndScores(gameId, trickCompletedPayload);
+                                                        } catch (e) {
+                                                            console.error('Error persisting trick before emit (bot after pass):', e);
                                                         }
                                                         this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                                         // Wait for clients to display trick
@@ -373,6 +498,8 @@ class SocketHandler {
                                                 trickCompletedPayload.gameEnded = playResult.gameEnded;
                                                 trickCompletedPayload.nextRound = playResult.nextRound;
                                             }
+                                            // Persist trick and scores
+                                            await this.persistTrickAndScores(gameId, trickCompletedPayload);
                                             this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                             // Wait for clients to display trick
                                             await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
@@ -447,7 +574,13 @@ class SocketHandler {
                     trickCompletedPayload.gameEnded = result.gameEnded;
                     trickCompletedPayload.nextRound = result.nextRound;
                 }
-                this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
+                                        // Persist trick and scores before emitting so DB reflects client-visible state
+                                        try {
+                                            await this.persistTrickAndScores(result.gameId, trickCompletedPayload);
+                                        } catch (e) {
+                                            console.error('Error persisting trick before emit (human play):', e);
+                                        }
+                                        this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
                 await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
                 this.broadcastGameStateToRoom(result.gameId, 0);
             } else {
@@ -484,7 +617,13 @@ class SocketHandler {
                                             trickCompletedPayload.gameEnded = playResult.gameEnded;
                                             trickCompletedPayload.nextRound = playResult.nextRound;
                                         }
-                                        this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
+                                            // Persist trick and scores before emitting so DB reflects client-visible state
+                                            try {
+                                                await this.persistTrickAndScores(gameId, trickCompletedPayload);
+                                            } catch (e) {
+                                                console.error('Error persisting trick before emit (bot loop):', e);
+                                            }
+                                            this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                         // Wait for clients to display trick before broadcasting state
                                         await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
                                         this.broadcastGameStateToRoom(gameId, 0);

@@ -708,7 +708,249 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initializeSocket();
     window.selectedCards = [];
+
+    // History modal wiring
+    const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+    const historyModal = document.getElementById('history-modal');
+    const historyBackdrop = document.getElementById('history-modal-backdrop');
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    if (toggleHistoryBtn && historyModal) {
+        toggleHistoryBtn.addEventListener('click', async () => {
+            historyModal.classList.remove('hidden');
+            // ensure focus
+            document.getElementById('history-modal-content').focus();
+            await loadHistoryList();
+        });
+    }
+    if (historyBackdrop) {
+        historyBackdrop.addEventListener('click', () => {
+            historyModal.classList.add('hidden');
+        });
+    }
+    if (closeHistoryBtn) {
+        closeHistoryBtn.addEventListener('click', () => {
+            historyModal.classList.add('hidden');
+        });
+    }
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (historyModal && !historyModal.classList.contains('hidden')) {
+                historyModal.classList.add('hidden');
+            }
+        }
+    });
 });
+
+// Load history list from API
+async function loadHistoryList() {
+    const listDiv = document.getElementById('history-list');
+    if (!listDiv) return;
+    listDiv.innerHTML = 'Loading...';
+    try {
+        const res = await fetch('/hearts/api/history', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load history');
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            listDiv.innerHTML = '<em>No games found.</em>';
+            return;
+        }
+        // Render list
+        listDiv.innerHTML = '';
+    data.forEach(game => {
+            const gameEl = document.createElement('div');
+            gameEl.className = 'history-row';
+            const date = new Date(game.createdAt).toLocaleString();
+            // Build score summary
+            const scores = (game.players || []).map(p => `${p.name.split(' ')[0]}: ${p.finalScore === null ? '-' : p.finalScore}`).join(' | ');
+            gameEl.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <div>
+                        <strong>${date}</strong><br>
+                        <small>${game.state}</small>
+                    </div>
+                    <div style="flex:1;text-align:center;color:#ddd;">${scores}</div>
+                    <div style="width:220px;text-align:right;">
+                        <button class="btn small" data-game-id="${game.gameId}">Details</button>
+                        ${currentUser && currentUser.isAdmin ? `<button class="btn danger small" data-delete-game-id="${game.gameId}" style="margin-left:8px;">Delete</button>` : ''}
+                    </div>
+                </div>
+                <div class="history-details hidden" id="details-${game.gameId}" style="padding:8px 12px;background:rgba(0,0,0,0.25);border-radius:6px;margin-bottom:8px;margin-top:6px;"></div>
+            `;
+            listDiv.appendChild(gameEl);
+            const detailsBtn = gameEl.querySelector('button[data-game-id]');
+            detailsBtn.addEventListener('click', async (e) => {
+                const gid = e.target.getAttribute('data-game-id');
+                const detailsDiv = document.getElementById('details-' + gid);
+                if (!detailsDiv) return;
+                if (!detailsDiv.classList.contains('hidden')) {
+                    detailsDiv.classList.add('hidden');
+                    return;
+                }
+                detailsDiv.innerHTML = 'Loading details...';
+                try {
+                    const dres = await fetch(`/hearts/api/history/${gid}`, { credentials: 'include' });
+                    if (!dres.ok) throw new Error('Failed to load details');
+                    const info = await dres.json();
+                    renderGameDetails(info, detailsDiv);
+                    detailsDiv.classList.remove('hidden');
+                } catch (err) {
+                    detailsDiv.innerHTML = '<em>Could not load details</em>';
+                }
+            });
+
+            // Wire delete button for admins
+            const deleteBtn = gameEl.querySelector('button[data-delete-game-id]');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const gid = deleteBtn.getAttribute('data-delete-game-id');
+                    if (!confirm('Delete game ' + gid + '? This cannot be undone.')) return;
+                    try {
+                        const dres = await fetch(`/hearts/api/admin/games/${gid}`, { method: 'DELETE', credentials: 'include' });
+                        if (!dres.ok) {
+                            const err = await dres.json().catch(() => ({}));
+                            alert('Delete failed: ' + (err.error || dres.statusText));
+                            return;
+                        }
+                        showSuccessMessage('Game deleted');
+                        // Refresh list
+                        await loadHistoryList();
+                    } catch (err) {
+                        alert('Delete failed');
+                    }
+                });
+            }
+        });
+    } catch (err) {
+        listDiv.innerHTML = '<em>Error loading history</em>';
+        console.error('History load error', err);
+    }
+}
+
+function renderGameDetails(info, container) {
+    if (!info) {
+        container.innerHTML = '<em>No details available</em>';
+        return;
+    }
+    const header = document.createElement('div');
+    header.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><div><strong>Game: ${new Date(info.createdAt).toLocaleString()}</strong><br><small>State: ${info.state}</small></div><div><strong>Players</strong></div></div>`;
+    // Badges: finished and bots
+    const badgesDiv = document.createElement('div');
+    badgesDiv.style.marginTop = '6px';
+    const finishedBadge = document.createElement('span');
+    finishedBadge.className = 'badge';
+    finishedBadge.textContent = info.state === 'finished' ? 'Game finished' : 'Not finished';
+    badgesDiv.appendChild(finishedBadge);
+    const hasBots = (info.players || []).some(p => p.isBot);
+    if (hasBots) {
+        const botBadge = document.createElement('span');
+        botBadge.className = 'badge danger';
+        botBadge.style.marginLeft = '8px';
+        botBadge.textContent = 'Contains bots';
+        badgesDiv.appendChild(botBadge);
+    }
+    header.appendChild(badgesDiv);
+    container.innerHTML = '';
+    container.appendChild(header);
+    const playersDiv = document.createElement('div');
+    playersDiv.style.marginTop = '8px';
+    playersDiv.innerHTML = (info.players || []).map(p => {
+        const scoreLabel = (p.finalScore !== null && typeof p.finalScore !== 'undefined') ? p.finalScore : (p.currentScore !== null && typeof p.currentScore !== 'undefined' ? p.currentScore : '-');
+        const roundLabel = (p.roundScore !== null && typeof p.roundScore !== 'undefined') ? ` (round: ${p.roundScore})` : '';
+        return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,0.02);"><div>${p.name}</div><div>${scoreLabel}${roundLabel}</div></div>`;
+    }).join('');
+    container.appendChild(playersDiv);
+
+    // Admin debug button
+    if (currentUser && currentUser.isAdmin) {
+        const debugBtn = document.createElement('button');
+        debugBtn.className = 'btn small';
+        debugBtn.style.marginTop = '8px';
+        debugBtn.textContent = 'Debug (raw DB rows)';
+        debugBtn.addEventListener('click', async () => {
+            const dbgDiv = document.createElement('div');
+            dbgDiv.style.marginTop = '8px';
+            dbgDiv.textContent = 'Loading raw data...';
+            container.appendChild(dbgDiv);
+            try {
+                const r = await fetch(`/hearts/api/admin/games/${info.gameId}/debug`, { credentials: 'include' });
+                if (!r.ok) throw new Error('Failed');
+                const data = await r.json();
+                dbgDiv.innerHTML = `<pre style="white-space:pre-wrap;max-height:300px;overflow:auto;background:rgba(0,0,0,0.6);padding:8px;border-radius:6px;">${JSON.stringify(data,null,2)}</pre>`;
+            } catch (e) {
+                dbgDiv.textContent = 'Failed to load debug data';
+            }
+        });
+        container.appendChild(debugBtn);
+    }
+
+    // Rounds
+    const rounds = info.rounds || {};
+    const roundsKeys = Object.keys(rounds).sort((a,b)=>parseInt(a)-parseInt(b));
+    // If roundsPoints provided, render a grid: header row = players, rows = rounds, final row = Final Score
+    const roundsPoints = info.roundsPoints || {};
+    const finalScores = info.finalScores || {};
+    if (Object.keys(roundsPoints).length > 0) {
+        const grid = document.createElement('div');
+        grid.style.marginTop = '12px';
+        grid.style.overflowX = 'auto';
+        grid.style.background = 'rgba(255,255,255,0.03)';
+        grid.style.padding = '8px';
+        grid.style.borderRadius = '6px';
+        // Header
+        const headerRow = document.createElement('div');
+        headerRow.style.display = 'flex';
+        headerRow.style.fontWeight = '700';
+        headerRow.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+        headerRow.style.paddingBottom = '6px';
+        headerRow.innerHTML = `<div style="width:160px;">Round</div>` + (info.players || []).map(p => `<div style="width:120px;text-align:right;padding-right:8px;">${p.name.split(' ')[0]}</div>`).join('');
+        grid.appendChild(headerRow);
+
+        const rks = Object.keys(roundsPoints).sort((a,b)=>parseInt(a)-parseInt(b));
+        rks.forEach(rn => {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.padding = '6px 0';
+            const pts = roundsPoints[rn] || [0,0,0,0];
+            row.innerHTML = `<div style="width:160px;">Round ${rn}</div>` + pts.map(v => `<div style="width:120px;text-align:right;padding-right:8px;">${v}</div>`).join('');
+            grid.appendChild(row);
+        });
+
+        // Final score row
+        const finalRow = document.createElement('div');
+        finalRow.style.display = 'flex';
+        finalRow.style.padding = '8px 0';
+        finalRow.style.borderTop = '1px solid rgba(255,255,255,0.06)';
+        finalRow.style.fontWeight = '700';
+        finalRow.innerHTML = `<div style="width:160px;">Final Score</div>` + (info.players || []).map(p => {
+            const seat = p.seat;
+            const val = (finalScores && typeof finalScores[seat] !== 'undefined') ? finalScores[seat] : (p.finalScore === null ? '-' : p.finalScore);
+            return `<div style="width:120px;text-align:right;padding-right:8px;">${val}</div>`;
+        }).join('');
+        grid.appendChild(finalRow);
+
+        container.appendChild(grid);
+    } else {
+        // Fallback to previous per-trick rendering when roundsPoints not available
+        roundsKeys.forEach(rn => {
+            const roundContainer = document.createElement('div');
+            roundContainer.style.marginTop = '10px';
+            roundContainer.innerHTML = `<div style="font-weight:600;margin-bottom:6px;">Round ${rn}</div>`;
+            const tricks = rounds[rn];
+            const tricksList = document.createElement('div');
+            tricksList.style.paddingLeft = '6px';
+            tricks.forEach(t => {
+                const trickEl = document.createElement('div');
+                const cards = Array.isArray(t.cardsPlayed) ? t.cardsPlayed.map(c => (c.card || c)).join(', ') : JSON.stringify(t.cardsPlayed);
+                trickEl.innerHTML = `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);"><div>Trick ${t.trickNumber} - Winner: ${typeof t.winnerSeat !== 'undefined' ? 'Seat '+(t.winnerSeat+1) : 'Unknown'}</div><div>Points: ${t.points}</div></div><div style="font-size:0.9em;color:#ccc;padding:4px 0 8px 0;">Cards: ${cards}</div>`;
+                tricksList.appendChild(trickEl);
+            });
+            roundContainer.appendChild(tricksList);
+            container.appendChild(roundContainer);
+        });
+    }
+}
 
 // Preload card images to reduce flicker when hands update quickly.
 function preloadCardImages() {

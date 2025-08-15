@@ -105,6 +105,24 @@
                 </div>
                 <!-- <div id="trick-area" style="margin: 2rem 0; text-align: center;"></div> -->
             </div>
+            <!-- Game history modal trigger (overlay will be used) -->
+            <div style="margin-top:1.2rem;max-width:900px;">
+                <button id="toggle-history-btn" class="btn info" style="margin-bottom:8px;">Show Game History</button>
+            </div>
+
+            <!-- Modal overlay for history -->
+            <div id="history-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="history-title">
+                <div id="history-modal-backdrop"></div>
+                <div id="history-modal-content" role="document" tabindex="-1">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <h3 id="history-title" style="margin:0;">Game History</h3>
+                        <div><button id="close-history-btn" class="btn">Close</button></div>
+                    </div>
+                    <div id="history-container" style="max-height:60vh;overflow:auto;padding:8px;border-radius:6px;">
+                        <div id="history-list">Loading history...</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
