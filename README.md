@@ -2,7 +2,7 @@
 
 - The `/hearts/play-card` HTTP endpoint now uses the same backend logic as the socket.io `play-card` event.
 - When a card is played via HTTP, the backend simulates a socket event for the user and calls the shared handler (`handlePlayCard`).
-- After a valid play, the backend emits personalized `game-state` events to all connected players (each player only sees their own hand), and a `trick-completed` event if a trick is finished.
+- After a valid play, the backend emits personalized `game-state` events to all connected players (each player only sees their own hand)
 - The HTTP response is `{ success: true }` or an error; all real-time updates are delivered via socket.io.
 
 This ensures all validation, state updates, and broadcasts are consistent for both HTTP and socket clients.

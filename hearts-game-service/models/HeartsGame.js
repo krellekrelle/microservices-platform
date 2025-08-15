@@ -1,6 +1,35 @@
 const { v4: uuidv4 } = require('uuid');
 
 class HeartsGame {
+    // Add a bot player to a seat
+    addBotPlayer(botId, botName, seat) {
+        if (this.state !== 'lobby') {
+            throw new Error('Cannot join game in progress');
+        }
+        if (this.players.has(seat)) {
+            throw new Error('Seat already taken');
+        }
+        // Add bot player
+        const player = {
+            userId: botId,
+            userName: botName,
+            seat,
+            isReady: true,
+            isConnected: true,
+            hand: [],
+            totalScore: 0,
+            roundScore: 0,
+            isBot: true
+        };
+
+        console.log('[DEBUG] Adding bot player:', player);
+        this.players.set(seat, player);
+        // if (this.lobbyLeader === null) {
+        //     this.lobbyLeader = seat;
+        // }
+        return player;
+    }
+
     constructor(id = null) {
         this.id = id || uuidv4();
         this.state = 'lobby'; // lobby, passing, playing, finished, abandoned
@@ -52,7 +81,7 @@ class HeartsGame {
             hand: [],
             totalScore: 0,
             roundScore: 0,
-            // isBot removed
+            isBot: false
         };
         
         this.players.set(seat, player);

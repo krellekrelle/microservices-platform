@@ -114,8 +114,12 @@ function initializeSocket() {
             }
             showHand(handToShow);
             if (data.state === 'playing') {
-                showTrick(data.currentTrickCards || []);
+                // Always render the trick from the authoritative server state
+                const serverTrick = data.currentTrickCards || [];
+                // Show live trick (winner may be undefined until trick completes)
+                showTrick(serverTrick, data.currentTrickWinner);
             } else {
+                // In non-playing phases, clear trick
                 showTrick([]);
             }
         // updateGameStateLabel();
@@ -125,12 +129,26 @@ function initializeSocket() {
         // updateGameStateLabel();
     }
 }); // End socket.on('game-state')
-    // Listen for trick-completed event
+    // Listen for trick-completed event (log only; UI is driven by 'game-state')
     socket.on('trick-completed', (data) => {
-        // Show the completed trick and highlight the winner
-        showTrick(data.trickCards || [], data.winner);
-        // Optionally, clear the trick area after a short delay
-        setTimeout(() => showTrick([]), 2000);
+        // Display completed trick for a short TTL so users reliably see it.
+        console.log('[DEBUG] trick-completed received:', data);
+        if (!data || !data.trickCards) return;
+        // Render the trick from payload immediately (won't conflict with subsequent game-state which
+        // will be delayed by the server). This is a lightweight visual aid.
+        try {
+            showTrick(data.trickCards, data.winner)
+            // showTrick(data.trickCards.map((c, i) => ({ card: c, seat: data.trickOrder ? data.trickOrder[i] : undefined })), data.winner);
+        } catch (e) {
+            console.error('Error showing trick-completed payload:', e);
+        }
+        // // Clear the transient trick after the same delay used server-side
+        // setTimeout(() => {
+        //     // Only clear if the server hasn't already provided a newer game-state that includes currentTrickCards
+        //     if (!lobbyState || !lobbyState.currentTrickCards || lobbyState.currentTrickCards.length === 0) {
+        //         showTrick([]);
+        //     }
+        // }, 1500);
     });
     // Debug transport events
     socket.on('disconnect', (reason, details) => {
@@ -298,7 +316,8 @@ function showHand(hand) {
                         const isSelected = window.selectedCards && window.selectedCards.includes(card);
                         const selectedClass = isSelected ? ' selected' : '';
                         const outline = isSelected ? 'outline:3px solid #ffeb3b;' : 'outline:none;';
-                        return `<img src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img${selectedClass}" style="width:50px;height:72px;margin:0 1px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;${outline}cursor:pointer;">`;
+                        const safeId = 'card-' + String(card).replace(/[^a-zA-Z0-9]/g, '');
+                        return `<img id="${safeId}" src="${getCardImageUrl(card)}" alt="${card}" title="${card}" data-card="${card}" class="card-img${selectedClass}" onerror="this.style.visibility='hidden';this.dataset.broken='1'" onload="this.style.visibility='visible';this.dataset.broken='0'" style="width:50px;height:72px;margin:0 1px;vertical-align:middle;box-shadow:0 2px 8px #0003;border-radius:8px;background:#fff;${outline}cursor:pointer;">`;
                     }).join('');
                 }
             } else {
@@ -374,14 +393,19 @@ function updateCardSelectionUI() {
     const hand = window.currentHand || [];
     const handCardsDiv = document.getElementById('hand-cards');
     if (!handCardsDiv) return;
-    Array.from(handCardsDiv.children).forEach((img, idx) => {
-        const card = hand[idx];
+    // Match images by their data-card attribute (stable) instead of relying on index positions.
+    Array.from(handCardsDiv.children).forEach((img) => {
+        const card = img.getAttribute('data-card');
         if (window.selectedCards && window.selectedCards.includes(card)) {
             img.classList.add('selected');
             img.style.outline = '3px solid #ffeb3b';
         } else {
             img.classList.remove('selected');
             img.style.outline = 'none';
+        }
+        // If the image previously failed to load, keep it hidden instead of showing a broken box
+        if (img.dataset && img.dataset.broken === '1') {
+            img.style.visibility = 'hidden';
         }
     });
     updatePassButton();
@@ -511,6 +535,7 @@ function updateLobbyDisplay(state) {
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
                     <div class="empty-seat">Click to sit</div>
+                    <button class="add-bot-seat-btn btn info hidden" data-add-bot-seat="${seat}">Add Bot</button>
                 </div>
             `;
         }
@@ -535,6 +560,24 @@ function updateControls() {
         startGameBtn.classList.remove('hidden');
     } else {
         startGameBtn.classList.add('hidden');
+    }
+    // Show Add Bot button for lobby leader on each empty seat
+    const addBotSeatBtns = document.querySelectorAll('.add-bot-seat-btn');
+    console.log('Updating Add Bot buttons:', addBotSeatBtns.length);
+    for (let btn of addBotSeatBtns) {
+        const seat = parseInt(btn.getAttribute('data-add-bot-seat'));
+        if (lobbyState && mySeat === lobbyState.lobbyLeader && !lobbyState.players[seat]) {
+            btn.classList.remove('hidden');
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                // socket.emit('add-bot', { seat });
+                socket.emit('add-bot', { seat: seat });
+                console.log('add-bot emited for seat:', seat);
+            };
+        } else {
+            btn.classList.add('hidden');
+            btn.onclick = null;
+        }
     }
 }
 
@@ -666,3 +709,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeSocket();
     window.selectedCards = [];
 });
+
+// Preload card images to reduce flicker when hands update quickly.
+function preloadCardImages() {
+    const ranks = ['A','K','Q','J','T','9','8','7','6','5','4','3','2'];
+    const suits = ['C','D','H','S'];
+    ranks.forEach(rank => {
+        suits.forEach(suit => {
+            const code = (rank + suit).toUpperCase();
+            const img = new Image();
+            img.src = getCardImageUrl(code);
+            img.onload = () => {/* warmed */};
+            img.onerror = () => {/* ignore */};
+        });
+    });
+}
+
+// Start preloading after a short idle so it doesn't block critical UI
+setTimeout(preloadCardImages, 500);

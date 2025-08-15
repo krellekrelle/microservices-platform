@@ -4,7 +4,7 @@
 
 - The `/play-card` endpoint now delegates card play logic to the same handler as the socket event (`handlePlayCard` in `socketHandler`).
 - When a card is played via HTTP, the backend simulates a socket event for the user, ensuring all validation, state updates, and broadcasts are handled identically to socket.io clients.
-- After a valid play, the backend emits a personalized `game-state` event to each connected player (each player only sees their own hand), and a `trick-completed` event if a trick is finished.
+- After a valid play, the backend emits a personalized `game-state` event to each connected player (each player only sees their own hand)
 - The HTTP response only contains `{ success: true }` or an error; all real-time updates are delivered via socket.io.
 - This ensures consistent game logic and state delivery for both HTTP and socket clients.
 
@@ -77,7 +77,6 @@ Server Events (emit to clients):
 - 'cards-passed'          // Cards received from passing
 - 'trick-started'         // New trick begins
 - 'card-played'           // Player played a card
-- 'trick-completed'       // Trick winner determined
 - 'round-ended'           // All tricks played, show scores
 - 'game-ended'            // Final game results
 - 'player-disconnected'   // Handle disconnections
@@ -256,25 +255,53 @@ class CardDealer {
 ### AI Bot Implementation (Future Enhancement)
 ```javascript
 class HeartsBot {
-    constructor(difficulty = 'medium') {
-        this.difficulty = difficulty;
-        this.strategy = this.getStrategy(difficulty);
-    }
-    
-    selectCardsToPass(hand, direction) {
-        // AI logic for card passing
-        switch(this.difficulty) {
-            case 'easy': return this.passHighCards(hand);
-            case 'medium': return this.passStrategically(hand, direction);
-            case 'hard': return this.passAdvanced(hand, direction);
-        }
-    }
-    
-    playCard(hand, currentTrick, gameState) {
-        // AI logic for card playing
-        // Consider: valid moves, avoid points, card counting
-    }
+        // Production-ready simple bot implementation notes
+        // Current service implements a simple, server-side bot (AI) that can be added
+        // to any empty seat by the lobby leader. Bots are marked as ready automatically
+        // and participate in both the passing and playing phases.
+
+        // Strategy implemented in this service (simple, predictable):
+        // - Passing: Bot selects 3 random cards to pass when required.
+        // - Playing: When following suit, bot plays the lowest possible card in that suit.
+        //   If the bot cannot follow suit, it plays in this priority order:
+        //     1) Queen of Spades (QS)
+        //     2) Highest Heart
+        //     3) Highest card available
+        // This behavior is implemented in `services/gameManager.js` as `botPassCards(seat)`
+        // and `botPlayCard(seat)` and is invoked by `services/socketHandler.js`.
+
+        // Bot behaviour is intentionally simple to keep games predictable and avoid
+        // complex card counting. The bot runs entirely on the server for authoritative
+        // state and to avoid any client-side trust issues.
 }
+
+### Recent Implementation Notes (2025-08-15)
+- Server-side AI bots: lobby leader may add a bot to any empty seat. Bots are
+    auto-ready and will pass and play automatically.
+- Passing: bots call `gameManager.botPassCards(seat)` which returns a pass result
+    and the backend broadcasts updated `game-state` after each bot action.
+- Playing: bots call `gameManager.botPlayCard(seat)`. When a play completes a trick
+    the server now follows this precise sequence for consistency across clients:
+    1. Emit `trick-completed` (immediate) with trick payload (cards, winner, points).
+    2. Await a short display interval (default 1500ms) so clients can render the
+         completed trick visually.
+    3. Broadcast the updated `game-state` (this clears `currentTrickCards` on clients).
+    4. Wait an inter-bot pacing delay (default 700ms) before continuing with next bot.
+
+- This ordering is centralized in `services/socketHandler.js` to avoid client/server
+    race conditions. A helper `broadcastGameStateToRoom(gameId, delayMs)` was added
+    to centralize personalized `game-state` broadcasts.
+
+- Client-side safety: the browser client listens for `trick-completed` and
+    transiently renders the trick for the same display interval as a visual safety
+    net. The server remains authoritative; the client transient will not override
+    later authoritative `game-state` updates.
+
+Notes & rationale:
+- Centralizing the trick display timing on the server ensures all clients see the
+    trick for the same duration regardless of network delays or message ordering.
+- The two delays (display interval and inter-bot pacing) are tunable constants
+    in `socketHandler.js` and can be adjusted for UX preference.
 ```
 
 ## 🖥️ Frontend Architecture (Vue.js)

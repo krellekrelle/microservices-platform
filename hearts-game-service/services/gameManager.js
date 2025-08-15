@@ -2,6 +2,103 @@ const HeartsGame = require('../models/HeartsGame');
 const db = require('../db/database');
 
 class GameManager {
+    // Add a bot to a seat in the lobby
+    async addBotToSeat(seat) {
+        console.log(`Adding bot to seat ${seat} in lobby game ${this.lobbyGame?.id}`);
+        if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
+            return { error: 'No lobby available' };
+        }
+        if (this.lobbyGame.players.has(seat)) {
+            return { error: 'Seat already taken' };
+        }
+        // Add bot player
+        const botId = `bot-${seat}`;
+        const botName = `Bot ${seat + 1}`;
+        const player = this.lobbyGame.addBotPlayer(botId, botName, seat);
+        // Mark bot as ready
+        player.isReady = true;
+        // Track bots in lobbyGame
+        if (!this.lobbyGame.bots) this.lobbyGame.bots = [];
+        this.lobbyGame.bots.push(seat);
+        return {
+            success: true,
+            seat,
+            lobbyState: this.getLobbyState(this.lobbyGame)
+        };
+    }
+
+    // Server-side bot actions for passing and playing
+    async botPassCards(seat) {
+        const player = this.lobbyGame.players.get(seat);
+        if (!player || !player.hand || player.hand.length < 3) return;
+        // Pick 3 random cards
+    const shuffled = [...player.hand].sort(() => Math.random() - 0.5);
+    const cards = shuffled.slice(0, 3);
+    console.log('[DEBUG] botPassCards chosen for seat', seat, ':', cards, 'hand size:', player.hand.length);
+        // Use HeartsGame.passCards to perform selection and get result
+        const result = this.lobbyGame.passCards(seat, cards);
+        return {
+            seat,
+            cards,
+            ...result
+        };
+    }
+
+    async botPlayCard(seat) {
+        const player = this.lobbyGame.players.get(seat);
+        if (!player || !player.hand || player.hand.length === 0) return;
+    console.log('[DEBUG] botPlayCard invoked for seat', seat, 'hand:', player.hand.slice());
+        // Determine valid cards
+        const validCards = player.hand.filter(card => this.lobbyGame.isValidPlay(seat, card));
+    console.log('[DEBUG] botPlayCard validCards for seat', seat, ':', validCards);
+        if (validCards.length === 0) return;
+        // Try to follow suit
+        let cardToPlay = null;
+        if (this.lobbyGame.currentTrickCards.length > 0) {
+            const leadSuit = this.lobbyGame.currentTrickCards[0].card[1];
+            const suitCards = validCards.filter(c => c[1] === leadSuit);
+            if (suitCards.length > 0) {
+                // Play lowest card in suit
+                cardToPlay = suitCards.reduce((min, c) => {
+                    const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+                    return rankOrder[c[0]] < rankOrder[min[0]] ? c : min;
+                }, suitCards[0]);
+            }
+        }
+        if (!cardToPlay) {
+            // Priority: QS, highest heart, highest card
+            if (validCards.includes('QS')) {
+                cardToPlay = 'QS';
+            } else {
+                const hearts = validCards.filter(c => c[1] === 'H');
+                if (hearts.length > 0) {
+                    cardToPlay = hearts.reduce((max, c) => {
+                        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+                        return rankOrder[c[0]] > rankOrder[max[0]] ? c : max;
+                    }, hearts[0]);
+                } else {
+                    // Highest card
+                    cardToPlay = validCards.reduce((max, c) => {
+                        const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+                        return rankOrder[c[0]] > rankOrder[max[0]] ? c : max;
+                    }, validCards[0]);
+                }
+            }
+        }
+        if (!cardToPlay) {
+            console.log('[DEBUG] botPlayCard could not determine card to play for seat', seat);
+            return;
+        }
+        console.log('[DEBUG] botPlayCard seat', seat, 'plays', cardToPlay);
+        // Use existing playCard logic and return the result so caller (socketHandler) can emit events
+        const playResult = this.lobbyGame.playCard(seat, cardToPlay);
+        console.log('[DEBUG] botPlayCard playResult for seat', seat, ':', playResult);
+        return {
+            seat,
+            card: cardToPlay,
+            ...playResult
+        };
+    }
     // Play a card for a player (called by socket handler)
     async playCard(userId, card) {
         if (!this.lobbyGame || this.lobbyGame.state !== 'playing') {
