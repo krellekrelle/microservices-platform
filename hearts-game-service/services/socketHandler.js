@@ -1,6 +1,13 @@
 const { socketAuth } = require('../middleware/auth');
 const gameManager = require('./gameManager');
 
+// Timing configuration (milliseconds). Can be overridden with environment variables.
+// TRICK_DISPLAY_MS: how long clients should be able to see a completed trick
+// before the server broadcasts the updated game-state that clears it.
+// INTER_BOT_PAUSE_MS: delay between bot plays to make pacing readable.
+const TRICK_DISPLAY_MS = Number(process.env.TRICK_DISPLAY_MS) || 1500;
+const INTER_BOT_PAUSE_MS = Number(process.env.INTER_BOT_PAUSE_MS) || 700;
+
 class SocketHandler {
     constructor() {
         this.io = null;
@@ -56,6 +63,9 @@ class SocketHandler {
         socket.on('leave-seat', () => this.handleLeaveSeat(socket));
         socket.on('ready-for-game', () => this.handleToggleReady(socket));
         socket.on('start-game', () => this.handleStartGame(socket));
+        // Add bot event (lobby leader only)
+        socket.on('add-bot', (data) => this.handleAddBot(socket, data));
+
 
         // Game events
         socket.on('pass-cards', (data) => this.handlePassCards(socket, data));
@@ -100,9 +110,45 @@ class SocketHandler {
             const result = await gameManager.takeSeat(userId, userName, seat);
             socket.join(`lobby-${result.lobbyState.gameId}`);
             this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
+            // Prevent taking bot seat
+            if (gameManager.lobbyGame && gameManager.lobbyGame.bots && gameManager.lobbyGame.bots.includes(seat)) {
+                throw new Error('This seat is taken by a bot.');
+            }
             console.log(`${userName} took seat ${seat}`);
         } catch (error) {
             console.error('Take seat error:', error);
+            socket.emit('error', { message: error.message });
+        }
+    }
+
+    async handleAddBot(socket, data) {
+        console.log('handleAddBot called with dataaaa:', data);
+        try {
+            const userId = socket.user.id;
+            const seat = parseInt(data.seat);
+            console.log('handleAddBot called with seat:', seat, 'userId:', userId);
+            // Only lobby leader can add bots
+            if (!gameManager.lobbyGame || gameManager.lobbyGame.lobbyLeader !== socket.user.id && gameManager.lobbyGame.lobbyLeader !== null && gameManager.lobbyGame.players.get(gameManager.lobbyGame.lobbyLeader)?.userId !== userId) {
+                console.log('Only lobby leader can add bots.');
+                socket.emit('error', { message: 'Only lobby leader can add bots.' });
+                return;
+            }
+            if (isNaN(seat) || seat < 0 || seat > 3) {
+                console.log('Invalid seat number:', seat);
+                socket.emit('error', { message: 'Invalid seat number.' });
+                return;
+            }
+            console.log('add bottttt');
+            // Delegate to gameManager
+            const result = await gameManager.addBotToSeat(seat);
+            console.log('Add bot result:', result);
+            if (result.error) {
+                socket.emit('error', { message: result.error });
+                return;
+            }
+            this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
+        } catch (error) {
+            console.error('Add bot error:', error);
             socket.emit('error', { message: error.message });
         }
     }
@@ -210,20 +256,146 @@ class SocketHandler {
             socket.emit('pass-cards-success', { success: true });
             // Emit updated game state to all players (if provided)
             if (result.emitGameState) {
-                const room = this.io.sockets.adapter.rooms.get(`game-${result.gameId}`);
-                if (room) {
-                    for (const socketId of room) {
-                        const s = this.io.sockets.sockets.get(socketId);
-                        if (s && s.user && s.user.id) {
-                            const gameState = gameManager.getGameState(result.gameId, s.user.id);
-                            s.emit('game-state', gameState);
+                this.broadcastGameStateToRoom(result.gameId, 0);
+            }
+            // If not all players have passed yet, and there are bots, have bots pass immediately
+            try {
+                if (!result.allPassed && gameManager.lobbyGame && Array.isArray(gameManager.lobbyGame.bots) && gameManager.lobbyGame.bots.length > 0) {
+                    for (const botSeat of gameManager.lobbyGame.bots) {
+                        const botPlayer = gameManager.lobbyGame.players.get(botSeat);
+                        if (!botPlayer) continue;
+                        // If bot already selected pendingPassedCards or readyToPass, skip
+                        if (botPlayer.readyToPass || botPlayer.pendingPassedCards) continue;
+                        try {
+                            const passResult = await gameManager.botPassCards(botSeat);
+                            console.log('[DEBUG] botPassCards result:', passResult);
+                            // Emit updated game state after each bot pass
+                            const room = this.io.sockets.adapter.rooms.get(`game-${result.gameId}`);
+                            if (room) {
+                            }
+                            // If bots finishing triggers all passed, emit event
+                            if (passResult && passResult.allCardsPassed) {
+                                this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: passResult.trickLeader });
+                                // Start bot auto-play loop now that passing completed
+                                try {
+                                    const gameId = result.gameId;
+                                    const playLoop = async () => {
+                                        let safety = 0;
+                                        while (safety < 200 && gameManager.lobbyGame && gameManager.lobbyGame.state === 'playing') {
+                                            safety++;
+                                            const currentTurn = gameManager.lobbyGame.getNextPlayer();
+                                            const player = gameManager.lobbyGame.players.get(currentTurn);
+                                            if (!player) break;
+                                            if (player.isBot) {
+                                                try {
+                                                    const playResult = await gameManager.botPlayCard(currentTurn);
+                                                    // If this play completed a trick, emit trick-completed immediately,
+                                                    // wait for the trick display interval, then broadcast the new game state
+                                                    // before continuing with the next bot.
+                                                    if (playResult && playResult.trickComplete) {
+                                                        const trickCompletedPayload = {
+                                                            winner: playResult.winner,
+                                                            points: playResult.points,
+                                                            trickCards: playResult.trickCards,
+                                                            nextLeader: playResult.nextLeader,
+                                                            roundComplete: playResult.roundComplete || false
+                                                        };
+                                                        if (playResult.roundComplete) {
+                                                            trickCompletedPayload.roundScores = playResult.roundScores;
+                                                            trickCompletedPayload.totalScores = playResult.totalScores;
+                                                            trickCompletedPayload.moonShooter = playResult.moonShooter;
+                                                            trickCompletedPayload.gameEnded = playResult.gameEnded;
+                                                            trickCompletedPayload.nextRound = playResult.nextRound;
+                                                        }
+                                                        this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
+                                                        // Wait for clients to display trick
+                                                        await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                                        // Now broadcast updated game-state (which will clear the trick)
+                                                        this.broadcastGameStateToRoom(gameId, 0);
+                                                    } else {
+                                                        // No trick completed - broadcast immediately
+                                                        this.broadcastGameStateToRoom(gameId, 0);
+                                                    }
+                                                    // Inter-bot pacing
+                                                    await new Promise(r => setTimeout(r, INTER_BOT_PAUSE_MS));
+                                                    continue;
+                                                } catch (e) {
+                                                    console.error('Bot play error in inner pass handler loop:', e);
+                                                    break;
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    };
+                                    playLoop();
+                                } catch (e) {
+                                    console.error('Error starting bot play loop after bots finished passing:', e);
+                                }
+                                break;
+                            }
+                        } catch (e) {
+                            console.error('Error during botPassCards:', e);
                         }
                     }
                 }
+            } catch (e) {
+                console.error('Error triggering bots after human pass:', e);
             }
             // If all have passed, emit all-cards-passed event
             if (result.allPassed && result.trickLeader !== undefined) {
                 this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: result.trickLeader });
+                // Start auto-play loop for bots now that game is in playing state
+                try {
+                    if (gameManager.lobbyGame && Array.isArray(gameManager.lobbyGame.bots) && gameManager.lobbyGame.bots.length > 0) {
+                        const gameId = result.gameId;
+                        const playLoop = async () => {
+                            let safety = 0;
+                            while (safety < 200 && gameManager.lobbyGame && gameManager.lobbyGame.state === 'playing') {
+                                safety++;
+                                const currentTurn = gameManager.lobbyGame.getNextPlayer();
+                                const player = gameManager.lobbyGame.players.get(currentTurn);
+                                if (!player) break;
+                                if (player.isBot) {
+                                    try {
+                                        const playResult = await gameManager.botPlayCard(currentTurn);
+                                            if (playResult && playResult.trickComplete) {
+                                            const trickCompletedPayload = {
+                                                winner: playResult.winner,
+                                                points: playResult.points,
+                                                trickCards: playResult.trickCards,
+                                                nextLeader: playResult.nextLeader,
+                                                roundComplete: playResult.roundComplete || false
+                                            };
+                                            if (playResult.roundComplete) {
+                                                trickCompletedPayload.roundScores = playResult.roundScores;
+                                                trickCompletedPayload.totalScores = playResult.totalScores;
+                                                trickCompletedPayload.moonShooter = playResult.moonShooter;
+                                                trickCompletedPayload.gameEnded = playResult.gameEnded;
+                                                trickCompletedPayload.nextRound = playResult.nextRound;
+                                            }
+                                            this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
+                                            // Wait for clients to display trick
+                                            await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                            this.broadcastGameStateToRoom(gameId, 0);
+                                        } else {
+                                            this.broadcastGameStateToRoom(gameId, 0);
+                                        }
+                                        // Inter-bot pacing
+                                        await new Promise(r => setTimeout(r, INTER_BOT_PAUSE_MS));
+                                        continue;
+                                    } catch (e) {
+                                        console.error('Bot play error in pass handler loop:', e);
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        };
+                        playLoop();
+                    }
+                } catch (e) {
+                    console.error('Error starting bot play loop after all-cards-passed:', e);
+                }
             }
         } catch (error) {
             console.error('Pass cards error:', error);
@@ -258,20 +430,9 @@ class SocketHandler {
                 socket.emit('error', { message: result.error });
                 return;
             }
-            // Always emit updated game state to all players
-            const room = this.io.sockets.adapter.rooms.get(`game-${result.gameId}`);
-            if (room) {
-                for (const socketId of room) {
-                    const s = this.io.sockets.sockets.get(socketId);
-                    if (s && s.user && s.user.id) {
-                        const gameState = gameManager.getGameState(result.gameId, s.user.id);
-                        s.emit('game-state', gameState);
-                    }
-                }
-            }
-            // If trick is complete, emit trick-completed event
+
+            // If this play completed a trick, emit trick-completed immediately, wait, then broadcast game-state.
             if (result.trickComplete) {
-                // If roundComplete, include scores and moonShooter
                 const trickCompletedPayload = {
                     winner: result.winner,
                     points: result.points,
@@ -287,8 +448,67 @@ class SocketHandler {
                     trickCompletedPayload.nextRound = result.nextRound;
                 }
                 this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
+                await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                this.broadcastGameStateToRoom(result.gameId, 0);
+            } else {
+                // No trick completed, broadcast immediately
+                this.broadcastGameStateToRoom(result.gameId, 0);
             }
-            // If round is complete, you may want to emit a round-completed event (not implemented here)
+
+            // Start auto-play loop for bots (if any)
+            try {
+                if (gameManager.lobbyGame && Array.isArray(gameManager.lobbyGame.bots) && gameManager.lobbyGame.bots.length > 0) {
+                    const gameId = result.gameId;
+                    const playLoop = async () => {
+                        let safety = 0;
+                        while (safety < 200 && gameManager.lobbyGame && gameManager.lobbyGame.state === 'playing') {
+                            safety++;
+                            const currentTurn = gameManager.lobbyGame.getNextPlayer();
+                            const player = gameManager.lobbyGame.players.get(currentTurn);
+                            if (!player) break;
+                            if (player.isBot) {
+                                try {
+                                    const playResult = await gameManager.botPlayCard(currentTurn);
+                                    if (playResult && playResult.trickComplete) {
+                                        const trickCompletedPayload = {
+                                            winner: playResult.winner,
+                                            points: playResult.points,
+                                            trickCards: playResult.trickCards,
+                                            nextLeader: playResult.nextLeader,
+                                            roundComplete: playResult.roundComplete || false
+                                        };
+                                        if (playResult.roundComplete) {
+                                            trickCompletedPayload.roundScores = playResult.roundScores;
+                                            trickCompletedPayload.totalScores = playResult.totalScores;
+                                            trickCompletedPayload.moonShooter = playResult.moonShooter;
+                                            trickCompletedPayload.gameEnded = playResult.gameEnded;
+                                            trickCompletedPayload.nextRound = playResult.nextRound;
+                                        }
+                                        this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
+                                        // Wait for clients to display trick before broadcasting state
+                                        await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                        this.broadcastGameStateToRoom(gameId, 0);
+                                    } else {
+                                        this.broadcastGameStateToRoom(gameId, 0);
+                                    }
+                                    // Inter-bot pacing
+                                    await new Promise(r => setTimeout(r, INTER_BOT_PAUSE_MS));
+                                    continue;
+                                } catch (e) {
+                                    console.error('Bot play error in post-play loop:', e);
+                                    break;
+                                }
+                            }
+                            break; // next is human - stop auto-loop
+                        }
+                    };
+                    playLoop();
+                }
+            } catch (e) {
+                console.error('Error starting bot play loop after human play:', e);
+            }
+
+            // For a human play we already emitted trick-completed above if applicable. Nothing more here.
         } catch (error) {
             console.error('Play card error:', error);
             socket.emit('error', { message: error.message });
@@ -368,6 +588,34 @@ class SocketHandler {
     // Utility method to send message to all players in a game
     sendToGame(gameId, event, data) {
         this.io.to(`game-${gameId}`).emit(event, data);
+    }
+
+    // Broadcast current game-state to all connected sockets in a game room.
+    // If delayMs > 0, wait before broadcasting (used to keep a completed trick visible).
+    broadcastGameStateToRoom(gameId, delayMs = 0) {
+        const doBroadcast = () => {
+            try {
+                const room = this.io.sockets.adapter.rooms.get(`game-${gameId}`);
+                if (room) {
+                    for (const socketId of room) {
+                        const s = this.io.sockets.sockets.get(socketId);
+                        if (s && s.user && s.user.id) {
+                            const gameState = gameManager.getGameState(gameId, s.user.id);
+                            s.emit('game-state', gameState);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error broadcasting game-state to room', gameId, e);
+            }
+        };
+        if (delayMs && delayMs > 0) {
+            console.log("[DEBUG] Broadcasting game-state with delay:", delayMs);
+            setTimeout(doBroadcast, delayMs);
+        } else {
+            console.log('[DEBUG] Broadcasting game-state immediately');
+            doBroadcast();
+        }
     }
 
     // Utility method to send message to lobby
