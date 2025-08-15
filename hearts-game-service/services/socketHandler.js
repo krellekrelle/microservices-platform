@@ -395,6 +395,8 @@ class SocketHandler {
                             if (passResult && passResult.allCardsPassed) {
                                 console.log("All cards passed!")
                                 this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: passResult.trickLeader });
+                                // Broadcast the updated game-state immediately so human players see the playing state and turn
+                                this.broadcastGameStateToRoom(result.gameId, 0);
                                 // Start bot auto-play loop now that passing completed
                                 try {
                                     const gameId = result.gameId;
@@ -469,6 +471,8 @@ class SocketHandler {
             // If all have passed, emit all-cards-passed event
             if (result.allPassed && result.trickLeader !== undefined) {
                 this.io.to(`game-${result.gameId}`).emit('all-cards-passed', { trickLeader: result.trickLeader });
+                // Ensure clients receive the updated game state immediately
+                this.broadcastGameStateToRoom(result.gameId, 0);
                 // Start auto-play loop for bots now that game is in playing state
                 try {
                     if (gameManager.lobbyGame && Array.isArray(gameManager.lobbyGame.bots) && gameManager.lobbyGame.bots.length > 0) {
