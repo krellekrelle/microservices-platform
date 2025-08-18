@@ -27,6 +27,28 @@ class GameManager {
         };
     }
 
+    // Remove a bot from a seat in the lobby
+    async removeBotFromSeat(seat) {
+        console.log(`Removing bot from seat ${seat} in lobby game ${this.lobbyGame?.id}`);
+        if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
+            return { error: 'No lobby available' };
+        }
+        const player = this.lobbyGame.players.get(seat);
+        if (!player || !player.isBot) {
+            return { error: 'No bot at that seat' };
+        }
+        try {
+            const res = this.lobbyGame.removePlayer(seat);
+            // Remove seat from bots array if tracked
+            if (this.lobbyGame.bots) {
+                this.lobbyGame.bots = this.lobbyGame.bots.filter(s => s !== seat);
+            }
+            return { success: true, seat, lobbyState: this.getLobbyState(this.lobbyGame) };
+        } catch (e) {
+            return { error: e.message || 'Failed to remove bot' };
+        }
+    }
+
     // Server-side bot actions for passing and playing
     async botPassCards(seat) {
         const player = this.lobbyGame.players.get(seat);
@@ -233,7 +255,10 @@ class GameManager {
 
             this.lobbyGame = new HeartsGame(lobbyData.id);
             this.lobbyGame.state = lobbyData.game_state;
-            this.lobbyGame.lobbyLeader = lobbyData.lobby_leader_id;
+            // lobby_leader_id in DB stores a user_id; map it to a seat index in memory
+            // We'll set lobbyLeader to the seat number of the stored user_id if present and human.
+            // Default to null for safety; we'll compute after loading players.
+            this.lobbyGame.lobbyLeader = null;
 
             // Restore players
             for (const playerData of playersResult.rows) {
@@ -250,6 +275,31 @@ class GameManager {
                 });
 
                 this.playerToGame.set(playerData.user_id, lobbyData.id);
+            }
+
+            // Determine lobby leader seat from the DB-stored user id, if any.
+            if (lobbyData.lobby_leader_id) {
+                let leaderSeat = null;
+                for (const [seat, player] of this.lobbyGame.players) {
+                    if (player.userId && String(player.userId) === String(lobbyData.lobby_leader_id)) {
+                        // Only set leader if the player is not a bot
+                        if (!player.isBot) {
+                            leaderSeat = seat;
+                        }
+                        break;
+                    }
+                }
+                if (leaderSeat !== null) {
+                    this.lobbyGame.lobbyLeader = leaderSeat;
+                } else {
+                    // Fallback: prefer the lowest-numbered human seat
+                    const humanSeats = Array.from(this.lobbyGame.players.entries())
+                        .filter(([s, p]) => !p.isBot)
+                        .map(([s]) => s)
+                        .sort((a,b) => a - b);
+                    if (humanSeats.length > 0) this.lobbyGame.lobbyLeader = humanSeats[0];
+                    else this.lobbyGame.lobbyLeader = null;
+                }
             }
 
             this.activeGames.set(lobbyData.id, this.lobbyGame);

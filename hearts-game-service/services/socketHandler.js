@@ -191,6 +191,7 @@ class SocketHandler {
         socket.on('start-game', () => this.handleStartGame(socket));
         // Add bot event (lobby leader only)
         socket.on('add-bot', (data) => this.handleAddBot(socket, data));
+        socket.on('remove-bot', (data) => this.handleRemoveBot(socket, data));
 
 
         // Game events
@@ -254,7 +255,14 @@ class SocketHandler {
             const seat = parseInt(data.seat);
             console.log('handleAddBot called with seat:', seat, 'userId:', userId);
             // Only lobby leader can add bots
-            if (!gameManager.lobbyGame || gameManager.lobbyGame.lobbyLeader !== socket.user.id && gameManager.lobbyGame.lobbyLeader !== null && gameManager.lobbyGame.players.get(gameManager.lobbyGame.lobbyLeader)?.userId !== userId) {
+            if (!gameManager.lobbyGame) {
+                socket.emit('error', { message: 'No lobby available.' });
+                return;
+            }
+            // gameManager.lobbyGame.lobbyLeader stores a seat index (or null). Determine leader's userId.
+            const leaderSeat = gameManager.lobbyGame.lobbyLeader;
+            const leaderUserId = (leaderSeat !== null && gameManager.lobbyGame.players.get(leaderSeat)) ? gameManager.lobbyGame.players.get(leaderSeat).userId : null;
+            if (leaderUserId !== socket.user.id) {
                 console.log('Only lobby leader can add bots.');
                 socket.emit('error', { message: 'Only lobby leader can add bots.' });
                 return;
@@ -275,6 +283,36 @@ class SocketHandler {
             this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
         } catch (error) {
             console.error('Add bot error:', error);
+            socket.emit('error', { message: error.message });
+        }
+    }
+
+    async handleRemoveBot(socket, data) {
+        try {
+            const userId = socket.user.id;
+            const seat = parseInt(data.seat);
+            if (!gameManager.lobbyGame) {
+                socket.emit('error', { message: 'No lobby available.' });
+                return;
+            }
+            const leaderSeat2 = gameManager.lobbyGame.lobbyLeader;
+            const leaderUserId2 = (leaderSeat2 !== null && gameManager.lobbyGame.players.get(leaderSeat2)) ? gameManager.lobbyGame.players.get(leaderSeat2).userId : null;
+            if (leaderUserId2 !== socket.user.id) {
+                socket.emit('error', { message: 'Only lobby leader can remove bots.' });
+                return;
+            }
+            if (isNaN(seat) || seat < 0 || seat > 3) {
+                socket.emit('error', { message: 'Invalid seat number.' });
+                return;
+            }
+            const result = await gameManager.removeBotFromSeat(seat);
+            if (result.error) {
+                socket.emit('error', { message: result.error });
+                return;
+            }
+            this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
+        } catch (error) {
+            console.error('Remove bot error:', error);
             socket.emit('error', { message: error.message });
         }
     }

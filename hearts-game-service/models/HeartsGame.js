@@ -107,9 +107,19 @@ class HeartsGame {
         
         this.players.delete(seat);
         
-        // Reassign lobby leader if needed
+        // Reassign lobby leader if needed (prefer human players; do not promote bots)
         if (this.lobbyLeader === seat && this.players.size > 0) {
-            this.lobbyLeader = Math.min(...this.players.keys());
+            // Find lowest-numbered seat occupied by a non-bot player
+            const humanSeats = Array.from(this.players.entries())
+                .filter(([s, p]) => !p.isBot)
+                .map(([s]) => s)
+                .sort((a,b) => a - b);
+            if (humanSeats.length > 0) {
+                this.lobbyLeader = humanSeats[0];
+            } else {
+                // No humans left in lobby - clear leader to avoid promoting a bot
+                this.lobbyLeader = null;
+            }
         } else if (this.players.size === 0) {
             this.lobbyLeader = null;
         }

@@ -482,6 +482,24 @@ function updateLobbyDisplay(state) {
     let playerCount = 0;
     let readyCount = 0;
     let allReady = true;
+    // Determine which seat (if any) is mine and whether I'm the lobby leader
+    let mySeatLocal = null;
+    if (currentUser && state.players) {
+        for (let s = 0; s < 4; s++) {
+            const p = state.players[s];
+            if (p && String(p.userId) === String(currentUser.id)) {
+                mySeatLocal = s;
+                break;
+            }
+        }
+    }
+    // Set global mySeat early so updateControls can rely on it
+    if (typeof mySeatLocal === 'number') mySeat = mySeatLocal;
+    const amLeader = (state.lobbyLeader !== null && (
+        // either mySeat equals the leader seat, or the stored player at leader seat matches our user id
+        (typeof mySeat === 'number' && mySeat === state.lobbyLeader) ||
+        (state.players[state.lobbyLeader] && String(state.players[state.lobbyLeader].userId) === String(currentUser?.id))
+    ));
     for (let seat = 0; seat < 4; seat++) {
         let player = state.players[seat];
         if (player) {
@@ -514,13 +532,15 @@ function updateLobbyDisplay(state) {
         seatEl.className = `seat ${seatClassMap[seat]}`;
         if (player) {
             seatEl.classList.add('occupied');
-            const isMySeat = player.userId === currentUser?.id;
+            const isMySeat = String(player.userId) === String(currentUser?.id);
             if (isMySeat) {
                 seatEl.classList.add('my-seat');
                 mySeat = seat;
                 isReady = player.isReady;
             }
             const firstName = player.userName ? player.userName.split(' ')[0] : '';
+            // Show Remove Bot button for lobby leader if this is a bot
+            const removeBotBtn = (player.isBot && amLeader) ? `<button class="btn small danger remove-bot-btn" data-remove-bot-seat="${seat}" style="margin-top:8px;">Remove Bot</button>` : '';
             seatEl.innerHTML = `
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
@@ -528,6 +548,7 @@ function updateLobbyDisplay(state) {
                     <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                         ${player.isReady ? 'Ready' : 'Not Ready'}
                     </div>
+                    ${removeBotBtn}
                 </div>
             `;
         } else {
@@ -541,6 +562,16 @@ function updateLobbyDisplay(state) {
         }
     }
     updateControls();
+
+    // Wire Remove Bot button handlers (delegated)
+    document.querySelectorAll('.remove-bot-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const seat = parseInt(btn.getAttribute('data-remove-bot-seat'));
+            // Remove bot immediately without confirmation
+            socket.emit('remove-bot', { seat });
+        });
+    });
 }
 
 function updateControls() {
