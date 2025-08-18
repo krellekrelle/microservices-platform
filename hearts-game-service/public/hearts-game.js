@@ -684,19 +684,35 @@ function showGameSection() {
 }
 
 function showErrorMessage(message) {
-    const container = document.getElementById('error-container');
-    container.innerHTML = `<div class="error-message">${message}</div>`;
-    setTimeout(() => {
-        container.innerHTML = '';
-    }, 5000);
+    createToast(message, 'error');
 }
 
 function showSuccessMessage(message) {
-    const container = document.getElementById('success-container');
-    container.innerHTML = `<div class="success-message">${message}</div>`;
+    createToast(message, 'success');
+}
+
+// create a non-blocking toast in the toast container
+function createToast(message, type='error', ttl=4500) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        console.warn('No toast container found, falling back to inline message');
+        const inline = document.getElementById(type === 'success' ? 'success-container' : 'error-container');
+        if (inline) {
+            inline.innerHTML = `<div class="${type === 'success' ? 'success-message' : 'error-message'}">${message}</div>`;
+            setTimeout(() => { inline.innerHTML = ''; }, ttl);
+        }
+        return;
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<div class="toast-icon">${type === 'success' ? '✓' : '!'}</div><div class="toast-body">${message}</div>`;
+    container.appendChild(toast);
+    // allow css transition
+    requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => {
-        container.innerHTML = '';
-    }, 3000);
+        toast.classList.remove('show');
+        setTimeout(() => { toast.remove(); }, 220);
+    }, ttl);
 }
 
 // Get user info from server

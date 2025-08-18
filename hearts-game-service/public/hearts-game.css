@@ -170,6 +170,10 @@ body {
     flex-direction: column;
     align-items: center;
     overflow: hidden; /* keep overflowing content from increasing size */
+    /* keep seats visually consistent regardless of name length */
+    min-width: 110px;
+    width: 140px;
+    max-width: 260px;
 }
 
 /* Prevent layout shifts when buttons appear in seat: reserve footer space and absolutely position buttons */
@@ -385,6 +389,53 @@ body {
     visibility: hidden;
     pointer-events: none;
 }
+
+/* Toast / snackbar container (non-blocking notifications) */
+.toast-container {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 3000;
+    pointer-events: none; /* allow clicks to pass through except on toasts themselves */
+}
+.toast {
+    pointer-events: auto;
+    min-width: 180px;
+    max-width: 320px;
+    background: rgba(30,30,30,0.95);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+.toast.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+.toast .toast-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex: 0 0 28px;
+    font-weight: 700;
+}
+.toast.error { background: linear-gradient(90deg,#3a1b1b,#5c1820); }
+.toast.success { background: linear-gradient(90deg,#123d1f,#1f8a3d); }
+.toast.error .toast-icon { background: rgba(255,255,255,0.12); color: #ffdddd; }
+.toast.success .toast-icon { background: rgba(255,255,255,0.08); color: #ddffea; }
 
 /* Modal overlay for history */
 #history-modal {
