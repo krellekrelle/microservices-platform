@@ -124,15 +124,23 @@ class SocketHandler {
                         const p = playersArr[i];
                         const place = i + 1;
                         const tricksWon = game.tricksWon.get(p.seat) || 0;
+                        // Ensure we only insert a numeric user_id; bots or non-numeric ids become NULL
+                        let userIdForInsert = null;
+                        if (typeof p.userId !== 'undefined' && p.userId !== null) {
+                            const parsed = parseInt(p.userId, 10);
+                            if (!isNaN(parsed)) userIdForInsert = parsed;
+                        }
                         await db.query(
                             `INSERT INTO hearts_game_results (game_id, user_id, seat_position, final_score, place_finished, hearts_taken, queen_taken, shot_moon, tricks_won, created_at)
                              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
-                            [gameId, p.userId, p.seat, p.score, place, 0, false, 0, tricksWon]
+                            [gameId, userIdForInsert, p.seat, p.score, place, 0, false, 0, tricksWon]
                         );
                     }
 
                     // Update hearts_games to finished and set winner_id
                     const winnerUserId = playersArr.length > 0 ? playersArr[0].userId : null;
+                    console.log(`Game ${gameId} finished, winner: ${winnerUserId}`);
+                    console.log(`Persisting final results for game ${gameId}...`);
                     await db.query(
                         'UPDATE hearts_games SET game_state = $1, finished_at = NOW(), winner_id = $2, current_round = $3, current_trick = $4 WHERE id = $5',
                         ['finished', winnerUserId, game.currentRound, game.currentTrick, gameId]

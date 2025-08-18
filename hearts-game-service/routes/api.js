@@ -128,7 +128,7 @@ router.get('/history/:gameId', async (req, res) => {
         if (partRes.rows.length === 0) {
             return res.status(403).json({ error: 'Forbidden' });
         }
-
+        
         const gameRes = await db.query(`
             SELECT id, game_state, created_at, started_at, finished_at
             FROM hearts_games
