@@ -22,23 +22,37 @@ body {
     display: flex;
     flex-direction: column;
 }
-.header {
-    background: rgba(0, 0, 0, 0.2);
-    padding: 1rem 2rem;
+.seat {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    padding: 2rem 1rem;
+    text-align: center;
+    /* only animate visual properties, not size/layout to avoid shifting */
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+    cursor: pointer;
+    height: 150px; /* fixed height to prevent resizing when content changes */
+    box-sizing: border-box;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    backdrop-filter: blur(10px);
 }
-.header h1 {
-    font-size: 2rem;
-    font-weight: 300;
-}
+ 
 .user-info {
     display: flex;
     align-items: center;
     gap: 1rem;
 }
+
+.header {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        backdrop-filter: blur(10px);
+    }
 .connection-status {
     padding: 0.5rem 1rem;
     border-radius: 20px;
@@ -145,15 +159,36 @@ body {
     background: rgba(255, 255, 255, 0.1);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 15px;
-    padding: 2rem 1rem;
+    padding: 1rem 1rem;
     text-align: center;
-    transition: all 0.3s ease;
+    /* only animate visual properties, not size/layout to avoid shifting */
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
     cursor: pointer;
-    min-height: 150px;
+    height: 150px; /* fixed height */
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    overflow: hidden; /* keep overflowing content from increasing size */
+}
+
+/* Prevent layout shifts when buttons appear in seat: reserve footer space and absolutely position buttons */
+.seat { position: relative; }
+.seat .seat-content { padding-bottom: 36px; /* reserve space for buttons (reduced to save vertical space) */ }
+.seat .add-bot-seat-btn, .seat .remove-bot-btn {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0; /* remove any margin that could affect layout */
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.9rem;
 }
 .seat:hover {
     background: rgba(255, 255, 255, 0.2);
@@ -171,6 +206,19 @@ body {
 .seat.occupied:hover {
     background: rgba(76, 175, 80, 0.3);
 }
+
+/* Ensure seat content uses the reserved space and doesn't push the seat height */
+.seat .seat-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    padding-bottom: 36px; /* reserved space for buttons (reduced) */
+    padding-top: 6px; /* small top padding to vertically center content when seat-number hidden */
+}
 .seat-number {
     font-size: 1rem;
     font-weight: bold;
@@ -178,10 +226,17 @@ body {
     margin-top: 0.3rem;
     opacity: 0.7;
 }
+
+/* Hide seat number labels (e.g. "Seat 1") as requested */
+.seat-number { display: none !important; }
 .seat-player {
     font-size: 1.2rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 .seat-status {
     font-size: 0.6rem;
@@ -198,30 +253,34 @@ body {
 .empty-seat {
     font-size: 1.1rem;
     opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .lobby-controls {
     margin: 0 auto;
-    padding: 1.5rem 0 0 0;
+    padding: 0.8rem 0 0 0; /* smaller top padding to save vertical space */
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 1.5rem;
+    gap: 0.6rem; /* tighter gap between controls */
     flex-wrap: wrap;
     background: transparent;
     border-radius: 20px;
     position: static;
     z-index: 2;
     max-width: 80%;
+    min-height: 80px; /* reduced reserved space so center column stays compact */
 }
 .btn {
     background: rgba(255, 255, 255, 0.2);
     border: 2px solid rgba(255, 255, 255, 0.3);
     color: white;
-    padding: 0.3rem;
-    border-radius: 30px;
-    font-size: 1.0rem;
+    padding: 0.28rem 0.6rem; /* slightly smaller vertical and horizontal padding */
+    border-radius: 24px;
+    font-size: 0.95rem; /* slightly smaller text */
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     backdrop-filter: blur(10px);
 }
 .btn:hover {
@@ -293,7 +352,7 @@ body {
         gap: 1rem;
     }
     .seat {
-        min-height: 120px;
+        height: 120px;
         padding: 1.5rem 1rem;
     }
     .lobby-controls {
@@ -301,12 +360,30 @@ body {
         align-items: center;
     }
     .btn {
-        padding: 0.8rem 1.5rem;
-        font-size: 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.95rem;
     }
 }
 .hidden {
     display: none;
+}
+
+/* Small circular button variants used in seats */
+.btn.small {
+    padding: 0.15rem 0.35rem;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Reserve space but hide visually (useful for buttons that would cause layout shift) */
+.invisible {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* Modal overlay for history */

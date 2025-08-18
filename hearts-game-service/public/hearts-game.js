@@ -13,6 +13,14 @@ let isReady = false;
 let lobbyState = null;
 let hasPassed = false;
 
+// Helper to extract a player's first name from several possible fields
+function getPlayerFirstName(player, fallback) {
+    if (!player) return fallback || '';
+    const name = player.userName || player.name || (player.user && (player.user.userName || player.user.name)) || '';
+    if (!name) return fallback || '';
+    return String(name).split(' ')[0];
+}
+
 // Initialize socket connection
 function initializeSocket() {
     console.log('🚀 Initializing Socket.IO connection...');
@@ -52,7 +60,7 @@ function initializeSocket() {
         let html = '';
         for (let i = 0; i < 4; i++) {
             const player = data.players[i];
-            let name = player ? (player.userName ? player.userName.split(' ')[0] : `Player ${i+1}`) : `Player ${i+1}`;
+            let name = getPlayerFirstName(player, `Player ${i+1}`);
             let score = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
             html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px;">
                 <span>${name}</span>
@@ -308,7 +316,7 @@ function showHand(hand) {
                 if (!hand || !Array.isArray(hand) || hand.length === 0) {
                     cell.innerHTML = '<em>No cards dealt.</em>';
                 } else {
-                    const name = player ? (player.userName ? player.userName.split(' ')[0] : 'You') : 'You';
+                    const name = getPlayerFirstName(player, 'You');
                     const highlightClass = isTurn ? 'player-name current-turn' : 'player-name';
                     cell.innerHTML = `<div class="${highlightClass}" style="text-align:center;margin-bottom:6px;">${name}</div><div id="hand-cards" style="display:flex;justify-content:center;align-items:center;"></div>`;
                     const handCardsDiv = cell.querySelector('#hand-cards');
@@ -322,7 +330,7 @@ function showHand(hand) {
                 }
             } else {
                 // Other players: show only the player's name (first name or Player N)
-                const name = player ? (player.userName ? player.userName.split(' ')[0] : 'Player '+(seatIdx+1)) : 'Empty';
+                const name = getPlayerFirstName(player, player ? `Player ${seatIdx+1}` : 'Empty');
                 const highlightClass = isTurn ? 'opponent-name current-turn' : 'opponent-name';
                 cell.innerHTML = `
                     <div class="opponent-info${isTurn?' current-turn':''}">
@@ -539,9 +547,9 @@ function updateLobbyDisplay(state) {
                 mySeat = seat;
                 isReady = player.isReady;
             }
-            const firstName = player.userName ? player.userName.split(' ')[0] : '';
-            // Show Remove Bot button for lobby leader if this is a bot
-            const removeBotBtn = (player.isBot && amLeader) ? `<button class="btn small danger remove-bot-btn" data-remove-bot-seat="${seat}" style="margin-top:8px;">Remove Bot</button>` : '';
+            const firstName = player.userName ? player.userName.split(' ')[0] : `Player ${seatNumberMap[seat]}`;
+            // Show Remove Bot button for lobby leader if this is a bot (icon-only, round)
+            const removeBotBtn = (player.isBot && amLeader) ? `<button class="btn small danger remove-bot-btn" data-remove-bot-seat="${seat}" aria-label="Remove bot">✖</button>` : '';
             seatEl.innerHTML = `
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
@@ -553,11 +561,11 @@ function updateLobbyDisplay(state) {
                 </div>
             `;
         } else {
-            seatEl.innerHTML = `
+                seatEl.innerHTML = `
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
                     <div class="empty-seat">Click to sit</div>
-                    <button class="add-bot-seat-btn btn info hidden" data-add-bot-seat="${seat}">Add Bot</button>
+                    <button class="add-bot-seat-btn btn small info hidden" data-add-bot-seat="${seat}" aria-label="Add bot">＋</button>
                 </div>
             `;
         }
@@ -594,9 +602,12 @@ function updateControls() {
     const amLeader = (leaderSeat !== null && ((typeof mySeat === 'number' && mySeat === leaderSeat) || (leaderUserId && String(leaderUserId) === String(currentUser?.id))));
 
     if (lobbyState?.canStartGame && amLeader) {
+        startGameBtn.classList.remove('invisible');
         startGameBtn.classList.remove('hidden');
     } else {
-        startGameBtn.classList.add('hidden');
+        // Keep space reserved but hide visually to avoid layout shift
+        startGameBtn.classList.add('invisible');
+        startGameBtn.classList.remove('hidden');
     }
 
     // Show Add Bot button for lobby leader on each empty seat
