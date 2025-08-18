@@ -493,8 +493,9 @@ function updateLobbyDisplay(state) {
             }
         }
     }
-    // Set global mySeat early so updateControls can rely on it
-    if (typeof mySeatLocal === 'number') mySeat = mySeatLocal;
+    // Set global mySeat early so updateControls can rely on it (clear when not found)
+    mySeat = (typeof mySeatLocal === 'number') ? mySeatLocal : null;
+    if (mySeat === null) isReady = false;
     const amLeader = (state.lobbyLeader !== null && (
         // either mySeat equals the leader seat, or the stored player at leader seat matches our user id
         (typeof mySeat === 'number' && mySeat === state.lobbyLeader) ||
@@ -587,23 +588,28 @@ function updateControls() {
         leaveSeatBtn.classList.add('hidden');
         readyBtn.classList.add('hidden');
     }
-    if (lobbyState?.canStartGame && mySeat === lobbyState?.lobbyLeader) {
+    // Determine whether current user is lobby leader (by seat or by leader's userId)
+    const leaderSeat = lobbyState?.lobbyLeader;
+    const leaderUserId = (leaderSeat !== null && lobbyState?.players && lobbyState.players[leaderSeat]) ? lobbyState.players[leaderSeat].userId : null;
+    const amLeader = (leaderSeat !== null && ((typeof mySeat === 'number' && mySeat === leaderSeat) || (leaderUserId && String(leaderUserId) === String(currentUser?.id))));
+
+    if (lobbyState?.canStartGame && amLeader) {
         startGameBtn.classList.remove('hidden');
     } else {
         startGameBtn.classList.add('hidden');
     }
+
     // Show Add Bot button for lobby leader on each empty seat
     const addBotSeatBtns = document.querySelectorAll('.add-bot-seat-btn');
-    console.log('Updating Add Bot buttons:', addBotSeatBtns.length);
+    // console.log('Updating Add Bot buttons:', addBotSeatBtns.length, 'amLeader:', amLeader, 'mySeat:', mySeat, 'leaderSeat:', leaderSeat);
     for (let btn of addBotSeatBtns) {
         const seat = parseInt(btn.getAttribute('data-add-bot-seat'));
-        if (lobbyState && mySeat === lobbyState.lobbyLeader && !lobbyState.players[seat]) {
+        if (lobbyState && amLeader && !lobbyState.players[seat]) {
             btn.classList.remove('hidden');
             btn.onclick = function(e) {
                 e.stopPropagation();
-                // socket.emit('add-bot', { seat });
                 socket.emit('add-bot', { seat: seat });
-                console.log('add-bot emited for seat:', seat);
+                console.log('add-bot emitted for seat:', seat);
             };
         } else {
             btn.classList.add('hidden');
