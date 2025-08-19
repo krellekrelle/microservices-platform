@@ -1251,12 +1251,14 @@ function returnToLobby() {
         endGameModal.classList.add('hidden');
     }
     
-    // Reset game state
+    // Mark end-game as shown to prevent re-triggering for this finished game
+    endGameShown = true;
+    
+    // Reset other game state (but keep endGameShown = true for this finished game)
     lobbyState = null;
     mySeat = null;
     isReady = false;
     hasPassed = false;
-    endGameShown = false; // Reset end-game animation flag
     window.selectedCards = [];
     previousTrickCards = [];
     

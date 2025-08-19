@@ -376,6 +376,9 @@ class GameManager {
 
     // Player management
     async joinLobby(userId, userName, profilePicture = null) {
+        // Clean up any finished games first
+        this.removeFinishedGames();
+        
         if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
             await this.createLobbyGame();
         }
