@@ -693,7 +693,8 @@ class GameManager {
             players: this.getPlayersState(game, forUserId),
             scores: {
                 round: game.getRoundScores(),
-                total: game.getTotalScores()
+                total: game.getTotalScores(),
+                historical: game.getHistoricalRounds()
             }
         };
     }

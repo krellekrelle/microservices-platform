@@ -50,6 +50,7 @@ class HeartsGame {
         this.tricksWon = new Map(); // seat -> tricks won this round
         this.roundScores = new Map(); // seat -> score this round
         this.totalScores = new Map(); // seat -> total game score
+        this.historicalRounds = []; // Array of round results: [{round: number, scores: {seat: score}}]
         
         this.createdAt = new Date();
         this.startedAt = null;
@@ -548,6 +549,16 @@ class HeartsGame {
             player.totalScore += player.roundScore;
         });
         
+        // Store historical round data
+        const roundScores = {};
+        this.players.forEach((player, seat) => {
+            roundScores[seat] = player.roundScore;
+        });
+        this.historicalRounds.push({
+            round: this.historicalRounds.length + 1,
+            scores: roundScores
+        });
+        
         // Check for game end
         const maxScore = Math.max(...Array.from(this.players.values()).map(p => p.totalScore));
         const gameEnded = maxScore >= 100;
@@ -662,6 +673,10 @@ class HeartsGame {
             scores[seat] = player.totalScore;
         });
         return scores;
+    }
+
+    getHistoricalRounds() {
+        return this.historicalRounds;
     }
 
     getNextPlayer() {

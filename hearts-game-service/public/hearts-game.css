@@ -785,69 +785,76 @@ body.game-paused .card-img {
     animation: trickWinAnimation 1s ease-out forwards;
 }
 
-/* Scoreboard Tooltip Styles */
-.scoreboard-row {
-    position: relative;
-    cursor: pointer;
-}
-
-.score-tooltip {
-    position: absolute;
-    left: 50%;
-    bottom: 100%;
-    transform: translateX(-50%);
-    background: rgba(20, 20, 20, 0.95);
-    color: #fff;
-    padding: 12px 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    min-width: 180px;
-    z-index: 2000;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
-    transform: translateX(-50%) translateY(5px);
-    margin-bottom: 8px;
-    backdrop-filter: blur(10px);
-}
-
-.scoreboard-row:hover .score-tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-}
-
-.tooltip-header {
-    font-weight: bold;
-    font-size: 0.9em;
-    margin-bottom: 8px;
-    text-align: center;
-    color: #ffeb3b;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 4px;
-}
-
-.tooltip-line {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
+/* Scoreboard Grid Layout */
+.scoreboard-header-row,
+.scoreboard-round-row,
+.scoreboard-total-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 2px;
     font-size: 0.85em;
 }
 
-.tooltip-line.tooltip-total {
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+.scoreboard-header-row {
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    color: #ffeb3b;
+}
+
+.scoreboard-total-row {
+    font-weight: bold;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
     padding-top: 4px;
     margin-top: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 2px;
+    border-radius: 4px;
+}
+
+.current-round {
+    color: #4caf50;
     font-weight: bold;
 }
 
-.score-value {
+.round-label {
     font-weight: bold;
+    text-align: left;
     color: #fff;
 }
 
-/* Ensure tooltip appears above game area */
+.player-header {
+    text-align: center;
+    font-size: 0.8em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.round-score,
+.total-score {
+    text-align: center;
+    font-weight: bold;
+}
+
+.total-score {
+    color: #fff;
+}
+
+/* Remove old tooltip styles - no longer needed */
+.scoreboard-row {
+    position: static;
+    cursor: default;
+}
+
+.score-tooltip {
+    display: none;
+}
+
+/* Ensure scoreboard appears above game area */
 #scoreboard {
     z-index: 2000;
 }

@@ -250,33 +250,42 @@ function initializeSocket() {
     function updateScoreboard() {
         const rowsDiv = document.getElementById('scoreboard-rows');
         if (!rowsDiv || !data.players) return;
-        let html = '';
+        
+        const historical = data.scores && data.scores.historical ? data.scores.historical : [];
+        
+        // Create header with player names
+        let html = '<div class="scoreboard-header-row">';
+        html += '<div class="round-label">Round</div>';
         for (let i = 0; i < 4; i++) {
             const player = data.players[i];
             let name = getPlayerFirstName(player, `Player ${i+1}`);
-            let totalScore = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
-            let roundScore = player && typeof player.roundScore === 'number' ? player.roundScore : 0;
-            let previousScore = totalScore - roundScore;
-            
-            // Create hover tooltip content showing score breakdown
-            let tooltipContent = `Previous: ${previousScore}`;
-            if (roundScore !== 0) {
-                tooltipContent += `\\nThis Round: ${roundScore}`;
-            }
-            tooltipContent += `\\nTotal: ${totalScore}`;
-            
-            html += `<div class="scoreboard-row" style="display:flex;justify-content:space-between;margin-bottom:4px;position:relative;" 
-                         title="${tooltipContent}">
-                <span>${name}</span>
-                <span style="font-weight:bold;">${totalScore}</span>
-                <div class="score-tooltip">
-                    <div class="tooltip-header">Score Breakdown</div>
-                    <div class="tooltip-line">Previous Score: <span class="score-value">${previousScore}</span></div>
-                    ${roundScore !== 0 ? `<div class="tooltip-line">This Round: <span class="score-value">${roundScore}</span></div>` : ''}
-                    <div class="tooltip-line tooltip-total">Total Score: <span class="score-value">${totalScore}</span></div>
-                </div>
-            </div>`;
+            html += `<div class="player-header">${name}</div>`;
         }
+        html += '</div>';
+        
+        // Add historical rounds
+        if (historical.length > 0) {
+            historical.forEach((round) => {
+                html += '<div class="scoreboard-round-row">';
+                html += `<div class="round-label">R${round.round}</div>`;
+                for (let i = 0; i < 4; i++) {
+                    const roundPlayerScore = round.scores[i] || 0;
+                    html += `<div class="round-score">${roundPlayerScore}</div>`;
+                }
+                html += '</div>';
+            });
+        }
+        
+        // Add total scores row
+        html += '<div class="scoreboard-total-row">';
+        html += '<div class="round-label">Total</div>';
+        for (let i = 0; i < 4; i++) {
+            const player = data.players[i];
+            const totalScore = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
+            html += `<div class="total-score">${totalScore}</div>`;
+        }
+        html += '</div>';
+        
         rowsDiv.innerHTML = html;
     }
     updateScoreboard();
@@ -348,6 +357,8 @@ function initializeSocket() {
             if (data.state === 'playing') {
                 // Always render the trick from the authoritative server state
                 const serverTrick = data.currentTrickCards || [];
+                // Animate newly played cards before updating display
+                animateNewlyPlayedCard(serverTrick);
                 // Show live trick (winner may be undefined until trick completes)
                 showTrick(serverTrick, data.currentTrickWinner);
             } else {
@@ -407,6 +418,76 @@ function initializeSocket() {
     socket.io.on('error', (error) => {
         console.error('🚨 Socket.IO error:', error);
     });
+}
+
+// Track previous trick state for animation detection
+let previousTrickCards = [];
+
+// Animate newly played cards
+function animateNewlyPlayedCard(newTrickCards) {
+    if (!window.cardAnimationManager) return;
+    
+    // Find newly played cards by comparing with previous state
+    const previousCardIds = previousTrickCards.map(card => `${card.seat}-${card.card}`);
+    const newlyPlayed = newTrickCards.filter(card => {
+        const cardId = `${card.seat}-${card.card}`;
+        return !previousCardIds.includes(cardId);
+    });
+    
+    // Animate each newly played card
+    newlyPlayed.forEach(play => {
+        // Create a temporary card element for animation
+        const tempCard = document.createElement('img');
+        tempCard.src = getCardImageUrl(play.card);
+        tempCard.className = 'card-img playing temp-animation-card';
+        tempCard.style.position = 'fixed';
+        tempCard.style.width = '60px';
+        tempCard.style.height = '90px';
+        tempCard.style.zIndex = '9999';
+        tempCard.style.pointerEvents = 'none';
+        
+        // Position the card based on the seat that played it
+        let startPosition;
+        if (play.seat === mySeat) {
+            // From player's hand at bottom
+            startPosition = { left: '50%', top: '85%' };
+        } else {
+            // From opponent positions - seatOrder: [bottom, left, top, right] matching UI layout
+            // UI layout: [mySeat, (mySeat+1)%4, (mySeat+2)%4, (mySeat+3)%4] maps to [bottom, left, top, right]
+            const seatOrder = [mySeat, (mySeat+1)%4, (mySeat+2)%4, (mySeat+3)%4];
+            const seatIndex = seatOrder.indexOf(play.seat);
+            switch(seatIndex) {
+                case 1: startPosition = { left: '15%', top: '50%' }; break; // left opponent
+                case 2: startPosition = { left: '50%', top: '15%' }; break; // top opponent  
+                case 3: startPosition = { left: '85%', top: '50%' }; break; // right opponent
+                default: startPosition = { left: '50%', top: '85%' }; break; // fallback to bottom
+            }
+        }
+        
+        tempCard.style.left = startPosition.left;
+        tempCard.style.top = startPosition.top;
+        tempCard.style.transform = 'translate(-50%, -50%)';
+        
+        document.body.appendChild(tempCard);
+        
+        // Trigger animation and remove after completion
+        setTimeout(() => {
+            tempCard.style.transition = 'all 0.4s ease-out';
+            tempCard.style.left = '50%';
+            tempCard.style.top = '50%';
+            tempCard.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            tempCard.style.opacity = '0.8';
+            
+            setTimeout(() => {
+                if (tempCard.parentNode) {
+                    tempCard.parentNode.removeChild(tempCard);
+                }
+            }, 400);
+        }, 50);
+    });
+    
+    // Update previous state
+    previousTrickCards = [...newTrickCards];
 }
 
 // Show the current trick in the trick area
