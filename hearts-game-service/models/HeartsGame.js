@@ -23,11 +23,7 @@ class HeartsGame {
             profilePicture: null
         };
 
-        console.log('[DEBUG] Adding bot player:', player);
         this.players.set(seat, player);
-        // if (this.lobbyLeader === null) {
-        //     this.lobbyLeader = seat;
-        // }
         return player;
     }
 
@@ -195,7 +191,6 @@ class HeartsGame {
     }
 
     sortHand(hand) {
-        // const suitOrder = { 'C': 0, 'D': 1, 'H': 2, 'S': 3 };
         const suitOrder = { 'H': 0, 'S': 1, 'D': 2, 'C': 3 };
         const rankOrder = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, 
                            '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
@@ -458,7 +453,6 @@ class HeartsGame {
     }
 
     completeTrick() {
-        console.log('Completed trick!');
         const winner = this.findTrickWinner();
         const points = this.calculateTrickPoints();
         
@@ -485,7 +479,6 @@ class HeartsGame {
         
         // Check if round is complete
         if (this.currentTrick === 13) {
-            console.log('all trcks played')
             return this.completeRound(completedTrick, winner, points);
         }
         
@@ -529,7 +522,6 @@ class HeartsGame {
     }
 
     completeRound(lastTrick, lastWinner, lastPoints) {
-        console.log("completed a round!")
         // Check for shooting the moon
         const moonShooter = this.checkShootingMoon();
         
@@ -594,7 +586,6 @@ class HeartsGame {
     }
 
     startNextRound() {
-        console.log("Starting new round")
         this.currentRound++;
         this.currentTrick = 0;
         this.heartsBroken = false;

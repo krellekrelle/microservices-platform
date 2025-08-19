@@ -217,9 +217,6 @@ class CardAnimationManager {
 
 // Initialize socket connection
 function initializeSocket() {
-    console.log('🚀 Initializing Socket.IO connection...');
-    console.log('🌍 Connecting to:', window.location.origin);
-    console.log('🍪 Document.cookie:', document.cookie);
     // Connect using the current path context (within /hearts/)
     socket = io({
         withCredentials: true,
@@ -227,8 +224,6 @@ function initializeSocket() {
         path: '/hearts/socket.io/'
     });
     socket.on('connect', () => {
-        console.log('✅ Connected to server successfully');
-        console.log('🆔 Socket ID:', socket.id);
         updateConnectionStatus(true);
         socket.emit('join-lobby');
     });
@@ -237,7 +232,6 @@ function initializeSocket() {
         updateConnectionStatus(false);
     });
     socket.on('lobby-updated', (data) => {
-        console.log('🏠 Lobby updated:', data);
         // Reset end-game flag when returning to lobby state
         if (data.state === 'lobby') {
             endGameShown = false;
@@ -245,7 +239,6 @@ function initializeSocket() {
         updateLobbyDisplay(data);
     });
     socket.on('game-started', (data) => {
-        console.log('🎮 Game started:', data);
         endGameShown = false; // Reset end-game animation flag for new game
         showGameSection();
     });
@@ -296,7 +289,6 @@ function initializeSocket() {
     }
     updateScoreboard();
         ensureGameSectionVisible();
-        console.log('🎲 Game state update:', data);
         lobbyState = data;
         
         // Determine mySeat from game state data (important for reconnecting players)
@@ -335,7 +327,6 @@ function initializeSocket() {
                 if (passArrowContainer) {
                     // Determine direction: left, right, up
                     let direction = 'left';
-                    console.log("[DEBUG] Passing direction:", data.passDirection);
                     if (data.passDirection === 'right') direction = 'right';
                     if (data.passDirection === 'across') direction = 'up';
                     let arrowSrc = `/hearts/icons/${direction}-arrow.svg`;
@@ -346,15 +337,12 @@ function initializeSocket() {
                     if (arrowImg) {
                         arrowImg.onclick = function() {
                             let disabled2 = !(window.selectedCards && window.selectedCards.length === 3);
-                            console.log("[DEBUG] Pass arrow clicked. Selected cards:", window.selectedCards, "length:", window.selectedCards.length);
-                            console.log("[DEBUG] Has passed:", hasPassed, 'disabled:', disabled2);
                             if (!disabled2 && !hasPassed) passSelectedCards();
                         };
                     }
             }
             if (trickArea) trickArea.classList.add('hidden');
             } else if (data.state === 'playing') {
-                console.log('game stat playing. Clearing selected cards');
                 window.selectedCards = [];
                 if (passArrowContainer) passArrowContainer.classList.add('hidden');
                 if (trickArea) trickArea.classList.remove('hidden');
@@ -387,7 +375,6 @@ function initializeSocket() {
     // Listen for trick-completed event (log only; UI is driven by 'game-state')
     socket.on('trick-completed', (data) => {
         // Display completed trick for a short TTL so users reliably see it.
-        console.log('[DEBUG] trick-completed received:', data);
         if (!data || !data.trickCards) return;
         
         // Trigger trick completion animation

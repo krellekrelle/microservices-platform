@@ -4,7 +4,6 @@ const db = require('../db/database');
 class GameManager {
     // Add a bot to a seat in the lobby
     async addBotToSeat(seat) {
-        console.log(`Adding bot to seat ${seat} in lobby game ${this.lobbyGame?.id}`);
         if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
             return { error: 'No lobby available' };
         }
@@ -29,7 +28,6 @@ class GameManager {
 
     // Remove a bot from a seat in the lobby
     async removeBotFromSeat(seat) {
-        console.log(`Removing bot from seat ${seat} in lobby game ${this.lobbyGame?.id}`);
         if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
             return { error: 'No lobby available' };
         }
@@ -54,9 +52,8 @@ class GameManager {
         const player = this.lobbyGame.players.get(seat);
         if (!player || !player.hand || player.hand.length < 3) return;
         // Pick 3 random cards
-    const shuffled = [...player.hand].sort(() => Math.random() - 0.5);
-    const cards = shuffled.slice(0, 3);
-    console.log('[DEBUG] botPassCards chosen for seat', seat, ':', cards, 'hand size:', player.hand.length);
+        const shuffled = [...player.hand].sort(() => Math.random() - 0.5);
+        const cards = shuffled.slice(0, 3);
         // Use HeartsGame.passCards to perform selection and get result
         const result = this.lobbyGame.passCards(seat, cards);
         return {
@@ -69,10 +66,8 @@ class GameManager {
     async botPlayCard(seat) {
         const player = this.lobbyGame.players.get(seat);
         if (!player || !player.hand || player.hand.length === 0) return;
-    console.log('[DEBUG] botPlayCard invoked for seat', seat, 'hand:', player.hand.slice());
         // Determine valid cards
         const validCards = player.hand.filter(card => this.lobbyGame.isValidPlay(seat, card));
-    console.log('[DEBUG] botPlayCard validCards for seat', seat, ':', validCards);
         if (validCards.length === 0) return;
         // Try to follow suit
         let cardToPlay = null;
@@ -108,13 +103,10 @@ class GameManager {
             }
         }
         if (!cardToPlay) {
-            console.log('[DEBUG] botPlayCard could not determine card to play for seat', seat);
             return;
         }
-        console.log('[DEBUG] botPlayCard seat', seat, 'plays', cardToPlay);
         // Use existing playCard logic and return the result so caller (socketHandler) can emit events
         const playResult = this.lobbyGame.playCard(seat, cardToPlay);
-        console.log('[DEBUG] botPlayCard playResult for seat', seat, ':', playResult);
         return {
             seat,
             card: cardToPlay,
