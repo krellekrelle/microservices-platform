@@ -19,7 +19,8 @@ class HeartsGame {
             hand: [],
             totalScore: 0,
             roundScore: 0,
-            isBot: true
+            isBot: true,
+            profilePicture: null
         };
 
         console.log('[DEBUG] Adding bot player:', player);
@@ -81,7 +82,8 @@ class HeartsGame {
             hand: [],
             totalScore: 0,
             roundScore: 0,
-            isBot: false
+            isBot: false,
+            profilePicture: null
         };
         
         this.players.set(seat, player);

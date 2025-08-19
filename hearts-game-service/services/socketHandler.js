@@ -211,8 +211,9 @@ class SocketHandler {
         try {
             const userId = socket.user.id;
             const userName = socket.user.name || socket.user.email;
+            const profilePicture = socket.user.profilePicture || null;
 
-            const result = await gameManager.joinLobby(userId, userName);
+            const result = await gameManager.joinLobby(userId, userName, profilePicture);
             
             socket.join(`lobby-${result.gameId}`);
             
@@ -270,13 +271,14 @@ class SocketHandler {
         try {
             const userId = socket.user.id;
             const userName = socket.user.name || socket.user.email;
+            const profilePicture = socket.user.profilePicture || null;
             const seat = parseInt(data.seat);
 
             if (isNaN(seat) || seat < 0 || seat > 3) {
                 throw new Error('Invalid seat number');
             }
 
-            const result = await gameManager.takeSeat(userId, userName, seat);
+            const result = await gameManager.takeSeat(userId, userName, seat, profilePicture);
             socket.join(`lobby-${result.lobbyState.gameId}`);
             this.io.to(`lobby-${result.lobbyState.gameId}`).emit('lobby-updated', result.lobbyState);
             // Prevent taking bot seat

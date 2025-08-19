@@ -21,6 +21,171 @@ function getPlayerFirstName(player, fallback) {
     return String(name).split(' ')[0];
 }
 
+// Avatar utility functions
+function getInitials(name) {
+    if (!name) return '?';
+    const words = name.trim().split(' ');
+    if (words.length === 1) return words[0].charAt(0).toUpperCase();
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+}
+
+function generateAvatarColor(userId) {
+    // Generate a consistent color based on user ID
+    const colors = [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+        '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA'
+    ];
+    const hash = String(userId).split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+    }, 0);
+    return colors[Math.abs(hash) % colors.length];
+}
+
+function renderPlayerAvatar(player, size = 'medium') {
+    const firstName = getPlayerFirstName(player);
+    const initials = getInitials(player.userName || player.name || '');
+    const avatarColor = generateAvatarColor(player.userId);
+    const profilePicture = player.profilePicture || (currentUser && String(player.userId) === String(currentUser.id) ? currentUser.profilePicture : null);
+    
+    const sizeClass = size === 'large' ? 'avatar-large' : size === 'small' ? 'avatar-small' : 'avatar-medium';
+    
+    return `
+        <div class="player-avatar-container">
+            <div class="player-avatar ${sizeClass}">
+                <img src="${profilePicture || ''}" 
+                     alt="${firstName}" 
+                     class="avatar-image"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="avatar-fallback" style="background-color: ${avatarColor}">
+                    ${initials}
+                </div>
+            </div>
+            <div class="player-name">${firstName}</div>
+        </div>
+    `;
+}
+
+function renderOpponentHand(handSize) {
+    if (!handSize || handSize === 0) {
+        return '<div class="opponent-hand"><div class="hand-count">No cards</div></div>';
+    }
+    
+    const maxCards = Math.min(handSize, 13);
+    const cards = Array.from({length: maxCards}, (_, i) => {
+        const offsetX = i * 3; // Slight stagger
+        const rotation = (Math.random() - 0.5) * 6; // Small random rotation
+        return `<div class="card-back" style="transform: translateX(${offsetX}px) rotate(${rotation}deg)">
+                    <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Card back" class="card-back-image">
+                </div>`;
+    }).join('');
+    
+    return `
+        <div class="opponent-hand">
+            <div class="hand-cards-container">${cards}</div>
+            <div class="hand-count">${handSize} cards</div>
+        </div>
+    `;
+}
+
+function renderTricksWon(tricksWon) {
+    if (!tricksWon || tricksWon === 0) {
+        return '<div class="tricks-won-container"><div class="tricks-count">0 tricks</div></div>';
+    }
+    
+    const maxTricks = Math.min(tricksWon, 13);
+    const tricks = Array.from({length: maxTricks}, (_, i) => {
+        const offsetY = i * 2; // Stack vertically
+        const rotation = (Math.random() - 0.5) * 4; // Small random rotation
+        return `<div class="trick-card" style="transform: translateY(-${offsetY}px) rotate(${rotation}deg)">
+                    <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Trick" class="trick-card-image">
+                </div>`;
+    }).join('');
+    
+    return `
+        <div class="tricks-won-container">
+            <div class="trick-stack">${tricks}</div>
+            <div class="tricks-count">${tricksWon} tricks</div>
+        </div>
+    `;
+}
+
+// Card Animation System
+class CardAnimationManager {
+    static animationQueue = [];
+    static isProcessing = false;
+
+    static async addAnimation(animationFunction) {
+        this.animationQueue.push(animationFunction);
+        if (!this.isProcessing) {
+            this.isProcessing = true;
+            while (this.animationQueue.length > 0) {
+                const animation = this.animationQueue.shift();
+                try {
+                    await animation();
+                } catch (error) {
+                    console.error('Animation error:', error);
+                }
+            }
+            this.isProcessing = false;
+        }
+    }
+
+    static animateCardPlay(cardElement, fromPosition, toPosition, duration = 600) {
+        return new Promise((resolve) => {
+            if (!cardElement) {
+                resolve();
+                return;
+            }
+
+            const animation = cardElement.animate([
+                {
+                    transform: `translate(${fromPosition.x}px, ${fromPosition.y}px) scale(1)`,
+                    zIndex: 1,
+                    opacity: 1
+                },
+                {
+                    transform: `translate(${toPosition.x}px, ${toPosition.y}px) scale(0.9)`,
+                    zIndex: 10,
+                    opacity: 0.8
+                }
+            ], {
+                duration,
+                easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                fill: 'forwards'
+            });
+            
+            animation.onfinish = () => resolve();
+            animation.oncancel = () => resolve();
+        });
+    }
+
+    static async animateCardToTrick(card) {
+        const cardElement = document.querySelector(`[data-card="${card}"]`);
+        if (!cardElement) return;
+
+        const trickArea = document.getElementById('trick-area');
+        if (!trickArea) return;
+
+        // Get positions
+        const cardRect = cardElement.getBoundingClientRect();
+        const trickRect = trickArea.getBoundingClientRect();
+        
+        // Calculate relative positions
+        const fromPosition = {
+            x: 0, // Start from current position
+            y: 0
+        };
+        
+        const toPosition = {
+            x: trickRect.left - cardRect.left + (trickRect.width / 2) - (cardRect.width / 2),
+            y: trickRect.top - cardRect.top + (trickRect.height / 2) - (cardRect.height / 2)
+        };
+
+        await this.animateCardPlay(cardElement, fromPosition, toPosition, 600);
+    }
+}
+
 // Initialize socket connection
 function initializeSocket() {
     console.log('🚀 Initializing Socket.IO connection...');
@@ -156,6 +321,12 @@ function initializeSocket() {
         // Display completed trick for a short TTL so users reliably see it.
         console.log('[DEBUG] trick-completed received:', data);
         if (!data || !data.trickCards) return;
+        
+        // Trigger trick completion animation
+        if (window.cardAnimationManager) {
+            window.cardAnimationManager.animateTrickCompletion(data.winner);
+        }
+        
         // Render the trick from payload immediately (won't conflict with subsequent game-state which
         // will be delayed by the server). This is a lightweight visual aid.
         try {
@@ -337,13 +508,22 @@ function showHand(hand) {
             if (!cell) continue;
             const isTurn = lobbyState.currentTurnSeat === seatIdx;
             if (i === 0) {
-                // My seat (bottom): show hand
+                // My seat (bottom): show avatar, hand, and tricks
                 if (!hand || !Array.isArray(hand) || hand.length === 0) {
                     cell.innerHTML = '<em>No cards dealt.</em>';
                 } else {
                     const name = getPlayerFirstName(player, 'You');
                     const highlightClass = isTurn ? 'player-name current-turn' : 'player-name';
-                    cell.innerHTML = `<div class="${highlightClass}" style="text-align:center;margin-bottom:6px;">${name}</div><div id="hand-cards" style="display:flex;justify-content:center;align-items:center;"></div>`;
+                    const tricksWon = lobbyState.tricksWon ? (lobbyState.tricksWon[seatIdx] || 0) : 0;
+                    
+                    cell.innerHTML = `
+                        <div class="my-player-info">
+                            ${renderPlayerAvatar(player, 'small')}
+                            ${renderTricksWon(tricksWon)}
+                        </div>
+                        <div id="hand-cards" style="display:flex;justify-content:center;align-items:center;margin-top:8px;"></div>
+                    `;
+                    
                     const handCardsDiv = cell.querySelector('#hand-cards');
                     handCardsDiv.innerHTML = hand.map(card => {
                         const isSelected = window.selectedCards && window.selectedCards.includes(card);
@@ -354,12 +534,17 @@ function showHand(hand) {
                     }).join('');
                 }
             } else {
-                // Other players: show only the player's name (first name or Player N)
+                // Other players: show avatar, hand visualization, and tricks won
                 const name = getPlayerFirstName(player, player ? `Player ${seatIdx+1}` : 'Empty');
                 const highlightClass = isTurn ? 'opponent-name current-turn' : 'opponent-name';
+                const handSize = player && player.hand ? player.hand.length : (player && player.handSize ? player.handSize : 0);
+                const tricksWon = lobbyState.tricksWon ? (lobbyState.tricksWon[seatIdx] || 0) : 0;
+                
                 cell.innerHTML = `
                     <div class="opponent-info${isTurn?' current-turn':''}">
-                        <div class="${highlightClass}">${name}</div>
+                        ${renderPlayerAvatar(player, 'small')}
+                        ${renderOpponentHand(handSize)}
+                        ${renderTricksWon(tricksWon)}
                     </div>
                 `;
             }
@@ -389,6 +574,13 @@ function playCard(card) {
             img.style.pointerEvents = 'none';
         });
     }
+
+    // Trigger card play animation
+    const cardElement = document.querySelector(`#hand-cards img[data-card="${card}"]`);
+    if (cardElement && window.cardAnimationManager) {
+        window.cardAnimationManager.animateCardPlay(cardElement, mySeat);
+    }
+
     fetch('/hearts/play-card', {
         method: 'POST',
         headers: {
@@ -575,10 +767,11 @@ function updateLobbyDisplay(state) {
             const firstName = player.userName ? player.userName.split(' ')[0] : `Player ${seatNumberMap[seat]}`;
             // Show Remove Bot button for lobby leader if this is a bot (icon-only, round)
             const removeBotBtn = (player.isBot && amLeader) ? `<button class="btn small danger remove-bot-btn" data-remove-bot-seat="${seat}" aria-label="Remove bot">✖</button>` : '';
+            
             seatEl.innerHTML = `
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
-                    <div class="seat-player">${firstName}</div>
+                    ${renderPlayerAvatar(player, 'medium')}
                     <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                         ${player.isReady ? 'Ready' : 'Not Ready'}
                     </div>
@@ -828,6 +1021,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initializeSocket();
     window.selectedCards = [];
+
+    // Initialize card animation manager
+    window.cardAnimationManager = new CardAnimationManager();
 
     // History modal wiring
     const toggleHistoryBtn = document.getElementById('toggle-history-btn');

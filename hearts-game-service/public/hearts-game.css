@@ -137,7 +137,7 @@ body {
     grid-template-columns: 1fr 1fr 1fr;
     /* grid-template-rows: 1fr 1fr auto; */
     grid-template-rows: 1fr 1fr 1fr;
-    gap: 9rem 10rem;
+    gap: 1rem 1rem;
     margin: 0;
     max-width: 1000px;
     min-height: 400px;
@@ -367,6 +367,40 @@ body {
         padding: 0.6rem 1rem;
         font-size: 0.95rem;
     }
+    
+    /* Mobile game layout adjustments */
+    .game-seats-container {
+        gap: 4rem 6rem; /* Reduce spacing on mobile */
+    }
+    
+    .player-avatar.avatar-large { width: 36px; height: 36px; }
+    .player-avatar.avatar-medium { width: 32px; height: 32px; }
+    .player-avatar.avatar-small { width: 28px; height: 28px; }
+    
+    .card-back-image { 
+        width: 20px; 
+        height: 28px; 
+    }
+    
+    .trick-card-image { 
+        width: 14px; 
+        height: 20px; 
+    }
+    
+    .game-seat {
+        min-width: 80px;
+        min-height: 100px;
+        padding: 6px;
+    }
+    
+    .opponent-info {
+        padding: 6px;
+        gap: 4px;
+    }
+    
+    .my-player-info {
+        gap: 8px;
+    }
 }
 .hidden {
     display: none;
@@ -388,6 +422,192 @@ body {
 .invisible {
     visibility: hidden;
     pointer-events: none;
+}
+
+/* Toast / snackbar container (non-blocking notifications) */
+.toast-container {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+}
+
+/* Game seat layout adjustments */
+.game-seat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    min-width: 100px;
+    padding: 8px;
+    text-align: center;
+}
+
+.my-player-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.opponent-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.opponent-info.current-turn {
+    background: rgba(255, 235, 59, 0.15);
+    border-color: rgba(255, 235, 59, 0.3);
+    box-shadow: 0 0 8px rgba(255, 235, 59, 0.4);
+}
+
+/* Player Avatar System */
+.player-avatar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.player-avatar {
+    position: relative;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.avatar-large {
+    width: 48px;
+    height: 48px;
+}
+
+.avatar-medium {
+    width: 40px;
+    height: 40px;
+}
+
+.avatar-small {
+    width: 36px;
+    height: 36px;
+}
+
+.avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.avatar-fallback {
+    display: none; /* Show only on image error */
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.avatar-small .avatar-fallback {
+    font-size: 14px;
+}
+
+.avatar-large .avatar-fallback {
+    font-size: 18px;
+}
+
+.player-name {
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+/* Opponent Hand Visualization */
+.opponent-hand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0;
+}
+
+.hand-cards-container {
+    position: relative;
+    height: 32px; /* Compact height for stacked cards */
+    width: 48px;  /* Based on card width */
+}
+
+.card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: transform 0.3s ease;
+}
+
+.card-back-image {
+    width: 24px;   /* Smaller than player's hand */
+    height: 32px;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.hand-count {
+    font-size: 10px;
+    opacity: 0.8;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+/* Tricks Won Visualization */
+.tricks-won-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 4px 0;
+}
+
+.trick-stack {
+    position: relative;
+    height: 24px; /* Compact for stacked display */
+    width: 16px;
+}
+
+.trick-card {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+}
+
+.trick-card-image {
+    width: 16px;
+    height: 22px;
+    border-radius: 1px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.tricks-count {
+    font-size: 9px;
+    opacity: 0.7;
+    font-weight: 500;
 }
 
 /* Toast / snackbar container (non-blocking notifications) */
@@ -502,3 +722,59 @@ body.game-paused .card-img {
 }
 #paused-banner { opacity: 0; transition: opacity 180ms ease; }
 #paused-banner.show { opacity: 1; }
+
+/* Card Animation Styles */
+@keyframes cardPlayAnimation {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: translateY(-20px) scale(1.1);
+        opacity: 0.9;
+    }
+    100% {
+        transform: translateY(-40px) scale(1);
+        opacity: 0.7;
+    }
+}
+
+@keyframes trickWinAnimation {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    25% {
+        transform: scale(1.1);
+        opacity: 0.9;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+    75% {
+        transform: scale(1.1);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+}
+
+.card-img {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-img:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.card-img.playing {
+    animation: cardPlayAnimation 0.6s ease-out forwards;
+}
+
+.trick-area .card-img.winning {
+    animation: trickWinAnimation 1s ease-out forwards;
+}

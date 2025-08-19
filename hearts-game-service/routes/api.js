@@ -11,7 +11,8 @@ router.get('/user', (req, res) => {
             id: req.user.id,
             name: req.user.name,
             email: req.user.email,
-            status: req.user.status
+            status: req.user.status,
+            profilePicture: req.user.profilePicture || null
         }
     });
 });

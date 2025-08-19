@@ -375,7 +375,7 @@ class GameManager {
     }
 
     // Player management
-    async joinLobby(userId, userName) {
+    async joinLobby(userId, userName, profilePicture = null) {
         if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
             await this.createLobbyGame();
         }
@@ -389,8 +389,9 @@ class GameManager {
                 // Find seat if present
                 for (const [seat, player] of existingGame.players) {
                     if (player.userId === userId) {
-                        // Mark connected
+                        // Mark connected and update profile picture if provided
                         player.isConnected = true;
+                        if (profilePicture) player.profilePicture = profilePicture;
                         // If the existing game is still a lobby, return lobby state
                         if (existingGame.state === 'lobby') {
                             return {
@@ -452,13 +453,14 @@ class GameManager {
         };
     }
 
-    async takeSeat(userId, userName, seat) {
+    async takeSeat(userId, userName, seat, profilePicture = null) {
         if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
             throw new Error('No lobby available');
         }
 
         try {
             const player = this.lobbyGame.addPlayer(userId, userName, seat);
+            if (profilePicture) player.profilePicture = profilePicture;
             
             // Save to database
             await db.query(
