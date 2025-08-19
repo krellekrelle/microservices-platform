@@ -73,7 +73,7 @@ function renderOpponentHand(handSize) {
     
     const maxCards = Math.min(handSize, 13);
     const totalSpread = (maxCards - 1) * 9; // Total width of the spread
-    const startOffset = -totalSpread / 2 - 20; // Start offset to center the group, adjusted left by ~2 cards
+    const startOffset = -totalSpread / 2 - 22; // Start offset to center the group, adjusted left by ~2 cards
     
     const cards = Array.from({length: maxCards}, (_, i) => {
         const offsetX = startOffset + (i * 9); // Position relative to center
@@ -254,10 +254,27 @@ function initializeSocket() {
         for (let i = 0; i < 4; i++) {
             const player = data.players[i];
             let name = getPlayerFirstName(player, `Player ${i+1}`);
-            let score = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
-            html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            let totalScore = player && typeof player.totalScore === 'number' ? player.totalScore : 0;
+            let roundScore = player && typeof player.roundScore === 'number' ? player.roundScore : 0;
+            let previousScore = totalScore - roundScore;
+            
+            // Create hover tooltip content showing score breakdown
+            let tooltipContent = `Previous: ${previousScore}`;
+            if (roundScore !== 0) {
+                tooltipContent += `\\nThis Round: ${roundScore}`;
+            }
+            tooltipContent += `\\nTotal: ${totalScore}`;
+            
+            html += `<div class="scoreboard-row" style="display:flex;justify-content:space-between;margin-bottom:4px;position:relative;" 
+                         title="${tooltipContent}">
                 <span>${name}</span>
-                <span style="font-weight:bold;">${score}</span>
+                <span style="font-weight:bold;">${totalScore}</span>
+                <div class="score-tooltip">
+                    <div class="tooltip-header">Score Breakdown</div>
+                    <div class="tooltip-line">Previous Score: <span class="score-value">${previousScore}</span></div>
+                    ${roundScore !== 0 ? `<div class="tooltip-line">This Round: <span class="score-value">${roundScore}</span></div>` : ''}
+                    <div class="tooltip-line tooltip-total">Total Score: <span class="score-value">${totalScore}</span></div>
+                </div>
             </div>`;
         }
         rowsDiv.innerHTML = html;
