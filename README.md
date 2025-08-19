@@ -1,11 +1,13 @@
-## Hearts Game Service: Card Play Endpoint & Backend Logic
+## Hearts Game Service: Real-time Multiplayer Hearts Card Game
 
-- The `/hearts/play-card` HTTP endpoint now uses the same backend logic as the socket.io `play-card` event.
-- When a card is played via HTTP, the backend simulates a socket event for the user and calls the shared handler (`handlePlayCard`).
-- After a valid play, the backend emits personalized `game-state` events to all connected players (each player only sees their own hand)
-- The HTTP response is `{ success: true }` or an error; all real-time updates are delivered via socket.io.
+- **Complete Hearts Implementation**: Fully functional Hearts card game with standard rules, card passing, trick-taking, and scoring
+- **Real-time Multiplayer**: Socket.IO-based gameplay with lobby system, seat management, and live game state synchronization  
+- **AI Bot Integration**: Server-side bots that can be added to empty seats, with automatic card passing and playing strategies
+- **Dual Interface Support**: Both Socket.IO real-time events and HTTP endpoints for card playing actions
+- **Database Persistence**: Complete game tracking with tricks, rounds, scores, and historical game results
+- **Reconnection Handling**: Players can disconnect and reconnect to ongoing games with full state restoration
 
-This ensures all validation, state updates, and broadcasts are consistent for both HTTP and socket clients.
+The service provides both WebSocket (`play-card` event) and HTTP (`/hearts/play-card`) interfaces for maximum compatibility while ensuring all game logic, validation, and state management is handled server-side for integrity.
 # Microservices Platform
 
 A microservices-based application suite with Google OAuth authentication, PostgreSQL database, and comprehensive admin panel, designed for Raspberry Pi deployment with public HTTPS access via Tailscale.
@@ -79,14 +81,18 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 
 ## 🂡 Hearts Game Service (Port 3004)
 
-- **Real-time multiplayer Hearts card game** with lobby, seat management, and persistent game tracking
-- **Atomic Card Passing Phase**: Each player selects 3 cards and presses Pass Cards. The backend only exchanges cards and starts the playing round when all players have passed.
-- **Frontend**: The Pass Cards button is enabled only when 3 cards are selected. After passing, the button is disabled and a waiting message is shown. The hand is only updated after all players have passed and the backend starts the playing phase.
-- **Backend**: The backend saves each player's seat and selected cards. When all 4 players have passed, it updates all hands, clears the passing state, and starts the playing phase.
-- **Socket.IO**: Real-time updates for lobby, game state, and passing phase. All game actions are validated on the server.
-- **Security**: JWT authentication required. Only approved users can play.
+- **Complete Multiplayer Hearts Game** with lobby system, real-time gameplay, and comprehensive game state management
+- **Standard Hearts Rules**: 4-player card game with card passing (left/right/across/none), trick-taking, and traditional scoring
+- **AI Bot Support**: Server-side bots that can be added to empty lobby seats with automatic gameplay strategies
+- **Real-time Features**: Socket.IO-powered live updates for lobby changes, game progression, and player actions
+- **Dual API Support**: Both WebSocket events and HTTP endpoints for maximum client compatibility
+- **Database Persistence**: Complete game tracking including individual tricks, round scores, and historical results
+- **Reconnection Support**: Players can disconnect and rejoin games with full state restoration and game resumption
+- **Security**: JWT authentication required, server-side validation of all game actions
 
-See `hearts-game-service/DEVELOPMENT.md` for full technical details and development notes.
+Features include lobby management with 4 seats, ready states, game start controls, complete card passing phases with atomic synchronization, trick-by-trick gameplay with Hearts rule validation, scoring with "shooting the moon" detection, and comprehensive game completion with winner determination.
+
+See `hearts-game-service/DEVELOPMENT.md` for complete technical implementation details.
 
 Once approved, users have access to:
 
