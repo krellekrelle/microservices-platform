@@ -93,7 +93,7 @@ function renderOpponentHand(handSize) {
 
 function renderTricksWon(tricksWon) {
     if (!tricksWon || tricksWon === 0) {
-        return '<div class="tricks-won-container"><div class="tricks-count">0 tricks</div></div>';
+        // return '<div class="tricks-won-container"></div>';
     }
     
     const maxTricks = Math.min(tricksWon, 13);
@@ -108,7 +108,6 @@ function renderTricksWon(tricksWon) {
     return `
         <div class="tricks-won-container">
             <div class="trick-stack">${tricks}</div>
-            <div class="tricks-count">${tricksWon} tricks</div>
         </div>
     `;
 }
