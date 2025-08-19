@@ -389,7 +389,7 @@ body {
     
     .game-seat {
         min-width: 80px;
-        min-height: 100px;
+        min-height: 180px;
         padding: 6px;
     }
     
@@ -442,7 +442,7 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 120px;
-    min-width: 100px;
+    min-width: 180px;
     padding: 8px;
     text-align: center;
 }
@@ -464,6 +464,8 @@ body {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     transition: all 0.3s ease;
+    width: 180px; /* Match game-seat width */
+    min-width: 180px;
 }
 
 .opponent-info.current-turn {
@@ -551,8 +553,11 @@ body {
 
 .hand-cards-container {
     position: relative;
-    height: 32px; /* Compact height for stacked cards */
-    width: 48px;  /* Based on card width */
+    height: 64px; /* Match card height */
+    width: 180px; /* Match opponent-info width for proper centering */
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .card-back {
@@ -563,18 +568,18 @@ body {
 }
 
 .card-back-image {
-    width: 24px;   /* Smaller than player's hand */
-    height: 32px;
-    border-radius: 2px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    width: 48px;   /* Even larger size for better visibility */
+    height: 64px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-.hand-count {
+/* .hand-count {
     font-size: 10px;
     opacity: 0.8;
     margin-top: 2px;
     font-weight: 500;
-}
+} */
 
 /* Tricks Won Visualization */
 .tricks-won-container {

@@ -122,7 +122,7 @@ const playerAvatar = {
             <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Card back" class="card-back-image">
         </div>
     </div>
-    <div class="hand-count">{{handSize}} cards</div>
+    <!-- <div class="hand-count">{{handSize}} cards</div> -->
 </div>
 ```
 
@@ -372,7 +372,6 @@ function renderOpponentHand(handSize) {
     return `
         <div class="opponent-hand">
             <div class="hand-cards-container">${cards}</div>
-            <div class="hand-count">${handSize} cards</div>
         </div>
     `;
 }

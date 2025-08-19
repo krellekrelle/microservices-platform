@@ -68,12 +68,12 @@ function renderPlayerAvatar(player, size = 'medium') {
 
 function renderOpponentHand(handSize) {
     if (!handSize || handSize === 0) {
-        return '<div class="opponent-hand"><div class="hand-count">No cards</div></div>';
+        return '<div class="opponent-hand"></div>';
     }
     
     const maxCards = Math.min(handSize, 13);
     const cards = Array.from({length: maxCards}, (_, i) => {
-        const offsetX = i * 3; // Slight stagger
+        const offsetX = i * 9; // Simple spacing - CSS will handle centering
         const rotation = (Math.random() - 0.5) * 6; // Small random rotation
         return `<div class="card-back" style="transform: translateX(${offsetX}px) rotate(${rotation}deg)">
                     <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Card back" class="card-back-image">
@@ -83,7 +83,6 @@ function renderOpponentHand(handSize) {
     return `
         <div class="opponent-hand">
             <div class="hand-cards-container">${cards}</div>
-            <div class="hand-count">${handSize} cards</div>
         </div>
     `;
 }
@@ -112,10 +111,12 @@ function renderTricksWon(tricksWon) {
 
 // Card Animation System
 class CardAnimationManager {
-    static animationQueue = [];
-    static isProcessing = false;
+    constructor() {
+        this.animationQueue = [];
+        this.isProcessing = false;
+    }
 
-    static async addAnimation(animationFunction) {
+    async addAnimation(animationFunction) {
         this.animationQueue.push(animationFunction);
         if (!this.isProcessing) {
             this.isProcessing = true;
@@ -131,58 +132,82 @@ class CardAnimationManager {
         }
     }
 
-    static animateCardPlay(cardElement, fromPosition, toPosition, duration = 600) {
+    animateCardPlay(cardElement, fromSeat) {
         return new Promise((resolve) => {
             if (!cardElement) {
+                console.log('No card element found for animation');
                 resolve();
                 return;
             }
 
+            // Get positions
+            const fromRect = cardElement.getBoundingClientRect();
+            const trickArea = document.getElementById('trick-area');
+            if (!trickArea) {
+                console.log('No trick area found for animation');
+                resolve();
+                return;
+            }
+            const toRect = trickArea.getBoundingClientRect();
+
+            // Calculate center positions
+            const fromPosition = {
+                x: fromRect.left + fromRect.width / 2,
+                y: fromRect.top + fromRect.height / 2
+            };
+            const toPosition = {
+                x: toRect.left + toRect.width / 2,
+                y: toRect.top + toRect.height / 2
+            };
+
+            // Calculate relative movement
+            const deltaX = toPosition.x - fromPosition.x;
+            const deltaY = toPosition.y - fromPosition.y;
+
+            console.log('Animating card from', fromPosition, 'to', toPosition);
+
             const animation = cardElement.animate([
                 {
-                    transform: `translate(${fromPosition.x}px, ${fromPosition.y}px) scale(1)`,
+                    transform: `translate(0px, 0px) scale(1)`,
                     zIndex: 1,
                     opacity: 1
                 },
                 {
-                    transform: `translate(${toPosition.x}px, ${toPosition.y}px) scale(0.9)`,
+                    transform: `translate(${deltaX}px, ${deltaY}px) scale(0.9)`,
                     zIndex: 10,
                     opacity: 0.8
                 }
             ], {
-                duration,
+                duration: 600,
                 easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
                 fill: 'forwards'
             });
             
-            animation.onfinish = () => resolve();
-            animation.oncancel = () => resolve();
+            animation.onfinish = () => {
+                console.log('Card animation completed');
+                resolve();
+            };
+            animation.oncancel = () => {
+                console.log('Card animation cancelled');
+                resolve();
+            };
         });
     }
 
-    static async animateCardToTrick(card) {
-        const cardElement = document.querySelector(`[data-card="${card}"]`);
-        if (!cardElement) return;
-
+    animateTrickCompletion(winnerSeat) {
+        console.log('Animating trick completion for winner seat:', winnerSeat);
+        // For now, just a simple flash effect on the trick area
         const trickArea = document.getElementById('trick-area');
-        if (!trickArea) return;
-
-        // Get positions
-        const cardRect = cardElement.getBoundingClientRect();
-        const trickRect = trickArea.getBoundingClientRect();
-        
-        // Calculate relative positions
-        const fromPosition = {
-            x: 0, // Start from current position
-            y: 0
-        };
-        
-        const toPosition = {
-            x: trickRect.left - cardRect.left + (trickRect.width / 2) - (cardRect.width / 2),
-            y: trickRect.top - cardRect.top + (trickRect.height / 2) - (cardRect.height / 2)
-        };
-
-        await this.animateCardPlay(cardElement, fromPosition, toPosition, 600);
+        if (trickArea) {
+            trickArea.style.transition = 'all 0.3s ease';
+            trickArea.style.transform = 'scale(1.1)';
+            trickArea.style.filter = 'brightness(1.2)';
+            
+            setTimeout(() => {
+                trickArea.style.transform = 'scale(1)';
+                trickArea.style.filter = 'brightness(1)';
+            }, 300);
+        }
     }
 }
 
@@ -575,12 +600,6 @@ function playCard(card) {
         });
     }
 
-    // Trigger card play animation
-    const cardElement = document.querySelector(`#hand-cards img[data-card="${card}"]`);
-    if (cardElement && window.cardAnimationManager) {
-        window.cardAnimationManager.animateCardPlay(cardElement, mySeat);
-    }
-
     fetch('/hearts/play-card', {
         method: 'POST',
         headers: {
@@ -600,6 +619,15 @@ function playCard(card) {
                 });
             }
             return;
+        }
+        
+        // Trigger card play animation only after successful play
+        const cardElement = document.querySelector(`#hand-cards img[data-card="${card}"]`);
+        if (cardElement && window.cardAnimationManager) {
+            console.log('Starting card animation for valid play:', card);
+            window.cardAnimationManager.animateCardPlay(cardElement, mySeat).catch(error => {
+                console.error('Animation error:', error);
+            });
         }
     })
     .catch((err) => {

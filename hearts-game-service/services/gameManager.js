@@ -462,10 +462,10 @@ class GameManager {
             const player = this.lobbyGame.addPlayer(userId, userName, seat);
             if (profilePicture) player.profilePicture = profilePicture;
             
-            // Save to database
+            // Save to database (DEBUG: players are ready by default)
             await db.query(
                 'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected) VALUES ($1, $2, $3, $4, $5)',
-                [this.lobbyGame.id, userId, seat, false, true]
+                [this.lobbyGame.id, userId, seat, true, true]
             );
 
             // Update lobby leader in database if this is the first player

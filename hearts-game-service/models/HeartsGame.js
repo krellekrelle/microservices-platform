@@ -77,7 +77,7 @@ class HeartsGame {
             userId,
             userName,
             seat,
-            isReady: false,
+            isReady: true,  // DEBUG: players are ready by default
             isConnected: true,
             hand: [],
             totalScore: 0,
