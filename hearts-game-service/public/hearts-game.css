@@ -5,7 +5,7 @@
     border-radius: 8px;
     padding: 0.2em 0.7em;
     box-shadow: 0 0 8px 2px #ffeb3b66;
-    margin-bottom: 0.3em;
+    margin-bottom: 0em;
     transition: background 0.2s, color 0.2s;
 }
 /* hearts-game.css - extracted from index.html */
@@ -563,7 +563,7 @@ body {
 .card-back {
     position: absolute;
     top: 0;
-    left: 0;
+    left: 50%; /* Start from center of container */
     transition: transform 0.3s ease;
 }
 
@@ -592,14 +592,14 @@ body {
 
 .trick-stack {
     position: relative;
-    height: 24px; /* Compact for stacked display */
-    width: 16px;
+    height: 22px; /* Height of single card */
+    width: 60px; /* Wider to accommodate horizontal stacking */
 }
 
 .trick-card {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    top: 0;
+    left: 0; /* Will be offset by JavaScript for horizontal stacking */
 }
 
 .trick-card-image {

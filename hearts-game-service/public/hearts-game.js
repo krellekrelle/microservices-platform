@@ -72,8 +72,11 @@ function renderOpponentHand(handSize) {
     }
     
     const maxCards = Math.min(handSize, 13);
+    const totalSpread = (maxCards - 1) * 9; // Total width of the spread
+    const startOffset = -totalSpread / 2 - 20; // Start offset to center the group, adjusted left by ~2 cards
+    
     const cards = Array.from({length: maxCards}, (_, i) => {
-        const offsetX = i * 9; // Simple spacing - CSS will handle centering
+        const offsetX = startOffset + (i * 9); // Position relative to center
         const rotation = (Math.random() - 0.5) * 6; // Small random rotation
         return `<div class="card-back" style="transform: translateX(${offsetX}px) rotate(${rotation}deg)">
                     <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Card back" class="card-back-image">
@@ -94,9 +97,9 @@ function renderTricksWon(tricksWon) {
     
     const maxTricks = Math.min(tricksWon, 13);
     const tricks = Array.from({length: maxTricks}, (_, i) => {
-        const offsetY = i * 2; // Stack vertically
+        const offsetX = i * 4; // Stack horizontally to the right with larger spacing
         const rotation = (Math.random() - 0.5) * 4; // Small random rotation
-        return `<div class="trick-card" style="transform: translateY(-${offsetY}px) rotate(${rotation}deg)">
+        return `<div class="trick-card" style="transform: translateX(${offsetX}px) rotate(${rotation}deg)">
                     <img src="/hearts/bridge3-box-qr-Large/2B.svg" alt="Trick" class="trick-card-image">
                 </div>`;
     }).join('');

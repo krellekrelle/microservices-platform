@@ -689,6 +689,7 @@ class GameManager {
             trickLeader: game.trickLeader,
             currentTrickCards: game.currentTrickCards,
             currentTurnSeat,
+            tricksWon: Object.fromEntries(game.tricksWon), // Convert Map to object for frontend
             players: this.getPlayersState(game, forUserId),
             scores: {
                 round: game.getRoundScores(),
