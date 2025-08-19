@@ -127,6 +127,35 @@
                     </div>
                 </div>
             </div>
+
+            <!-- End Game Animation Overlay -->
+            <div id="end-game-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="end-game-title">
+                <div id="end-game-modal-backdrop"></div>
+                <div id="end-game-modal-content" role="document" tabindex="-1">
+                    <div class="end-game-animation">
+                        <!-- Confetti Animation -->
+                        <div id="confetti-container"></div>
+                        
+                        <!-- Winner Announcement -->
+                        <div class="winner-announcement">
+                            <div class="trophy-icon">🏆</div>
+                            <h2 id="end-game-title" class="winner-title">Game Complete!</h2>
+                            <div id="winner-name" class="winner-name"></div>
+                        </div>
+                        
+                        <!-- Player Rankings -->
+                        <div class="player-rankings">
+                            <h3 class="rankings-title">Final Rankings</h3>
+                            <div id="rankings-list" class="rankings-list"></div>
+                        </div>
+                        
+                        <!-- Return Button -->
+                        <div class="end-game-actions">
+                            <button id="return-to-lobby-btn" class="btn primary large">Return to Lobby</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

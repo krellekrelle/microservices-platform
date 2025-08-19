@@ -12,6 +12,7 @@ let mySeat = null;
 let isReady = false;
 let lobbyState = null;
 let hasPassed = false;
+let endGameShown = false; // Track if end-game animation has been shown for current game
 
 // Helper to extract a player's first name from several possible fields
 function getPlayerFirstName(player, fallback) {
@@ -237,10 +238,15 @@ function initializeSocket() {
     });
     socket.on('lobby-updated', (data) => {
         console.log('🏠 Lobby updated:', data);
+        // Reset end-game flag when returning to lobby state
+        if (data.state === 'lobby') {
+            endGameShown = false;
+        }
         updateLobbyDisplay(data);
     });
     socket.on('game-started', (data) => {
         console.log('🎮 Game started:', data);
+        endGameShown = false; // Reset end-game animation flag for new game
         showGameSection();
     });
     // cards-dealt event is no longer needed; hand is always included in game-state
@@ -370,6 +376,12 @@ function initializeSocket() {
         // Hide trick area in other phases
         showTrick([]);
         // updateGameStateLabel();
+    }
+    
+    // Check for game end and show end-game animation (only once per game)
+    if (data.state === 'finished' && !endGameShown) {
+        endGameShown = true;
+        showEndGameAnimation(data);
     }
 }); // End socket.on('game-state')
     // Listen for trick-completed event (log only; UI is driven by 'game-state')
@@ -1115,6 +1127,157 @@ async function getCurrentUser() {
     return fallbackUser;
 }
 
+// End Game Animation Functions
+function showEndGameAnimation(gameData) {
+    console.log('🏆 Game finished! Showing end-game animation:', gameData);
+    console.log('🔍 gameData.players type:', typeof gameData.players, 'value:', gameData.players);
+    
+    // Get the modal elements
+    const endGameModal = document.getElementById('end-game-modal');
+    const winnerNameEl = document.getElementById('winner-name');
+    const rankingsListEl = document.getElementById('rankings-list');
+    
+    if (!endGameModal || !rankingsListEl) {
+        console.error('End game modal elements not found');
+        return;
+    }
+    
+    // Handle different player data structures
+    let players = [];
+    if (Array.isArray(gameData.players)) {
+        players = gameData.players;
+    } else if (gameData.players && typeof gameData.players === 'object') {
+        // If players is a Map or object, convert to array
+        players = Object.values(gameData.players);
+    } else {
+        console.error('No valid players data found in gameData:', gameData);
+        return;
+    }
+    
+    console.log('🔍 Processed players array:', players);
+    
+    // Determine winner and create rankings
+    const rankings = players
+        .filter(p => p) // Remove null/undefined players
+        .map(player => ({
+            seat: player.seat,
+            userId: player.userId,
+            userName: player.userName || 'Unknown',
+            totalScore: player.totalScore || 0,
+            isBot: player.isBot || false,
+            profilePicture: player.profilePicture
+        }))
+        .sort((a, b) => a.totalScore - b.totalScore); // Lowest score wins in Hearts
+    
+    console.log('🏆 Final rankings:', rankings);
+    
+    const winner = rankings[0];
+    
+    // Update winner display
+    if (winnerNameEl && winner) {
+        winnerNameEl.textContent = `${getPlayerFirstName({ userName: winner.userName })} Wins!`;
+    }
+    
+    // Create rankings display
+    let rankingsHtml = '';
+    rankings.forEach((player, index) => {
+        const position = index + 1;
+        const isWinner = position === 1;
+        const positionClass = position === 1 ? 'first' : position === 2 ? 'second' : position === 3 ? 'third' : '';
+        
+        rankingsHtml += `
+            <div class="ranking-item ${isWinner ? 'winner' : ''}">
+                <div class="ranking-position ${positionClass}">${position}</div>
+                <div class="ranking-player-info">
+                    <div class="ranking-avatar">
+                        ${renderPlayerAvatar(player, 'small')}
+                    </div>
+                    <div class="ranking-name">${getPlayerFirstName({ userName: player.userName })}</div>
+                </div>
+                <div class="ranking-score">${player.totalScore}</div>
+            </div>
+        `;
+    });
+    
+    rankingsListEl.innerHTML = rankingsHtml;
+    
+    // Create confetti animation
+    createConfetti();
+    
+    // Show the modal
+    endGameModal.classList.remove('hidden');
+    
+    // Focus the modal for accessibility
+    const modalContent = document.getElementById('end-game-modal-content');
+    if (modalContent) {
+        modalContent.focus();
+    }
+}
+
+function createConfetti() {
+    const container = document.getElementById('confetti-container');
+    if (!container) return;
+    
+    // Clear any existing confetti
+    container.innerHTML = '';
+    
+    // Create 50 confetti pieces
+    for (let i = 0; i < 50; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        
+        // Random horizontal position
+        confetti.style.left = Math.random() * 100 + '%';
+        
+        // Random animation delay and duration
+        confetti.style.animationDelay = Math.random() * 3 + 's';
+        confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
+        
+        container.appendChild(confetti);
+    }
+    
+    // Remove confetti after animation completes
+    setTimeout(() => {
+        container.innerHTML = '';
+    }, 6000);
+}
+
+function returnToLobby() {
+    console.log('🏠 Returning to lobby...');
+    
+    // Hide the end-game modal
+    const endGameModal = document.getElementById('end-game-modal');
+    if (endGameModal) {
+        endGameModal.classList.add('hidden');
+    }
+    
+    // Reset game state
+    lobbyState = null;
+    mySeat = null;
+    isReady = false;
+    hasPassed = false;
+    endGameShown = false; // Reset end-game animation flag
+    window.selectedCards = [];
+    previousTrickCards = [];
+    
+    // Show lobby section and hide game section
+    document.getElementById('lobby-section').classList.remove('hidden');
+    document.getElementById('game-section').classList.add('hidden');
+    
+    // Clear scoreboard
+    const scoreboardRows = document.getElementById('scoreboard-rows');
+    if (scoreboardRows) {
+        scoreboardRows.innerHTML = '';
+    }
+    
+    // Emit join-lobby to get fresh lobby state
+    if (socket && socket.connected) {
+        socket.emit('join-lobby');
+    }
+    
+    showSuccessMessage('Returned to lobby. Ready for a new game!');
+}
+
 // DOMContentLoaded: wire up all event handlers and initialize
 document.addEventListener('DOMContentLoaded', async () => {
     // Add seat click handlers
@@ -1177,10 +1340,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             historyModal.classList.add('hidden');
         });
     }
+    
+    // End Game modal wiring
+    const endGameModal = document.getElementById('end-game-modal');
+    const endGameBackdrop = document.getElementById('end-game-modal-backdrop');
+    const returnToLobbyBtn = document.getElementById('return-to-lobby-btn');
+    
+    if (returnToLobbyBtn) {
+        returnToLobbyBtn.addEventListener('click', returnToLobby);
+    }
+    
+    if (endGameBackdrop) {
+        endGameBackdrop.addEventListener('click', returnToLobby);
+    }
+    
     // Close on Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (historyModal && !historyModal.classList.contains('hidden')) {
+            if (endGameModal && !endGameModal.classList.contains('hidden')) {
+                returnToLobby();
+            } else if (historyModal && !historyModal.classList.contains('hidden')) {
                 historyModal.classList.add('hidden');
             }
         }

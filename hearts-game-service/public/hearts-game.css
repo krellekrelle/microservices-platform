@@ -858,3 +858,325 @@ body.game-paused .card-img {
 #scoreboard {
     z-index: 2000;
 }
+
+/* End Game Animation Overlay */
+#end-game-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#end-game-modal:not(.hidden) {
+    display: flex;
+}
+
+#end-game-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    z-index: 3000;
+}
+
+#end-game-modal-content {
+    position: relative;
+    z-index: 3001;
+    width: 90%;
+    max-width: 600px;
+    background: linear-gradient(135deg, rgba(30, 60, 120, 0.95), rgba(20, 40, 80, 0.95));
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    animation: endGameSlideIn 0.8s ease-out;
+}
+
+@keyframes endGameSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Confetti Animation */
+#confetti-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: 20px;
+}
+
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #ffeb3b;
+    animation: confettiFall 3s linear infinite;
+}
+
+.confetti:nth-child(2n) { background: #4caf50; }
+.confetti:nth-child(3n) { background: #2196f3; }
+.confetti:nth-child(4n) { background: #ff9800; }
+.confetti:nth-child(5n) { background: #f44336; }
+
+@keyframes confettiFall {
+    0% {
+        transform: translateY(-100vh) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+/* Winner Announcement */
+.winner-announcement {
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.trophy-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: trophyBounce 2s ease-in-out infinite;
+}
+
+@keyframes trophyBounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-15px);
+    }
+    60% {
+        transform: translateY(-8px);
+    }
+}
+
+.winner-title {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    font-weight: 300;
+    color: #ffeb3b;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+    from {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 235, 59, 0.3);
+    }
+    to {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 235, 59, 0.6);
+    }
+}
+
+.winner-name {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #4caf50;
+    margin-bottom: 0.5rem;
+    animation: winnerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes winnerPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Player Rankings */
+.player-rankings {
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.rankings-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #fff;
+    font-weight: 500;
+}
+
+.rankings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.ranking-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    animation: rankingSlideIn 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateX(-30px);
+}
+
+.ranking-item.winner {
+    border-color: #ffeb3b;
+    background: linear-gradient(90deg, rgba(255, 235, 59, 0.2), rgba(255, 193, 7, 0.1));
+    box-shadow: 0 0 20px rgba(255, 235, 59, 0.3);
+}
+
+.ranking-item:nth-child(1) { animation-delay: 0.2s; }
+.ranking-item:nth-child(2) { animation-delay: 0.4s; }
+.ranking-item:nth-child(3) { animation-delay: 0.6s; }
+.ranking-item:nth-child(4) { animation-delay: 0.8s; }
+
+@keyframes rankingSlideIn {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.ranking-position {
+    font-size: 1.5rem;
+    font-weight: bold;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    margin-right: 1rem;
+}
+
+.ranking-position.first {
+    background: linear-gradient(135deg, #ffeb3b, #ffc107);
+    color: #333;
+}
+
+.ranking-position.second {
+    background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
+    color: #333;
+}
+
+.ranking-position.third {
+    background: linear-gradient(135deg, #ff8a65, #ff7043);
+    color: #fff;
+}
+
+.ranking-player-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.ranking-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.ranking-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ranking-name {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.ranking-score {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #ffeb3b;
+}
+
+/* End Game Actions */
+.end-game-actions {
+    position: relative;
+    z-index: 1;
+}
+
+.btn.large {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    border-radius: 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    animation: buttonPulse 2s ease-in-out infinite;
+}
+
+@keyframes buttonPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 6px 25px rgba(33, 150, 243, 0.5);
+    }
+}
+
+.btn.large:hover {
+    transform: scale(1.1) !important;
+    box-shadow: 0 8px 30px rgba(33, 150, 243, 0.6) !important;
+}
+
+/* Mobile responsiveness for end game overlay */
+@media (max-width: 768px) {
+    #end-game-modal-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
+    
+    .winner-title {
+        font-size: 2rem;
+    }
+    
+    .winner-name {
+        font-size: 1.4rem;
+    }
+    
+    .trophy-icon {
+        font-size: 3rem;
+    }
+    
+    .ranking-item {
+        padding: 0.8rem;
+    }
+    
+    .btn.large {
+        padding: 0.8rem 1.5rem;
+        font-size: 1.1rem;
+    }
+}

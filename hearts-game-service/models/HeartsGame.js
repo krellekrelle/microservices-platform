@@ -17,7 +17,7 @@ class HeartsGame {
             isReady: true,
             isConnected: true,
             hand: [],
-            totalScore: 0,
+            totalScore: 90,
             roundScore: 0,
             isBot: true,
             profilePicture: null
@@ -81,7 +81,7 @@ class HeartsGame {
             isReady: true,  // DEBUG: players are ready by default
             isConnected: true,
             hand: [],
-            totalScore: 0,
+            totalScore: 90,
             roundScore: 0,
             isBot: false,
             profilePicture: null
