@@ -213,10 +213,52 @@ class SocketHandler {
             const userName = socket.user.name || socket.user.email;
 
             const result = await gameManager.joinLobby(userId, userName);
-            // ...existing code...
+            
             socket.join(`lobby-${result.gameId}`);
-            socket.emit('lobby-updated', result.lobbyState);
-            socket.to(`lobby-${result.gameId}`).emit('lobby-updated', result.lobbyState);
+            
+            // If player is rejoining an active game, send game state first
+            if (result.inGame && result.gameState) {
+                // Also join the game room to receive game events
+                socket.join(`game-${result.gameId}`);
+                socket.emit('game-state', result.gameState);
+                console.log(`${userName} reconnected to active game ${result.gameId}`);
+                
+                // Check if game should be resumed from paused state
+                const game = gameManager.activeGames.get(result.gameId);
+                if (game && game.state === 'paused') {
+                    // Check if enough human players are now connected to resume
+                    let humanPlayersConnected = 0;
+                    for (const [s, p] of game.players) {
+                        if (p && !p.isBot && p.isConnected) {
+                            humanPlayersConnected++;
+                        }
+                    }
+                    
+                    if (humanPlayersConnected > 0) {
+                        game.state = 'playing';
+                        console.log(`Game ${result.gameId} resumed - human player reconnected`);
+                        this.sendToGame(result.gameId, 'game-resumed', { reason: 'Player reconnected' });
+                        
+                        // Restart bot play loop if needed
+                        const currentTurn = game.getNextPlayer();
+                        const currentPlayer = game.players.get(currentTurn);
+                        if (currentPlayer && currentPlayer.isBot) {
+                            console.log(`Resuming bot turn for seat ${currentTurn}`);
+                            // Trigger bot action after a short delay
+                            setTimeout(() => this.triggerBotAction(result.gameId), 1000);
+                        }
+                    }
+                }
+                
+                // Don't send lobby-updated to reconnecting player as it would override the game UI
+                // Only notify other players in the lobby about the reconnection
+                socket.to(`lobby-${result.gameId}`).emit('lobby-updated', result.lobbyState);
+            } else {
+                // New player joining lobby - send lobby-updated to everyone including them
+                socket.emit('lobby-updated', result.lobbyState);
+                socket.to(`lobby-${result.gameId}`).emit('lobby-updated', result.lobbyState);
+            }
+            
             console.log(`${userName} joined lobby ${result.gameId}`);
         } catch (error) {
             console.error('Join lobby error:', error);
@@ -448,8 +490,16 @@ class SocketHandler {
                                     const gameId = result.gameId;
                                     const playLoop = async () => {
                                         let safety = 0;
-                                        while (safety < 200 && gameManager.lobbyGame && gameManager.lobbyGame.state === 'playing') {
+                                        while (safety < 200 && gameManager.lobbyGame && 
+                                               (gameManager.lobbyGame.state === 'playing' || gameManager.lobbyGame.state === 'paused')) {
                                             safety++;
+                                            
+                                            // If game is paused, wait and continue checking
+                                            if (gameManager.lobbyGame.state === 'paused') {
+                                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                                continue;
+                                            }
+                                            
                                             const currentTurn = gameManager.lobbyGame.getNextPlayer();
                                             const player = gameManager.lobbyGame.players.get(currentTurn);
                                             if (!player) break;
@@ -757,8 +807,41 @@ class SocketHandler {
                 if (this.userSockets.get(userId).size === 0) {
                     this.userSockets.delete(userId);
                     
-                    // TODO: Mark player as disconnected in game state
-                    // This will be important for game-in-progress disconnection handling
+                    // Mark player as disconnected in active games
+                    try {
+                        // Find the game this user is in
+                        const gameId = gameManager.playerToGame.get(userId);
+                        if (gameId) {
+                            const game = gameManager.activeGames.get(gameId);
+                            if (game && (game.state === 'playing' || game.state === 'passing')) {
+                                // Find the player and mark as disconnected
+                                for (const [seat, player] of game.players) {
+                                    if (player && String(player.userId) === String(userId)) {
+                                        player.isConnected = false;
+                                        console.log(`Marked player ${userName} (seat ${seat}) as disconnected in game ${gameId}`);
+                                        
+                                        // Check if any human players are still connected
+                                        let humanPlayersConnected = 0;
+                                        for (const [s, p] of game.players) {
+                                            if (p && !p.isBot && p.isConnected) {
+                                                humanPlayersConnected++;
+                                            }
+                                        }
+                                        
+                                        // If no human players are connected, pause the game
+                                        if (humanPlayersConnected === 0 && game.state === 'playing') {
+                                            game.state = 'paused';
+                                            console.log(`Game ${gameId} paused - no human players connected`);
+                                            this.sendToGame(gameId, 'game-paused', { reason: 'All human players disconnected' });
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error handling player disconnection:', error);
+                    }
                 }
             }
         }
@@ -777,6 +860,63 @@ class SocketHandler {
     // Utility method to send message to all players in a game
     sendToGame(gameId, event, data) {
         this.io.to(`game-${gameId}`).emit(event, data);
+    }
+
+    // Trigger a bot action in the specified game
+    async triggerBotAction(gameId) {
+        try {
+            const game = gameManager.activeGames.get(gameId);
+            if (!game || game.state !== 'playing') return;
+            
+            const currentTurn = game.getNextPlayer();
+            const currentPlayer = game.players.get(currentTurn);
+            
+            if (currentPlayer && currentPlayer.isBot) {
+                console.log(`Triggering bot action for seat ${currentTurn} in game ${gameId}`);
+                const playResult = await gameManager.botPlayCard(currentTurn);
+                
+                if (playResult && playResult.trickComplete) {
+                    const trickCompletedPayload = {
+                        winner: playResult.winner,
+                        points: playResult.points,
+                        trickCards: playResult.trickCards,
+                        nextLeader: playResult.nextLeader,
+                        roundComplete: playResult.roundComplete || false
+                    };
+                    
+                    if (playResult.roundComplete) {
+                        trickCompletedPayload.roundScores = playResult.roundScores;
+                        trickCompletedPayload.totalScores = playResult.totalScores;
+                        trickCompletedPayload.moonShooter = playResult.moonShooter;
+                        trickCompletedPayload.gameEnded = playResult.gameEnded;
+                        trickCompletedPayload.nextRound = playResult.nextRound;
+                    }
+                    
+                    this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
+                    
+                    // Wait before broadcasting new game state
+                    setTimeout(() => {
+                        this.broadcastGameStateToRoom(gameId);
+                        // Continue with next bot if needed
+                        const nextTurn = game.getNextPlayer();
+                        const nextPlayer = game.players.get(nextTurn);
+                        if (nextPlayer && nextPlayer.isBot && game.state === 'playing') {
+                            setTimeout(() => this.triggerBotAction(gameId), 1500);
+                        }
+                    }, 2000);
+                } else {
+                    // No trick completed, just broadcast game state and continue
+                    this.broadcastGameStateToRoom(gameId);
+                    const nextTurn = game.getNextPlayer();
+                    const nextPlayer = game.players.get(nextTurn);
+                    if (nextPlayer && nextPlayer.isBot && game.state === 'playing') {
+                        setTimeout(() => this.triggerBotAction(gameId), 1500);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error triggering bot action:', error);
+        }
     }
 
     // Broadcast current game-state to all connected sockets in a game room.

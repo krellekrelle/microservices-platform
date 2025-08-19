@@ -488,3 +488,17 @@ body {
     margin-right:6px;
 }
 .badge.danger { background:#f44336 }
+
+/* Paused state styling: dim interactive elements and show persistent banner */
+body.game-paused {
+    filter: grayscale(10%) brightness(0.9);
+}
+body.game-paused .btn,
+body.game-paused .add-bot-seat-btn,
+body.game-paused .remove-bot-btn,
+body.game-paused .card-img {
+    pointer-events: none !important;
+    opacity: 0.6;
+}
+#paused-banner { opacity: 0; transition: opacity 180ms ease; }
+#paused-banner.show { opacity: 1; }

@@ -19,11 +19,17 @@ const io = socketIo(server, {
     allowEIO3: true // Better compatibility
 });
 
-// Add debugging for all HTTP requests
+// Add debugging for non-static HTTP requests only
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - User-Agent: ${req.get('User-Agent')?.substring(0, 50)}`);
-    if (req.originalUrl.startsWith('/socket.io/')) {
-        console.log('Socket.IO request detected:', req.originalUrl);
+    // Skip logging for static files (images, CSS, JS, etc.)
+    const staticFileExtensions = ['.svg', '.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.ico'];
+    const isStaticFile = staticFileExtensions.some(ext => req.originalUrl.includes(ext));
+    
+    if (!isStaticFile) {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - User-Agent: ${req.get('User-Agent')?.substring(0, 50)}`);
+        if (req.originalUrl.startsWith('/socket.io/')) {
+            console.log('Socket.IO request detected:', req.originalUrl);
+        }
     }
     next();
 });

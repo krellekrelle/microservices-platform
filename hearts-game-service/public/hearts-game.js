@@ -73,6 +73,20 @@ function initializeSocket() {
         ensureGameSectionVisible();
         console.log('🎲 Game state update:', data);
         lobbyState = data;
+        
+        // Determine mySeat from game state data (important for reconnecting players)
+        if (currentUser && data.players) {
+            let mySeatLocal = null;
+            for (let s = 0; s < 4; s++) {
+                const p = data.players[s];
+                if (p && String(p.userId) === String(currentUser.id)) {
+                    mySeatLocal = s;
+                    break;
+                }
+            }
+            mySeat = (typeof mySeatLocal === 'number') ? mySeatLocal : null;
+        }
+        
         // Only update hand and UI if in 'playing' state, or if in 'passing' state and I haven't passed yet
         let myHand = null;
         // let hasPassed = false;
@@ -157,6 +171,17 @@ function initializeSocket() {
         //         showTrick([]);
         //     }
         // }, 1500);
+    });
+    // Game pause/resume events
+    socket.on('game-paused', (data) => {
+        console.log('🛑 Game paused:', data);
+        showPausedBanner(true, data && data.message ? data.message : 'Game paused');
+    });
+    socket.on('game-resumed', (data) => {
+        console.log('▶️ Game resumed:', data);
+        showPausedBanner(false);
+        // Server should emit a fresh game-state; ensure we request it if not received
+        if (socket && socket.connected) socket.emit('get-game-state', { gameId: lobbyState && lobbyState.gameId });
     });
     // Debug transport events
     socket.on('disconnect', (reason, details) => {
@@ -713,6 +738,37 @@ function createToast(message, type='error', ttl=4500) {
         toast.classList.remove('show');
         setTimeout(() => { toast.remove(); }, 220);
     }, ttl);
+}
+
+// Show or hide a persistent paused banner in the UI and disable interactive controls visually
+function showPausedBanner(show, message) {
+    let banner = document.getElementById('paused-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'paused-banner';
+        banner.style.position = 'fixed';
+        banner.style.top = '72px';
+        banner.style.left = '50%';
+        banner.style.transform = 'translateX(-50%)';
+        banner.style.zIndex = '1200';
+        banner.style.background = 'rgba(0,0,0,0.8)';
+        banner.style.color = '#fff';
+        banner.style.padding = '8px 14px';
+        banner.style.borderRadius = '8px';
+        banner.style.boxShadow = '0 6px 18px #0008';
+        banner.style.fontWeight = '600';
+        document.body.appendChild(banner);
+    }
+    if (show) {
+        banner.textContent = message || 'Game paused: waiting for player to reconnect';
+        banner.classList.add('show');
+        // Dim interactive areas to indicate disabled state
+        document.body.classList.add('game-paused');
+    } else {
+        banner.classList.remove('show');
+        banner.remove();
+        document.body.classList.remove('game-paused');
+    }
 }
 
 // Get user info from server
