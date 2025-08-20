@@ -663,6 +663,20 @@ class GameManager {
         };
     }
 
+    getLobbyLeader() {
+        if (!this.lobbyGame || this.lobbyGame.lobbyLeader === null) return null;
+        
+        // lobbyLeader is stored as a seat number, get the player at that seat
+        const leaderSeat = this.lobbyGame.lobbyLeader;
+        const leader = this.lobbyGame.players.get(leaderSeat);
+        
+        if (leader && !leader.isBot) {
+            return leader;
+        }
+        
+        return null;
+    }
+
     getGameState(gameId, forUserId = null) {
         const game = this.activeGames.get(gameId);
         if (!game) return null;
@@ -1036,6 +1050,224 @@ class GameManager {
     async createNewLobbyGame() {
         const newGame = new HeartsGame();
         return newGame;
+    }
+
+    // Resume a saved/abandoned game
+    async resumeSavedGame(gameId, requestingUserId, savedHumanPlayers) {
+        // Check if requesting user is lobby leader
+        if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
+            return { error: 'No lobby available' };
+        }
+
+        const lobbyLeader = this.getLobbyLeader();
+        if (!lobbyLeader || String(lobbyLeader.userId) !== String(requestingUserId)) {
+            return { error: 'Only the lobby leader can resume games' };
+        }
+
+        // Get current lobby players (human only)
+        const currentHumanPlayers = [];
+        for (const [seat, player] of this.lobbyGame.players) {
+            if (player && !player.isBot) {
+                currentHumanPlayers.push({
+                    userId: player.userId,
+                    seat: seat,
+                    name: player.userName
+                });
+            }
+        }
+
+        // Check if all required human players are present
+        const missingPlayers = [];
+        const extraPlayers = [];
+
+        // Check for missing players
+        for (const savedPlayer of savedHumanPlayers) {
+            const isPresent = currentHumanPlayers.some(current => String(current.userId) === String(savedPlayer.user_id));
+            if (!isPresent) {
+                missingPlayers.push(savedPlayer.name);
+            }
+        }
+
+        // Check for extra players (players in lobby that weren't in saved game)
+        for (const currentPlayer of currentHumanPlayers) {
+            const wasInSavedGame = savedHumanPlayers.some(saved => String(saved.user_id) === String(currentPlayer.userId));
+            if (!wasInSavedGame) {
+                extraPlayers.push(currentPlayer.name);
+            }
+        }
+
+        // Return errors if there are missing or extra players
+        if (missingPlayers.length > 0) {
+            return { 
+                error: 'Cannot resume game', 
+                details: `Missing players: ${missingPlayers.join(', ')}` 
+            };
+        }
+
+        if (extraPlayers.length > 0) {
+            return { 
+                error: 'Cannot resume game', 
+                details: `Players not from original game: ${extraPlayers.join(', ')}` 
+            };
+        }
+
+        try {
+            // Load the saved game from database
+            const loadedGame = await this.loadSavedGameFromDb(gameId);
+            
+            // Validate current players are in correct seats
+            const seatMismatches = [];
+            for (const savedPlayer of savedHumanPlayers) {
+                const currentPlayerInSeat = this.lobbyGame.players.get(savedPlayer.seat_position);
+                if (!currentPlayerInSeat || String(currentPlayerInSeat.userId) !== String(savedPlayer.user_id)) {
+                    seatMismatches.push(`${savedPlayer.name} should be in seat ${savedPlayer.seat_position + 1}`);
+                }
+            }
+
+            if (seatMismatches.length > 0) {
+                return {
+                    error: 'Cannot resume game',
+                    details: `Seat assignments don't match: ${seatMismatches.join(', ')}`
+                };
+            }
+
+            // Replace lobby game with loaded game
+            this.lobbyGame = loadedGame;
+            
+            // Resume the game state
+            const resumeResult = this.lobbyGame.resumeGame();
+            
+            // Save updated state to database
+            await this.lobbyGame.saveToDatabase();
+
+            return {
+                success: true,
+                gameId: gameId,
+                gameState: this.lobbyGame.getGameState(),
+                message: 'Game resumed successfully'
+            };
+
+        } catch (error) {
+            console.error('Error resuming game:', error);
+            return { 
+                error: 'Failed to resume game', 
+                details: error.message 
+            };
+        }
+    }
+
+    // Load a saved game from database and reconstruct HeartsGame instance
+    async loadSavedGameFromDb(gameId) {
+        // Get game data
+        const gameRes = await db.query('SELECT * FROM hearts_games WHERE id = $1', [gameId]);
+        if (gameRes.rows.length === 0) {
+            throw new Error('Game not found');
+        }
+        const gameData = gameRes.rows[0];
+
+        // Get players
+        const playersRes = await db.query(
+            'SELECT * FROM hearts_players WHERE game_id = $1 ORDER BY seat_position',
+            [gameId]
+        );
+
+        // Create new HeartsGame instance
+        const game = new HeartsGame();
+        game.id = gameData.id;
+        game.state = gameData.game_state;
+        game.createdAt = gameData.created_at;
+        game.startedAt = gameData.started_at;
+        game.finishedAt = gameData.finished_at;
+        game.savedAt = gameData.saved_at;
+        game.lastActivity = gameData.last_activity;
+        game.abandonedReason = gameData.abandoned_reason;
+
+        // Restore game state data
+        if (gameData.current_trick_cards) {
+            try {
+                game.currentTrickCards = JSON.parse(gameData.current_trick_cards);
+            } catch (e) {
+                game.currentTrickCards = [];
+            }
+        }
+
+        game.trickLeaderSeat = gameData.trick_leader_seat;
+        game.currentTrick = gameData.current_trick || 0;
+        game.currentRound = gameData.current_round || 1;
+
+        if (gameData.tricks_won) {
+            try {
+                game.tricksWon = JSON.parse(gameData.tricks_won);
+            } catch (e) {
+                game.tricksWon = {};
+            }
+        }
+
+        if (gameData.round_scores) {
+            try {
+                game.roundScores = JSON.parse(gameData.round_scores);
+            } catch (e) {
+                game.roundScores = {};
+            }
+        }
+
+        if (gameData.total_scores) {
+            try {
+                game.totalScores = JSON.parse(gameData.total_scores);
+            } catch (e) {
+                game.totalScores = {};
+            }
+        }
+
+        if (gameData.historical_rounds) {
+            try {
+                game.historicalRounds = JSON.parse(gameData.historical_rounds);
+            } catch (e) {
+                game.historicalRounds = [];
+            }
+        }
+
+        // Determine pass direction based on round
+        const passDirections = ['left', 'right', 'across', 'none'];
+        game.passDirection = passDirections[(game.currentRound - 1) % 4];
+
+        // Restore players
+        for (const playerRow of playersRes.rows) {
+            const player = {
+                userId: playerRow.user_id,
+                userName: playerRow.user_name,
+                seat: playerRow.seat_position,
+                isBot: playerRow.is_bot,
+                isReady: true, // All players ready for resumed game
+                hand: [],
+                passedCards: [],
+                hasPassedCards: false
+            };
+
+            // Parse hand if available
+            if (playerRow.current_hand) {
+                try {
+                    player.hand = JSON.parse(playerRow.current_hand);
+                } catch (e) {
+                    player.hand = [];
+                }
+            }
+
+            // Parse passed cards if available
+            if (playerRow.passed_cards) {
+                try {
+                    player.passedCards = JSON.parse(playerRow.passed_cards);
+                    player.hasPassedCards = player.passedCards.length > 0;
+                } catch (e) {
+                    player.passedCards = [];
+                    player.hasPassedCards = false;
+                }
+            }
+
+            game.players.set(playerRow.seat_position, player);
+        }
+
+        return game;
     }
 }
 

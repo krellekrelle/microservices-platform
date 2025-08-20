@@ -1529,6 +1529,10 @@ async function loadHistoryList() {
             const date = new Date(game.createdAt).toLocaleString();
             // Build score summary
             const scores = (game.players || []).map(p => `${p.name.split(' ')[0]}: ${p.finalScore === null ? '-' : p.finalScore}`).join(' | ');
+            
+            // Check if game can be resumed (saved or abandoned state)
+            const canResume = game.state === 'saved' || game.state === 'abandoned';
+            
             gameEl.innerHTML = `
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);">
                     <div>
@@ -1536,8 +1540,9 @@ async function loadHistoryList() {
                         <small>${game.state}</small>
                     </div>
                     <div style="flex:1;text-align:center;color:#ddd;">${scores}</div>
-                    <div style="width:220px;text-align:right;">
+                    <div style="width:${currentUser && currentUser.isAdmin ? '320px' : '280px'};text-align:right;">
                         <button class="btn small" data-game-id="${game.gameId}">Details</button>
+                        ${canResume ? `<button class="btn success small" data-resume-game-id="${game.gameId}" style="margin-left:8px;">Resume</button>` : ''}
                         ${currentUser && currentUser.isAdmin ? `<button class="btn danger small" data-delete-game-id="${game.gameId}" style="margin-left:8px;">Delete</button>` : ''}
                     </div>
                 </div>
@@ -1564,6 +1569,16 @@ async function loadHistoryList() {
                     detailsDiv.innerHTML = '<em>Could not load details</em>';
                 }
             });
+
+            // Wire resume button
+            const resumeBtn = gameEl.querySelector('button[data-resume-game-id]');
+            if (resumeBtn) {
+                resumeBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const gid = resumeBtn.getAttribute('data-resume-game-id');
+                    await handleResumeGame(gid);
+                });
+            }
 
             // Wire delete button for admins
             const deleteBtn = gameEl.querySelector('button[data-delete-game-id]');
@@ -1839,6 +1854,45 @@ function setupNewSocketEvents() {
             stopDisconnectCountdown();
         }
     });
+}
+
+// Handle resume game action
+async function handleResumeGame(gameId) {
+    try {
+        const response = await fetch(`/hearts/api/resume-game/${gameId}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+            // Show error message with details
+            const errorMsg = result.details || result.error || 'Failed to resume game';
+            showErrorMessage(errorMsg);
+            return;
+        }
+
+        // Success - close history modal and show success message
+        const historyModal = document.getElementById('history-modal');
+        if (historyModal) {
+            historyModal.classList.add('hidden');
+        }
+
+        showSuccessMessage('Game resumed successfully!');
+        
+        // Emit join-lobby to get the updated game state
+        if (socket) {
+            socket.emit('join-lobby');
+        }
+
+    } catch (error) {
+        console.error('Resume game error:', error);
+        showErrorMessage('Failed to resume game');
+    }
 }
 
 // Call setup when socket connects

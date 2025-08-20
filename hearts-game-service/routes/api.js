@@ -424,4 +424,49 @@ router.get('/admin/games/:gameId/verify', async (req, res) => {
     }
 });
 
+// Resume a saved/abandoned game
+router.post('/resume-game/:gameId', async (req, res) => {
+    try {
+        const gameId = req.params.gameId;
+        const userId = req.user.id;
+
+        // Check if user participated in this game
+        const participationRes = await db.query(
+            'SELECT 1 FROM hearts_players WHERE game_id = $1 AND user_id = $2 LIMIT 1',
+            [gameId, userId]
+        );
+        if (participationRes.rows.length === 0) {
+            return res.status(403).json({ error: 'You did not participate in this game' });
+        }
+
+        // Get the saved/abandoned game details
+        const gameRes = await db.query(
+            'SELECT * FROM hearts_games WHERE id = $1 AND (game_state = $2 OR game_state = $3)',
+            [gameId, 'saved', 'abandoned']
+        );
+        
+        if (gameRes.rows.length === 0) {
+            return res.status(404).json({ error: 'Game not found or cannot be resumed' });
+        }
+
+        const savedGame = gameRes.rows[0];
+
+        // Get all human players from the saved game
+        const savedPlayersRes = await db.query(
+            'SELECT hp.user_id, hp.seat_position, u.name FROM hearts_players hp JOIN users u ON hp.user_id = u.id WHERE hp.game_id = $1 AND hp.is_bot = false',
+            [gameId]
+        );
+
+        const savedHumanPlayers = savedPlayersRes.rows;
+
+        // Check current lobby state
+        const result = await gameManager.resumeSavedGame(gameId, userId, savedHumanPlayers);
+        
+        res.json(result);
+    } catch (error) {
+        console.error('Resume game error:', error);
+        res.status(500).json({ error: error.message || 'Failed to resume game' });
+    }
+});
+
 module.exports = router;
