@@ -13,6 +13,8 @@ let isReady = false;
 let lobbyState = null;
 let hasPassed = false;
 let endGameShown = false; // Track if end-game animation has been shown for current game
+let countdownTimer = null; // Timer for disconnect countdown
+let countdownEndTime = null; // When the countdown ends
 
 // Helper to extract a player's first name from several possible fields
 function getPlayerFirstName(player, fallback) {
@@ -225,6 +227,7 @@ function initializeSocket() {
     socket.on('connect', () => {
         updateConnectionStatus(true);
         socket.emit('join-lobby');
+        setupNewSocketEvents();
     });
     socket.on('disconnect', (reason) => {
         console.log('❌ Disconnected from server. Reason:', reason);
@@ -235,7 +238,12 @@ function initializeSocket() {
         if (data.state === 'lobby') {
             endGameShown = false;
         }
-        updateLobbyDisplay(data);
+        
+        // Only update lobby display if we're actually in lobby state
+        // Don't override game state with lobby state during active games
+        if (data.state === 'lobby') {
+            updateLobbyDisplay(data);
+        }
     });
     socket.on('game-started', (data) => {
         endGameShown = false; // Reset end-game animation flag for new game
@@ -370,6 +378,9 @@ function initializeSocket() {
         endGameShown = true;
         showEndGameAnimation(data);
     }
+    
+    // Update controls (including lobby leader controls) based on current game state
+    updateControls();
 }); // End socket.on('game-state')
     // Listen for trick-completed event (log only; UI is driven by 'game-state')
     socket.on('trick-completed', (data) => {
@@ -640,8 +651,13 @@ function showHand(hand) {
                     const highlightClass = isTurn ? 'player-name current-turn' : 'player-name';
                     const tricksWon = lobbyState.tricksWon ? (lobbyState.tricksWon[seatIdx] || 0) : 0;
                     
+                    // Add lobby leader crown if this player is the leader
+                    const isLeader = (lobbyState.lobbyLeader === seatIdx);
+                    const leaderCrown = isLeader ? '<div class="lobby-leader-crown"></div>' : '';
+                    
                     cell.innerHTML = `
                         <div class="my-player-info">
+                            ${leaderCrown}
                             ${renderPlayerAvatar(player, 'small')}
                             ${renderTricksWon(tricksWon)}
                         </div>
@@ -664,8 +680,13 @@ function showHand(hand) {
                 const handSize = player && player.hand ? player.hand.length : (player && player.handSize ? player.handSize : 0);
                 const tricksWon = lobbyState.tricksWon ? (lobbyState.tricksWon[seatIdx] || 0) : 0;
                 
+                // Add lobby leader crown if this player is the leader
+                const isLeader = (lobbyState.lobbyLeader === seatIdx);
+                const leaderCrown = isLeader ? '<div class="lobby-leader-crown"></div>' : '';
+                
                 cell.innerHTML = `
                     <div class="opponent-info${isTurn?' current-turn':''}">
+                        ${leaderCrown}
                         ${renderPlayerAvatar(player, 'small')}
                         ${renderOpponentHand(handSize)}
                         ${renderTricksWon(tricksWon)}
@@ -818,6 +839,72 @@ function passSelectedCards() {
     }
 }
 
+// Countdown timer functions
+function startDisconnectCountdown(durationMinutes = 1) {
+    console.log('Starting disconnect countdown for', durationMinutes, 'minutes');
+    const countdownDiv = document.getElementById('disconnect-countdown');
+    const timerSpan = document.getElementById('countdown-timer');
+    
+    console.log('Countdown elements found:', !!countdownDiv, !!timerSpan);
+    if (!countdownDiv || !timerSpan) return;
+    
+    // Clear any existing timer
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+    }
+    
+    // Set end time
+    countdownEndTime = Date.now() + (durationMinutes * 60 * 1000);
+    
+    // Show countdown
+    countdownDiv.classList.remove('hidden');
+    
+    // Update timer every second
+    countdownTimer = setInterval(() => {
+        const timeLeft = countdownEndTime - Date.now();
+        
+        if (timeLeft <= 0) {
+            // Timer expired
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+            countdownDiv.classList.add('hidden');
+            timerSpan.textContent = '--';
+            return;
+        }
+        
+        // Format time as MM:SS
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        timerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, 1000);
+    
+    // Initial update
+    const timeLeft = countdownEndTime - Date.now();
+    const minutes = Math.floor(timeLeft / 60000);
+    const seconds = Math.floor((timeLeft % 60000) / 1000);
+    timerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function stopDisconnectCountdown() {
+    const countdownDiv = document.getElementById('disconnect-countdown');
+    const timerSpan = document.getElementById('countdown-timer');
+    
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+    
+    countdownEndTime = null;
+    
+    if (countdownDiv) {
+        countdownDiv.classList.add('hidden');
+    }
+    
+    if (timerSpan) {
+        timerSpan.textContent = '--';
+    }
+}
+
 function updateConnectionStatus(connected) {
     const statusEl = document.getElementById('connection-status');
     if (connected) {
@@ -892,17 +979,27 @@ function updateLobbyDisplay(state) {
                 isReady = player.isReady;
             }
             const firstName = player.userName ? player.userName.split(' ')[0] : `Player ${seatNumberMap[seat]}`;
+            const isLeader = (state.lobbyLeader === seat);
+            
             // Show Remove Bot button for lobby leader if this is a bot (icon-only, round)
             const removeBotBtn = (player.isBot && amLeader) ? `<button class="btn small danger remove-bot-btn" data-remove-bot-seat="${seat}" aria-label="Remove bot">✖</button>` : '';
             
+            // Show kick player button for lobby leader if this is a human player and not themselves
+            const kickPlayerBtn = (!player.isBot && amLeader && !isMySeat) ? 
+                `<button class="kick-player-btn" data-kick-user="${player.userId}" title="Kick player">⚠</button>` : '';
+            
+            // Add lobby leader crown if this player is the leader
+            const leaderCrown = isLeader ? '<div class="lobby-leader-crown"></div>' : '';
+            
             seatEl.innerHTML = `
+                ${leaderCrown}
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
                     ${renderPlayerAvatar(player, 'medium')}
                     <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                         ${player.isReady ? 'Ready' : 'Not Ready'}
                     </div>
-                    ${removeBotBtn}
+                    ${removeBotBtn}${kickPlayerBtn}
                 </div>
             `;
         } else {
@@ -926,12 +1023,31 @@ function updateLobbyDisplay(state) {
             socket.emit('remove-bot', { seat });
         });
     });
+    
+    // Wire Kick Player button handlers
+    document.querySelectorAll('.kick-player-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetUserId = btn.getAttribute('data-kick-user');
+            const player = Object.values(state.players).find(p => String(p.userId) === String(targetUserId));
+            const playerName = player ? (player.userName || 'Unknown') : 'Unknown';
+            
+            if (confirm(`Are you sure you want to kick ${playerName} from the game?`)) {
+                socket.emit('kick-player', { 
+                    targetUserId: targetUserId,
+                    reason: 'Kicked by lobby leader'
+                });
+            }
+        });
+    });
 }
 
 function updateControls() {
     const leaveSeatBtn = document.getElementById('leave-seat-btn');
     const readyBtn = document.getElementById('ready-btn');
     const startGameBtn = document.getElementById('start-game-btn');
+    const lobbyLeaderControls = document.getElementById('lobby-leader-controls');
+    
     if (mySeat !== null) {
         leaveSeatBtn.classList.remove('hidden');
         readyBtn.classList.remove('hidden');
@@ -953,6 +1069,16 @@ function updateControls() {
         // Keep space reserved but hide visually to avoid layout shift
         startGameBtn.classList.add('invisible');
         startGameBtn.classList.remove('hidden');
+    }
+    
+    // Show lobby leader controls if in-game and user is leader
+    console.log('updateControls - amLeader:', amLeader, 'lobbyState:', lobbyState?.state, 'mySeat:', mySeat, 'leaderSeat:', leaderSeat);
+    if (amLeader && lobbyState && (lobbyState.state === 'playing' || lobbyState.state === 'passing')) {
+        console.log('Showing lobby leader controls');
+        lobbyLeaderControls.classList.remove('hidden');
+    } else {
+        console.log('Hiding lobby leader controls');
+        lobbyLeaderControls.classList.add('hidden');
     }
 
     // Show Add Bot button for lobby leader on each empty seat
@@ -1026,6 +1152,11 @@ function startGame() {
 function showGameSection() {
     document.getElementById('lobby-section').classList.add('hidden');
     document.getElementById('game-section').classList.remove('hidden');
+}
+
+function showLobbySection() {
+    document.getElementById('game-section').classList.add('hidden');
+    document.getElementById('lobby-section').classList.remove('hidden');
 }
 
 function showErrorMessage(message) {
@@ -1279,6 +1410,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('leave-seat-btn').addEventListener('click', leaveSeat);
     document.getElementById('ready-btn').addEventListener('click', toggleReady);
     document.getElementById('start-game-btn').addEventListener('click', startGame);
+    
+    // Stop game button handler
+    const stopGameBtn = document.getElementById('stop-game-btn');
+    if (stopGameBtn) {
+        stopGameBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to stop and save the current game? All players will return to the lobby.')) {
+                socket.emit('stop-game', {
+                    reason: 'Lobby leader stopped the game'
+                });
+            }
+        });
+    }
+    
+    // Test countdown button handler
+    const testCountdownBtn = document.getElementById('test-countdown-btn');
+    if (testCountdownBtn) {
+        testCountdownBtn.addEventListener('click', function() {
+            console.log('Testing countdown timer...');
+            startDisconnectCountdown(1); // Test with 1 minute
+        });
+    }
+    
+
     // Hand card click handlers (delegated) for diamond layout (game phase)
     const gameSeatsContainer = document.querySelector('.game-seats-container');
     if (gameSeatsContainer) {
@@ -1562,6 +1716,134 @@ function renderGameDetails(info, container) {
             container.appendChild(roundContainer);
         });
     }
+}
+
+// Socket event handlers for new events
+function setupNewSocketEvents() {
+    // Handle lobby leader changes
+    socket.on('lobby-leader-changed', function(data) {
+        console.log('Lobby leader changed:', data);
+        showSuccessMessage(`Lobby leader changed from seat ${data.oldLeader + 1} to seat ${data.newLeader + 1}: ${data.reason}`);
+        // Update the display (this will be called when lobby state updates)
+    });
+
+    // Handle game stopped
+    socket.on('game-stopped', function(data) {
+        console.log('Game stopped:', data);
+        showSuccessMessage(`Game stopped by ${data.stoppedBy}: ${data.reason}`);
+        endGameShown = false; // Reset for next game
+    });
+
+    
+    // Handle return to lobby
+    socket.on('return-to-lobby', function(data) {
+        console.log('Returning to lobby:', data);
+        
+        // Reset game state (similar to returnToLobby function)
+        gameState = null;
+        endGameShown = false;
+        lobbyState = null;
+        mySeat = null;
+        isReady = false;
+        hasPassed = false;
+        window.selectedCards = [];
+        previousTrickCards = [];
+        
+        // Show lobby section and hide game section
+        document.getElementById('lobby-section').classList.remove('hidden');
+        document.getElementById('game-section').classList.add('hidden');
+        
+        // Clear any game-specific UI elements
+        const gameBoard = document.getElementById('game-board');
+        if (gameBoard) {
+            gameBoard.innerHTML = '';
+        }
+        
+        // Clear scoreboard
+        const scoreboardRows = document.getElementById('scoreboard-rows');
+        if (scoreboardRows) {
+            scoreboardRows.innerHTML = '';
+        }
+        
+        // Emit join-lobby to get fresh lobby state (like normal game end)
+        if (socket && socket.connected) {
+            socket.emit('join-lobby');
+        }
+        
+        showSuccessMessage(data.message);
+    });
+
+    // Handle game abandoned
+    socket.on('game-abandoned', function(data) {
+        console.log('Game abandoned:', data);
+        showErrorMessage(`Game abandoned: ${data.reason}`);
+        showLobbySection();
+        endGameShown = false; // Reset for next game
+    });
+
+    // Handle player kicked
+    socket.on('player-kicked', function(data) {
+        console.log('Player kicked:', data);
+        showSuccessMessage(`Player kicked by ${data.kickedBy}: ${data.reason}`);
+    });
+
+    // Handle being kicked
+    socket.on('kicked-from-game', function(data) {
+        console.log('You were kicked:', data);
+        showErrorMessage(`You were kicked from the game by ${data.kickedBy}: ${data.reason}`);
+        showLobbySection();
+        mySeat = null;
+        isReady = false;
+    });
+
+    // Handle game paused
+    socket.on('game-paused', function(data) {
+        console.log('Game paused:', data);
+        showErrorMessage(`Game paused: ${data.reason}. ${data.will_abandon_in ? 'Will be abandoned in ' + data.will_abandon_in + '.' : ''}`);
+    });
+
+    // Handle game resumed
+    socket.on('game-resumed', function(data) {
+        console.log('Game resumed:', data);
+        showSuccessMessage(`Game resumed: ${data.reason}`);
+    });
+
+    // Handle player disconnection with countdown
+    socket.on('playerDisconnected', function(data) {
+        console.log('Player disconnected:', data);
+        if (lobbyState) {
+            // Start countdown timer for 1 minute
+            startDisconnectCountdown(1);
+            
+            showErrorMessage(`${data.playerId || 'A player'} disconnected. Game will end in 1 minute if they don't return.`);
+        }
+    });
+
+    // Handle player reconnection
+    socket.on('playerReconnected', function(data) {
+        console.log('Player reconnected:', data);
+        if (lobbyState) {
+            // Stop countdown timer
+            stopDisconnectCountdown();
+            
+            showSuccessMessage(`${data.playerId || 'A player'} reconnected!`);
+        }
+    });
+
+    // Handle countdown updates from server
+    socket.on('countdownUpdate', function(data) {
+        console.log('Countdown update:', data);
+        if (data.timeLeft > 0) {
+            startDisconnectCountdown(data.timeLeft / 60000); // Convert ms to minutes
+        } else {
+            stopDisconnectCountdown();
+        }
+    });
+}
+
+// Call setup when socket connects
+if (typeof socket !== 'undefined' && socket.connected) {
+    setupNewSocketEvents();
 }
 
 // Preload card images to reduce flicker when hands update quickly.

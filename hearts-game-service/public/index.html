@@ -16,6 +16,13 @@
             <h3 style="margin-top:0;margin-bottom:8px;font-size:1.05em;text-align:center;">Scoreboard</h3>
             <div id="scoreboard-rows"></div>
         </div>
+        
+        <!-- Disconnect countdown timer -->
+        <div id="disconnect-countdown" class="disconnect-countdown hidden">
+            <div>⚠️ Players Disconnected</div>
+            <div>Game will end in: <span id="countdown-timer" class="countdown-timer">--</span></div>
+        </div>
+        
         <h1 style="position:absolute;left:50%;transform:translateX(-50%);margin:0;">♥️ Hearts Game</h1>
         <div class="user-info" style="position:absolute;right:0;top:50%;transform:translateY(-50%);">
             <span id="user-name">Loading...</span>
@@ -32,6 +39,17 @@
             <h2 style="margin-bottom:0.3rem;">Game in Progress</h2>
             <div id="game-state-label" style="font-size:1.2rem;font-weight:500;letter-spacing:0.5px;"></div>
         </div>
+        
+        <!-- Lobby leader controls - moved outside game area for better visibility -->
+        <div id="lobby-leader-controls" class="lobby-leader-controls hidden" style="margin-bottom:1rem;">
+            <button id="stop-game-btn" class="stop-game-btn">
+                Stop Game
+            </button>
+            <button id="test-countdown-btn" class="btn info" style="margin-left: 10px;">
+                Test Countdown
+            </button>
+        </div>
+        
         <div class="game-area">
             <div id="lobby-section" class="lobby-section">
                 <div id="error-container"></div>
@@ -74,6 +92,7 @@
                             Start Game
                         </button>
                     </div>
+                    
                     <div class="seat seat-lower" data-seat="2">
                         <div class="seat-number">Seat 3</div>
                         <div class="seat-content">

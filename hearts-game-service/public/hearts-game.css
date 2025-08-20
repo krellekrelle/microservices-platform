@@ -1,3 +1,128 @@
+/* Lobby leader indicator */
+.lobby-leader-crown {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(45deg, #ffd700, #ffed4e);
+    border: 2px solid #b8860b;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    color: #8b4513;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+    z-index: 100;
+}
+
+.lobby-leader-crown::before {
+    content: "👑";
+}
+
+/* Make sure avatar containers are positioned for crown placement */
+.player-avatar-container {
+    position: relative;
+}
+
+/* Game controls for lobby leader */
+.lobby-leader-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+.lobby-leader-controls.hidden {
+    display: none;
+}
+
+/* Disconnect countdown timer */
+.disconnect-countdown {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(45deg, #ff4444, #cc1111);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 12px rgba(255, 68, 68, 0.4);
+    z-index: 5000;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(5px);
+    animation: pulseWarning 2s infinite;
+}
+
+@keyframes pulseWarning {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.disconnect-countdown.hidden {
+    display: none;
+}
+
+.countdown-timer {
+    font-size: 1.3rem;
+    color: #ffeb3b;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Game controls for lobby leader */
+.lobby-leader-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+.lobby-leader-controls.hidden {
+    display: none;
+}
+
+/* Stop game button styling */
+.stop-game-btn {
+    background: linear-gradient(45deg, #ff4444, #cc1111);
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.stop-game-btn:hover {
+    background: linear-gradient(45deg, #ff6666, #dd2222);
+    transform: translateY(-2px);
+}
+
+/* Kick player button styling */
+.kick-player-btn {
+    background: linear-gradient(45deg, #ff9800, #e65100);
+    border: none;
+    color: white;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.kick-player-btn:hover {
+    background: linear-gradient(45deg, #ffb74d, #f57c00);
+    transform: translateY(-1px);
+}
+
+.kick-player-btn.hidden {
+    display: none;
+}
+
 .current-turn {
     background: linear-gradient(90deg, #ffeb3b 0%, #fffde4 100%);
     color: #222;
@@ -37,6 +162,7 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    position: relative; /* For absolute positioned crown */
 }
  
 .user-info {
@@ -448,6 +574,7 @@ body {
 }
 
 .my-player-info {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -455,6 +582,7 @@ body {
 }
 
 .opponent-info {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;

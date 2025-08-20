@@ -17,7 +17,7 @@ class HeartsGame {
             isReady: true,
             isConnected: true,
             hand: [],
-            totalScore: 90,
+            totalScore: 50,
             roundScore: 0,
             isBot: true,
             profilePicture: null
@@ -29,7 +29,7 @@ class HeartsGame {
 
     constructor(id = null) {
         this.id = id || uuidv4();
-        this.state = 'lobby'; // lobby, passing, playing, finished, abandoned
+        this.state = 'lobby'; // lobby, passing, playing, finished, abandoned, saved
         this.players = new Map(); // seat -> player data
         this.spectators = new Set();
         this.lobbyLeader = null;
@@ -48,9 +48,16 @@ class HeartsGame {
         this.totalScores = new Map(); // seat -> total game score
         this.historicalRounds = []; // Array of round results: [{round: number, scores: {seat: score}}]
         
+        // Timestamps for game management
         this.createdAt = new Date();
         this.startedAt = null;
         this.finishedAt = null;
+        this.savedAt = null;
+        this.lastActivity = new Date();
+        this.abandonedReason = null;
+        
+        // Disconnection tracking
+        this.disconnectionTimers = new Map(); // userId -> timer info
     }
 
     // Seat management
@@ -77,7 +84,7 @@ class HeartsGame {
             isReady: true,  // DEBUG: players are ready by default
             isConnected: true,
             hand: [],
-            totalScore: 90,
+            totalScore: 50,
             roundScore: 0,
             isBot: false,
             profilePicture: null
@@ -98,32 +105,29 @@ class HeartsGame {
             throw new Error('Player not found');
         }
         
+        const removedPlayer = this.players.get(seat);
+        const wasLobbyLeader = this.lobbyLeader === seat;
+        
         // If game is in progress, don't remove - just mark as disconnected
         if (this.state !== 'lobby') {
             this.players.get(seat).isConnected = false;
-            return { disconnected: true };
+            
+            // If lobby leader disconnected during game, reassign immediately
+            if (wasLobbyLeader) {
+                this.reassignLobbyLeader();
+            }
+            
+            return { disconnected: true, newLobbyLeader: this.lobbyLeader };
         }
         
         this.players.delete(seat);
         
         // Reassign lobby leader if needed (prefer human players; do not promote bots)
-        if (this.lobbyLeader === seat && this.players.size > 0) {
-            // Find lowest-numbered seat occupied by a non-bot player
-            const humanSeats = Array.from(this.players.entries())
-                .filter(([s, p]) => !p.isBot)
-                .map(([s]) => s)
-                .sort((a,b) => a - b);
-            if (humanSeats.length > 0) {
-                this.lobbyLeader = humanSeats[0];
-            } else {
-                // No humans left in lobby - clear leader to avoid promoting a bot
-                this.lobbyLeader = null;
-            }
-        } else if (this.players.size === 0) {
-            this.lobbyLeader = null;
+        if (wasLobbyLeader) {
+            this.reassignLobbyLeader();
         }
         
-        return { removed: true };
+        return { removed: true, newLobbyLeader: this.lobbyLeader };
     }
 
     toggleReady(seat) {
@@ -641,6 +645,105 @@ class HeartsGame {
         };
     }
 
+    // Save game for later (called by lobby leader)
+    saveGame(reason = 'Lobby leader stopped the game') {
+        if (this.state === 'lobby' || this.state === 'finished') {
+            throw new Error('Cannot save lobby or finished games');
+        }
+        
+        this.state = 'saved';
+        this.savedAt = new Date();
+        this.abandonedReason = reason;
+        
+        return {
+            gameSaved: true,
+            reason: reason,
+            savedAt: this.savedAt
+        };
+    }
+
+    // Abandon game (called when players disconnect for too long)
+    abandonGame(reason = 'Players disconnected for too long') {
+        if (this.state === 'finished') {
+            throw new Error('Cannot abandon finished games');
+        }
+        
+        this.state = 'abandoned';
+        this.finishedAt = new Date();
+        this.abandonedReason = reason;
+        
+        return {
+            gameAbandoned: true,
+            reason: reason,
+            abandonedAt: this.finishedAt
+        };
+    }
+
+    // Resume a saved game
+    resumeGame() {
+        if (this.state !== 'saved') {
+            throw new Error('Can only resume saved games');
+        }
+        
+        // Restore previous game state based on what was happening
+        if (this.passDirection && this.passDirection !== 'none' && this.currentTrick === 0) {
+            this.state = 'passing';
+        } else {
+            this.state = 'playing';
+        }
+        
+        this.savedAt = null;
+        this.abandonedReason = null;
+        
+        return {
+            gameResumed: true,
+            newState: this.state
+        };
+    }
+
+    // Update last activity timestamp
+    updateLastActivity() {
+        this.lastActivity = new Date();
+    }
+
+    // Check if any human players are connected
+    hasConnectedHumanPlayers() {
+        for (const [seat, player] of this.players) {
+            if (player && !player.isBot && player.isConnected) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Reassign lobby leader to another human player
+    reassignLobbyLeader() {
+        // Find all human players (connected or disconnected)
+        const humanSeats = Array.from(this.players.entries())
+            .filter(([seat, player]) => !player.isBot)
+            .map(([seat]) => seat)
+            .sort((a, b) => a - b);
+        
+        if (humanSeats.length > 0) {
+            // Prefer connected players, then fallback to any human player
+            const connectedHumanSeats = humanSeats.filter(seat => 
+                this.players.get(seat).isConnected
+            );
+            
+            if (connectedHumanSeats.length > 0) {
+                this.lobbyLeader = connectedHumanSeats[0];
+            } else {
+                this.lobbyLeader = humanSeats[0];
+            }
+            
+            return this.lobbyLeader;
+        }
+        
+        // No human players left
+        this.lobbyLeader = null;
+        return null;
+    }
+
     // Utility methods
     getPlayerHands() {
         const hands = {};
@@ -691,9 +794,15 @@ class HeartsGame {
             currentTrickCards: this.currentTrickCards,
             trickLeader: this.trickLeader,
             tricksWon: Array.from(this.tricksWon.entries()),
+            roundScores: Array.from(this.roundScores.entries()),
+            totalScores: Array.from(this.totalScores.entries()),
+            historicalRounds: this.historicalRounds,
             createdAt: this.createdAt,
             startedAt: this.startedAt,
-            finishedAt: this.finishedAt
+            finishedAt: this.finishedAt,
+            savedAt: this.savedAt,
+            lastActivity: this.lastActivity,
+            abandonedReason: this.abandonedReason
         };
     }
 
@@ -703,7 +812,40 @@ class HeartsGame {
         game.players = new Map(data.players);
         game.spectators = new Set(data.spectators);
         game.tricksWon = new Map(data.tricksWon || []);
+        game.roundScores = new Map(data.roundScores || []);
+        game.totalScores = new Map(data.totalScores || []);
+        game.disconnectionTimers = new Map(); // Reset timers on load
         return game;
+    }
+
+    // Reset game back to lobby state after saving
+    resetToLobby() {
+        // Reset game state
+        this.state = 'lobby';
+        
+        // Reset game progress
+        this.currentRound = 1;
+        this.currentTrick = 0;
+        this.heartsBroken = false;
+        this.passDirection = this.getPassDirection(1);
+        
+        // Clear trick state
+        this.currentTrickCards = [];
+        this.trickLeader = null;
+        this.tricksWon.clear();
+        this.roundScores.clear();
+        
+        // Reset player states but keep them in their seats
+        for (const [seat, player] of this.players) {
+            player.hand = [];
+            player.roundScore = 0;
+            player.isReady = false; // Players need to ready up again
+        }
+        
+        // Keep lobby leader and total scores intact
+        // Keep spectators intact
+        
+        console.log(`Game ${this.id} reset to lobby state`);
     }
 }
 

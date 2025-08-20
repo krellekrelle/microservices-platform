@@ -197,6 +197,10 @@ class SocketHandler {
         // Game events
         socket.on('pass-cards', (data) => this.handlePassCards(socket, data));
         socket.on('play-card', (data) => this.handlePlayCard(socket, data));
+        
+        // Game management events
+        socket.on('stop-game', (data) => this.handleStopGame(socket, data));
+        socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
 
         // Admin events (lobby leader only)
         socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
@@ -212,6 +216,12 @@ class SocketHandler {
             const userId = socket.user.id;
             const userName = socket.user.name || socket.user.email;
             const profilePicture = socket.user.profilePicture || null;
+
+            // Clear any disconnection timers for this user (they're reconnecting)
+            const reconnectionInfo = gameManager.handlePlayerReconnection(userId, this);
+            if (reconnectionInfo.hadTimer) {
+                console.log(`Player ${userName} reconnected after ${reconnectionInfo.disconnectedSeconds} seconds, cleared auto-abandon timer`);
+            }
 
             const result = await gameManager.joinLobby(userId, userName, profilePicture);
             
@@ -796,7 +806,7 @@ class SocketHandler {
         }
     }
 
-    handleDisconnection(socket) {
+    async handleDisconnection(socket) {
         const userId = this.connectedUsers.get(socket.id);
         if (userId) {
             const userName = socket.user?.name || socket.user?.email || 'Unknown';
@@ -817,28 +827,60 @@ class SocketHandler {
                             const game = gameManager.activeGames.get(gameId);
                             if (game && (game.state === 'playing' || game.state === 'passing')) {
                                 // Find the player and mark as disconnected
+                                let playerSeat = null;
                                 for (const [seat, player] of game.players) {
                                     if (player && String(player.userId) === String(userId)) {
+                                        playerSeat = seat;
                                         player.isConnected = false;
                                         console.log(`Marked player ${userName} (seat ${seat}) as disconnected in game ${gameId}`);
-                                        
-                                        // Check if any human players are still connected
-                                        let humanPlayersConnected = 0;
-                                        for (const [s, p] of game.players) {
-                                            if (p && !p.isBot && p.isConnected) {
-                                                humanPlayersConnected++;
-                                            }
-                                        }
-                                        
-                                        // If no human players are connected, pause the game
-                                        if (humanPlayersConnected === 0 && game.state === 'playing') {
-                                            game.state = 'paused';
-                                            console.log(`Game ${gameId} paused - no human players connected`);
-                                            this.sendToGame(gameId, 'game-paused', { reason: 'All human players disconnected' });
-                                        }
                                         break;
                                     }
                                 }
+                                
+                                // Check if disconnected player was lobby leader
+                                if (playerSeat !== null && game.lobbyLeader === playerSeat) {
+                                    const oldLeader = game.lobbyLeader;
+                                    const newLeader = game.reassignLobbyLeader();
+                                    console.log(`Lobby leader ${oldLeader} disconnected, reassigned to ${newLeader}`);
+                                    
+                                    // Notify all players about lobby leader change
+                                    this.sendToGame(gameId, 'lobby-leader-changed', {
+                                        oldLeader: oldLeader,
+                                        newLeader: newLeader,
+                                        reason: 'Previous leader disconnected'
+                                    });
+                                    
+                                    // Update database
+                                    try {
+                                        await gameManager.saveGameToDatabase(game);
+                                    } catch (error) {
+                                        console.error('Failed to update lobby leader in database:', error);
+                                    }
+                                }
+                                
+                                // Start disconnection timer for auto-abandonment
+                                gameManager.handlePlayerDisconnection(userId, userName, this);
+                                
+                                // Check if any human players are still connected
+                                let humanPlayersConnected = 0;
+                                for (const [s, p] of game.players) {
+                                    if (p && !p.isBot && p.isConnected) {
+                                        humanPlayersConnected++;
+                                    }
+                                }
+                                
+                                // If no human players are connected, pause the game
+                                if (humanPlayersConnected === 0 && game.state === 'playing') {
+                                    game.state = 'paused';
+                                    console.log(`Game ${gameId} paused - no human players connected`);
+                                    this.sendToGame(gameId, 'game-paused', { 
+                                        reason: 'All human players disconnected',
+                                        will_abandon_in: '15 minutes' 
+                                    });
+                                }
+                                
+                                // Broadcast updated game state
+                                this.broadcastGameStateToRoom(gameId);
                             }
                         }
                     } catch (error) {
@@ -952,6 +994,147 @@ class SocketHandler {
     // Utility method to send message to lobby
     sendToLobby(gameId, event, data) {
         this.io.to(`lobby-${gameId}`).emit(event, data);
+    }
+
+    // Handle stop game request (lobby leader only)
+    async handleStopGame(socket, data) {
+        const userId = socket.user.id;
+        const userName = socket.user.name || socket.user.email;
+        
+        try {
+            const result = await gameManager.stopGame(userId, data?.reason);
+            
+            if (result.error) {
+                socket.emit('error', { message: result.error });
+                return;
+            }
+            
+            console.log(`Game ${result.gameId} stopped by lobby leader ${userName}`);
+            
+            // Broadcast to all players in the game
+            this.sendToGame(result.gameId, 'game-stopped', {
+                reason: result.reason,
+                stoppedBy: userName,
+                savedAt: result.savedAt
+            });
+            
+            // Return players to lobby (they will emit join-lobby to get fresh state)
+            this.sendToGame(result.gameId, 'return-to-lobby', {
+                message: 'Game was stopped and saved. You can rejoin the lobby.'
+            });
+            
+        } catch (error) {
+            console.error('Error stopping game:', error);
+            socket.emit('error', { message: 'Failed to stop game' });
+        }
+    }
+
+    // Handle kick player request (lobby leader only)
+    async handleKickPlayer(socket, data) {
+        const userId = socket.user.id;
+        const userName = socket.user.name || socket.user.email;
+        const { targetUserId, reason } = data || {};
+        
+        if (!targetUserId) {
+            socket.emit('error', { message: 'No target player specified' });
+            return;
+        }
+        
+        try {
+            // Find the game
+            const gameId = gameManager.playerToGame.get(userId);
+            if (!gameId) {
+                socket.emit('error', { message: 'You are not in any game' });
+                return;
+            }
+
+            const game = gameManager.activeGames.get(gameId);
+            if (!game) {
+                socket.emit('error', { message: 'Game not found' });
+                return;
+            }
+
+            // Check if user is lobby leader
+            let userSeat = null;
+            for (const [seat, player] of game.players) {
+                if (player && String(player.userId) === String(userId)) {
+                    userSeat = seat;
+                    break;
+                }
+            }
+
+            if (userSeat === null || game.lobbyLeader !== userSeat) {
+                socket.emit('error', { message: 'Only the lobby leader can kick players' });
+                return;
+            }
+
+            // Find target player
+            let targetSeat = null;
+            for (const [seat, player] of game.players) {
+                if (player && String(player.userId) === String(targetUserId)) {
+                    targetSeat = seat;
+                    break;
+                }
+            }
+
+            if (targetSeat === null) {
+                socket.emit('error', { message: 'Target player not found in game' });
+                return;
+            }
+
+            // Remove the player
+            const removeResult = game.removePlayer(targetSeat);
+            
+            // Update database if in lobby
+            if (game.state === 'lobby') {
+                await db.query(
+                    'DELETE FROM hearts_players WHERE game_id = $1 AND user_id = $2',
+                    [game.id, targetUserId]
+                );
+            }
+            
+            // Clear player mapping
+            gameManager.playerToGame.delete(targetUserId);
+            
+            // Clear any disconnection timers
+            gameManager.handlePlayerReconnection(targetUserId, this);
+            
+            // Notify the kicked player
+            this.sendToUser(targetUserId, 'kicked-from-game', {
+                reason: reason || 'Kicked by lobby leader',
+                kickedBy: userName
+            });
+            
+            // Broadcast to remaining players
+            this.sendToGame(gameId, 'player-kicked', {
+                kickedUserId: targetUserId,
+                reason: reason || 'Kicked by lobby leader',
+                kickedBy: userName,
+                newLobbyLeader: removeResult.newLobbyLeader
+            });
+            
+            // Update lobby state
+            this.broadcastLobbyState(gameId);
+            
+            console.log(`Player ${targetUserId} kicked from game ${gameId} by ${userName}`);
+            
+        } catch (error) {
+            console.error('Error kicking player:', error);
+            socket.emit('error', { message: 'Failed to kick player' });
+        }
+    }
+
+    // Send message to specific user
+    sendToUser(userId, event, data) {
+        if (this.userSockets.has(userId)) {
+            const userSocketIds = this.userSockets.get(userId);
+            userSocketIds.forEach(socketId => {
+                const socket = this.io.sockets.sockets.get(socketId);
+                if (socket) {
+                    socket.emit(event, data);
+                }
+            });
+        }
     }
 }
 

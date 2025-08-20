@@ -176,6 +176,11 @@ class GameManager {
         this.activeGames = new Map(); // gameId -> HeartsGame instance
         this.playerToGame = new Map(); // userId -> gameId
         this.lobbyGame = null; // Single lobby game instance
+        this.disconnectionTimers = new Map(); // userId -> timeout info
+        
+        // Disconnect timeout configuration (in minutes)
+        this.DISCONNECT_TIMEOUT_MINUTES = Number(process.env.HEARTS_DISCONNECT_TIMEOUT_MINUTES) || 1;
+        
         this.init();
     }
 
@@ -685,6 +690,7 @@ class GameManager {
             currentTrickCards: game.currentTrickCards,
             currentTurnSeat,
             tricksWon: Object.fromEntries(game.tricksWon), // Convert Map to object for frontend
+            lobbyLeader: game.lobbyLeader, // Include lobby leader info for crown and controls
             players: this.getPlayersState(game, forUserId),
             scores: {
                 round: game.getRoundScores(),
@@ -750,6 +756,286 @@ class GameManager {
         }
 
         return toRemove.length;
+    }
+
+    // Stop and save current game (lobby leader only)
+    async stopGame(userId, reason = 'Lobby leader stopped the game') {
+        // Find the game this user is in
+        const gameId = this.playerToGame.get(userId);
+        if (!gameId) {
+            return { error: 'You are not in any game' };
+        }
+
+        const game = this.activeGames.get(gameId);
+        if (!game) {
+            return { error: 'Game not found' };
+        }
+
+        // Check if user is lobby leader
+        let userSeat = null;
+        for (const [seat, player] of game.players) {
+            if (player && String(player.userId) === String(userId)) {
+                userSeat = seat;
+                break;
+            }
+        }
+
+        if (userSeat === null || game.lobbyLeader !== userSeat) {
+            return { error: 'Only the lobby leader can stop the game' };
+        }
+
+        if (game.state === 'lobby' || game.state === 'finished') {
+            return { error: 'Cannot stop lobby or finished games' };
+        }
+
+        try {
+            // Save the game as 'saved' state
+            const saveResult = game.saveGame(reason);
+            
+            // Update database with saved state
+            await this.saveGameToDatabase(game);
+            
+            // Remove the game from active games
+            this.activeGames.delete(gameId);
+            
+            return {
+                success: true,
+                gameId: game.id,
+                ...saveResult
+            };
+        } catch (error) {
+            return { error: `Failed to stop game: ${error.message}` };
+        }
+    }
+
+    // Save complete game state to database
+    async saveGameToDatabase(game) {
+        try {
+            // Update main game record
+            await db.query(`
+                UPDATE hearts_games SET 
+                    game_state = $1,
+                    current_round = $2,
+                    current_trick = $3,
+                    hearts_broken = $4,
+                    pass_direction = $5,
+                    current_trick_cards = $6,
+                    trick_leader_seat = $7,
+                    tricks_won = $8,
+                    round_scores = $9,
+                    total_scores = $10,
+                    historical_rounds = $11,
+                    saved_at = $12,
+                    last_activity = $13,
+                    abandoned_reason = $14,
+                    lobby_leader_id = $15
+                WHERE id = $16
+            `, [
+                game.state,
+                game.currentRound,
+                game.currentTrick,
+                game.heartsBroken,
+                game.passDirection,
+                JSON.stringify(game.currentTrickCards),
+                game.trickLeader,
+                JSON.stringify(Object.fromEntries(game.tricksWon)),
+                JSON.stringify(Object.fromEntries(game.roundScores)),
+                JSON.stringify(Object.fromEntries(game.totalScores)),
+                JSON.stringify(game.historicalRounds),
+                game.savedAt,
+                game.lastActivity,
+                game.abandonedReason,
+                game.lobbyLeader !== null ? this.getPlayerUserId(game, game.lobbyLeader) : null,
+                game.id
+            ]);
+
+            // Update player states
+            for (const [seat, player] of game.players) {
+                await db.query(`
+                    UPDATE hearts_players SET
+                        is_connected = $1,
+                        current_score = $2,
+                        round_score = $3,
+                        hand_cards = $4
+                    WHERE game_id = $5 AND seat_position = $6
+                `, [
+                    player.isConnected,
+                    player.totalScore,
+                    player.roundScore,
+                    JSON.stringify(player.hand || []),
+                    game.id,
+                    seat
+                ]);
+            }
+
+            console.log(`Game ${game.id} saved to database with state: ${game.state}`);
+        } catch (error) {
+            console.error('Failed to save game to database:', error);
+            throw error;
+        }
+    }
+
+    // Get player's user ID by seat
+    getPlayerUserId(game, seat) {
+        const player = game.players.get(seat);
+        return player ? player.userId : null;
+    }
+
+    // Handle player disconnection with timeout
+    handlePlayerDisconnection(userId, userName, socketHandler) {
+        const gameId = this.playerToGame.get(userId);
+        if (!gameId) return;
+
+        const game = this.activeGames.get(gameId);
+        if (!game || game.state === 'lobby' || game.state === 'finished') return;
+
+        // Notify other players that someone disconnected
+        if (socketHandler) {
+            socketHandler.sendToGame(gameId, 'playerDisconnected', {
+                playerId: userName,
+                userId: userId,
+                timeLeft: this.DISCONNECT_TIMEOUT_MINUTES * 60 * 1000
+            });
+        }
+
+        // Clear any existing timer for this user
+        if (this.disconnectionTimers.has(userId)) {
+            clearTimeout(this.disconnectionTimers.get(userId).timer);
+        }
+
+        // Set configurable timeout for auto-abandonment
+        const DISCONNECTION_TIMEOUT_MS = this.DISCONNECT_TIMEOUT_MINUTES * 60 * 1000;
+        
+        const timer = setTimeout(async () => {
+            console.log(`Player ${userName} (${userId}) has been disconnected for ${this.DISCONNECT_TIMEOUT_MINUTES} minutes, checking game state...`);
+            
+            // Recheck game state and player connection
+            const currentGame = this.activeGames.get(gameId);
+            if (!currentGame || currentGame.state === 'finished' || currentGame.state === 'abandoned') {
+                this.disconnectionTimers.delete(userId);
+                return;
+            }
+
+            // Check if player is still disconnected
+            let playerSeat = null;
+            for (const [seat, player] of currentGame.players) {
+                if (player && String(player.userId) === String(userId)) {
+                    playerSeat = seat;
+                    break;
+                }
+            }
+
+            if (playerSeat !== null && !currentGame.players.get(playerSeat).isConnected) {
+                // Player is still disconnected after the timeout
+                if (!currentGame.hasConnectedHumanPlayers()) {
+                    // No human players connected, abandon the game
+                    try {
+                        const abandonResult = currentGame.abandonGame(`All human players disconnected for more than ${this.DISCONNECT_TIMEOUT_MINUTES} minutes`);
+                        await this.saveGameToDatabase(currentGame);
+                        
+                        console.log(`Game ${gameId} abandoned due to prolonged disconnection`);
+                        
+                        // Remove all players from the game and return them to lobby
+                        const playersToNotify = [];
+                        for (const [seat, player] of currentGame.players) {
+                            if (player && !player.isBot) {
+                                playersToNotify.push({
+                                    userId: player.userId,
+                                    userName: player.userName
+                                });
+                                this.playerToGame.delete(player.userId);
+                            }
+                        }
+                        
+                        // Remove the game from active games
+                        this.activeGames.delete(gameId);
+                        
+                        // Notify all players about game abandonment
+                        if (socketHandler) {
+                            socketHandler.sendToGame(gameId, 'game-abandoned', {
+                                reason: abandonResult.reason,
+                                abandonedAt: abandonResult.abandonedAt
+                            });
+                            
+                            // Also send return-to-lobby to make sure UI switches
+                            socketHandler.sendToGame(gameId, 'return-to-lobby', {
+                                message: 'Game was abandoned due to player disconnections'
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error abandoning game:', error);
+                    }
+                }
+            }
+
+            this.disconnectionTimers.delete(userId);
+        }, DISCONNECTION_TIMEOUT_MS);
+
+        // Notify other players about the disconnection
+        if (socketHandler) {
+            socketHandler.sendToGame(gameId, 'playerDisconnected', {
+                playerId: userName,
+                userId: userId,
+                timeoutMinutes: this.DISCONNECT_TIMEOUT_MINUTES
+            });
+        }
+
+        this.disconnectionTimers.set(userId, {
+            timer,
+            gameId: gameId,
+            userName: userName,
+            startTime: Date.now()
+        });
+
+        console.log(`Started ${this.DISCONNECT_TIMEOUT_MINUTES}-minute disconnection timer for ${userName} in game ${gameId}`);
+    }
+
+    // Handle player reconnection
+    handlePlayerReconnection(userId, socketHandler) {
+        // Clear disconnection timer if exists
+        if (this.disconnectionTimers.has(userId)) {
+            const timerInfo = this.disconnectionTimers.get(userId);
+            clearTimeout(timerInfo.timer);
+            this.disconnectionTimers.delete(userId);
+            
+            const disconnectedTime = Math.round((new Date() - timerInfo.startTime) / 1000);
+            console.log(`Player ${userId} reconnected after ${disconnectedTime} seconds, timer cleared`);
+            
+            // Notify other players that someone reconnected
+            if (socketHandler && timerInfo.gameId) {
+                const game = this.activeGames.get(timerInfo.gameId);
+                if (game) {
+                    // Find the player's name
+                    let playerName = 'Unknown';
+                    for (const [seat, player] of game.players) {
+                        if (player && String(player.userId) === String(userId)) {
+                            playerName = player.userName || `Player ${seat + 1}`;
+                            break;
+                        }
+                    }
+                    
+                    socketHandler.sendToGame(timerInfo.gameId, 'playerReconnected', {
+                        playerId: playerName,
+                        userId: userId,
+                        disconnectedSeconds: disconnectedTime
+                    });
+                }
+            }
+            
+            return { 
+                hadTimer: true, 
+                disconnectedSeconds: disconnectedTime,
+                gameId: timerInfo.gameId
+            };
+        }
+        
+        return { hadTimer: false };
+    }
+
+    // Create a new lobby game
+    async createNewLobbyGame() {
+        const newGame = new HeartsGame();
+        return newGame;
     }
 }
 

@@ -25,28 +25,50 @@
 
 ## 📋 Recent Updates (August 2025)
 
-### ✅ End-Game Animation System (NEW)
+### ✅ Game Management & Leader Controls (NEW)
+- **Lobby Leader Crown**: Visual crown indicator (👑) displays next to lobby leader's avatar in both lobby and game states
+- **Stop Game Functionality**: Lobby leader can stop and save active games, returning all players to a fresh lobby
+- **Game Saving**: Stopped games are saved to database with `saved` state and can be tracked in match history
+- **Kick Player Controls**: Lobby leader can remove disruptive players from the game with confirmation dialog
+- **Leader Reassignment**: Automatic lobby leader reassignment when current leader disconnects
+
+### ✅ Disconnect Timeout System (NEW)
+- **Configurable Timeout**: Auto-abandon timer configurable via `HEARTS_DISCONNECT_TIMEOUT_MINUTES` environment variable (default: 1 minute)
+- **Visual Countdown**: Real-time countdown timer displayed when players disconnect, showing time until game abandonment
+- **Automatic Game Abandonment**: Games are automatically abandoned and saved when human players are disconnected too long
+- **Reconnection Handling**: Disconnection timers are cleared when players reconnect, with notification to other players
+- **Leader Handoff**: If lobby leader disconnects, leadership is automatically transferred to another human player
+
+### ✅ Database Schema Enhancements (NEW)
+- **Extended Game State**: Added support for `saved` game state in hearts_games table
+- **Complete Game Data**: Added columns for trick data, scores, and round history to support game saving
+- **Abandonment Tracking**: Added `abandoned_reason` and `saved_at` columns for proper game state management
+- **Migration Script**: Database columns added via ALTER TABLE commands for backwards compatibility
+
+### ✅ UI/UX Improvements (NEW)
+- **Crown Positioning**: Lobby leader crown properly positioned relative to player avatars in all states
+- **Controls Visibility**: Lobby leader controls (Stop Game, Kick Player) only visible during active games
+- **Mobile Responsive**: All new UI elements work correctly on mobile devices with proper scaling
+- **Confirmation Dialogs**: User-friendly confirmation dialogs for destructive actions (stop game, kick player)
+- **Toast Notifications**: Non-blocking notifications for all game management actions and state changes
+
+### ✅ End-Game Animation System
 - **Comprehensive Victory Celebration**: Added full end-game animation overlay with trophy display, confetti effects, and player rankings
 - **Winner Announcement**: Animated trophy with bounce effects and golden glow for the winning player
 - **Dynamic Confetti**: Physics-based confetti animation with randomized colors and falling particles
 - **Player Rankings Display**: Animated final standings (1st through 4th place) with slide-in effects
 - **Return to Lobby**: Smooth transition system with proper cleanup and fresh lobby creation
 
-### ✅ Testing Enhancements (NEW)
-- **Rapid Game Testing**: Modified player starting scores from 0 to 90 points for quick game completion testing
+### ✅ Testing Enhancements
+- **Rapid Game Testing**: Modified player starting scores from 0 to 50 points for quicker game completion testing
 - **Faster End-Game Testing**: Games now reach completion after 1-2 rounds instead of 8-10 rounds
-- **Easy Configuration**: Simple toggle in `models/HeartsGame.js` to switch between testing (90 points) and production (0 points) modes
+- **Easy Configuration**: Simple toggle in `models/HeartsGame.js` to switch between testing (50 points) and production (0 points) modes
 
-### ✅ Server-Side Fixes (NEW)
+### ✅ Server-Side Fixes
 - **Lobby Management**: Fixed issue where players returning from finished games were reconnected to the same finished game
 - **Game Cleanup**: Added automatic cleanup of finished games in `joinLobby()` method
 - **Fresh Lobby Creation**: Players now get fresh lobbies instead of seeing finished game states when returning
-
-### ✅ Animation System Implementation
-- **Duplicate Prevention**: Added `endGameShown` flag to prevent multiple animation triggers
-- **Responsive Design**: Animations work across all screen sizes with proper scaling
-- **CSS Keyframes**: Comprehensive animation library with bounce, fade, slide, and confetti effects
-- **Client-Side State Management**: Proper cleanup and state management for smooth transitions
+- **Game State Broadcasting**: Proper game state updates including lobby leader information for UI controls
 
 ## 🎯 Service Overview
 
@@ -63,14 +85,17 @@ This Hearts game service is **completely implemented and operational** with all 
 
 ### ✅ Implemented Features
 - **Complete Hearts Game**: Full implementation of standard 4-player Hearts rules
-- **Lobby System**: 4-seat lobby with player management, ready states, and leader controls
+- **Lobby System**: 4-seat lobby with player management, ready states, and leader controls with crown indicator
+- **Game Management**: Stop game functionality, kick player controls, configurable disconnect timeouts
 - **AI Bot Integration**: Server-side bots that can be added to empty seats with automated gameplay
 - **Real-time Multiplayer**: Socket.IO-based live synchronization of all game actions
 - **Card Passing**: Complete atomic passing system (left/right/across/none) with synchronization
 - **Trick Playing**: Full trick-taking gameplay with Hearts rule validation
 - **Scoring System**: Traditional Hearts scoring including "shooting the moon" detection
-- **Database Persistence**: Complete game tracking with PostgreSQL storage
+- **Database Persistence**: Complete game tracking with PostgreSQL storage including saved games
 - **Reconnection Support**: Players can disconnect and rejoin with full state restoration
+- **Disconnect Handling**: Automatic game abandonment after configurable timeout with visual countdown
+- **Leadership Management**: Automatic lobby leader reassignment and crown display system
 - **Dual API**: Both Socket.IO events and HTTP endpoints for maximum compatibility
 
 ### ✅ UI Enhancements (Recently Completed)

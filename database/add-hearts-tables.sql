@@ -5,11 +5,19 @@
 CREATE TABLE IF NOT EXISTS hearts_games (
     id VARCHAR(255) PRIMARY KEY, -- UUID for game identification
     lobby_leader_id INTEGER REFERENCES users(id),
-    game_state VARCHAR(20) DEFAULT 'lobby', -- lobby, passing, playing, finished, abandoned
+    game_state VARCHAR(20) DEFAULT 'lobby', -- lobby, passing, playing, finished, abandoned, saved
     current_round INTEGER DEFAULT 1,
     current_trick INTEGER DEFAULT 0,
     hearts_broken BOOLEAN DEFAULT FALSE,
     pass_direction VARCHAR(10), -- left, right, across, none
+    current_trick_cards TEXT, -- JSON array of cards in current trick
+    trick_leader_seat INTEGER, -- seat number of trick leader
+    tricks_won TEXT, -- JSON object mapping seat to tricks won count
+    round_scores TEXT, -- JSON object mapping seat to round scores  
+    total_scores TEXT, -- JSON object mapping seat to total scores
+    historical_rounds TEXT, -- JSON array of historical round data
+    saved_at TIMESTAMP WITH TIME ZONE, -- when game was saved for later
+    last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- last player activity
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP WITH TIME ZONE,
     finished_at TIMESTAMP WITH TIME ZONE,
