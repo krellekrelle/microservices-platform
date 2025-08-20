@@ -25,12 +25,14 @@
 
 ## 📋 Recent Updates (August 2025)
 
-### ✅ Game Management & Leader Controls (NEW)
+### ✅ Game Management & Leader Controls (UPDATED August 2025)
 - **Lobby Leader Crown**: Visual crown indicator (👑) displays next to lobby leader's avatar in both lobby and game states
-- **Stop Game Functionality**: Lobby leader can stop and save active games, returning all players to a fresh lobby
-- **Game Saving**: Stopped games are saved to database with `saved` state and can be tracked in match history
+- **Stop Game Functionality**: Lobby leader can stop and save active games, creating a fresh lobby for continued play
+- **Game Saving Strategy**: Stopped games are saved as 'saved' state in database while creating new lobby games for players
+- **Match History Integration**: Saved games appear in match history with proper 'saved' state tracking
 - **Kick Player Controls**: Lobby leader can remove disruptive players from the game with confirmation dialog
 - **Leader Reassignment**: Automatic lobby leader reassignment when current leader disconnects
+- **Fresh Lobby Creation**: When games are stopped, players are moved to a completely new lobby game instance
 
 ### ✅ Disconnect Timeout System (NEW)
 - **Configurable Timeout**: Auto-abandon timer configurable via `HEARTS_DISCONNECT_TIMEOUT_MINUTES` environment variable (default: 1 minute)
@@ -39,11 +41,20 @@
 - **Reconnection Handling**: Disconnection timers are cleared when players reconnect, with notification to other players
 - **Leader Handoff**: If lobby leader disconnects, leadership is automatically transferred to another human player
 
-### ✅ Database Schema Enhancements (NEW)
+### ✅ Database Schema Enhancements (UPDATED August 2025)
 - **Extended Game State**: Added support for `saved` game state in hearts_games table
-- **Complete Game Data**: Added columns for trick data, scores, and round history to support game saving
-- **Abandonment Tracking**: Added `abandoned_reason` and `saved_at` columns for proper game state management
-- **Migration Script**: Database columns added via ALTER TABLE commands for backwards compatibility
+- **Complete Game Data**: Added columns for trick data, scores, and round history to support comprehensive game saving:
+  - `current_trick_cards` TEXT - JSON array of cards in current trick
+  - `trick_leader_seat` INTEGER - seat number of trick leader
+  - `tricks_won` TEXT - JSON object mapping seat to tricks won count
+  - `round_scores` TEXT - JSON object mapping seat to round scores
+  - `total_scores` TEXT - JSON object mapping seat to total scores
+  - `historical_rounds` TEXT - JSON array of historical round data
+  - `saved_at` TIMESTAMP - when game was saved for later
+  - `last_activity` TIMESTAMP - last player activity timestamp
+- **Abandonment Tracking**: Added `abandoned_reason` column for proper game state management
+- **Migration Compatibility**: Database columns added via ALTER TABLE commands for backwards compatibility
+- **Game Persistence**: Full game state can be saved and restored including player hands, scores, and trick state
 
 ### ✅ UI/UX Improvements (NEW)
 - **Crown Positioning**: Lobby leader crown properly positioned relative to player avatars in all states
@@ -58,6 +69,31 @@
 - **Dynamic Confetti**: Physics-based confetti animation with randomized colors and falling particles
 - **Player Rankings Display**: Animated final standings (1st through 4th place) with slide-in effects
 - **Return to Lobby**: Smooth transition system with proper cleanup and fresh lobby creation
+
+### ✅ Game Saving Architecture (UPDATED August 2025)
+Implementation details for the stop game and save functionality:
+
+#### ✅ Stop Game Flow
+```javascript
+// When lobby leader clicks "Stop Game":
+1. Game state is saved to database as 'saved' with abandoned_reason
+2. A new lobby game is created for players to continue playing
+3. All human players are moved from stopped game to new lobby (preserving seat preferences)
+4. Players receive 'return-to-lobby' event which triggers 'join-lobby' emission
+5. Server responds with fresh lobby state via 'lobby-updated' event
+6. Stopped game remains in database for match history tracking
+
+// Key Implementation Files:
+- services/gameManager.js: stopGame() method with new lobby creation
+- services/socketHandler.js: handleStopGame() event handler
+- public/hearts-game.js: return-to-lobby event handler with state reset
+```
+
+#### ✅ Database Strategy
+- **Stopped Games**: Remain in database with `game_state = 'saved'` for match history
+- **Active Lobbies**: New lobby games created with `game_state = 'lobby'` for continued play
+- **Player Migration**: Human players moved to new lobby, bots are discarded
+- **Match History**: Saved games appear in /api/history with proper state tracking
 
 ### ✅ Testing Enhancements
 - **Rapid Game Testing**: Modified player starting scores from 0 to 50 points for quicker game completion testing
