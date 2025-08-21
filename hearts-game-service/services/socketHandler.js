@@ -969,11 +969,14 @@ class SocketHandler {
         const doBroadcast = () => {
             try {
                 const room = this.io.sockets.adapter.rooms.get(`game-${gameId}`);
+                console.log('------------------------------------------------');
+                console.log(`[DEBUG] room: ${room}`);
                 if (room) {
                     for (const socketId of room) {
                         const s = this.io.sockets.sockets.get(socketId);
                         if (s && s.user && s.user.id) {
                             const gameState = gameManager.getGameState(gameId, s.user.id);
+                            console.log(`[DEBUG] gamestate: `, gameState);
                             s.emit('game-state', gameState);
                         }
                     }

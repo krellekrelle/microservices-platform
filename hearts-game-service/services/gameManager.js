@@ -1060,6 +1060,8 @@ class GameManager {
         }
 
         const lobbyLeader = this.getLobbyLeader();
+        console.log("lobbyleader: ", lobbyLeader);
+        console.log("requested user id: ", requestingUserId);
         if (!lobbyLeader || String(lobbyLeader.userId) !== String(requestingUserId)) {
             return { error: 'Only the lobby leader can resume games' };
         }
@@ -1115,37 +1117,83 @@ class GameManager {
             // Load the saved game from database
             const loadedGame = await this.loadSavedGameFromDb(gameId);
             
-            // Validate current players are in correct seats
-            const seatMismatches = [];
-            for (const savedPlayer of savedHumanPlayers) {
-                const currentPlayerInSeat = this.lobbyGame.players.get(savedPlayer.seat_position);
-                if (!currentPlayerInSeat || String(currentPlayerInSeat.userId) !== String(savedPlayer.user_id)) {
-                    seatMismatches.push(`${savedPlayer.name} should be in seat ${savedPlayer.seat_position + 1}`);
+            // Store original lobby game in case we need to restore it
+            const originalLobbyGame = this.lobbyGame;
+            
+            try {
+                // Clear current lobby seating and reseat players to match saved game
+                this.lobbyGame.players.clear();
+                this.lobbyGame.lobbyLeader = null;
+                
+                // Reseat human players to their original positions
+                for (const savedPlayer of savedHumanPlayers) {
+                    // Find the current player in the lobby
+                    let currentPlayer = null;
+                    for (const [seat, player] of originalLobbyGame.players) {
+                        if (player && !player.isBot && String(player.userId) === String(savedPlayer.user_id)) {
+                            currentPlayer = player;
+                            break;
+                        }
+                    }
+                    
+                    if (currentPlayer) {
+                        // Add player to their original seat
+                        this.lobbyGame.players.set(savedPlayer.seat_position, {
+                            ...currentPlayer,
+                            seat: savedPlayer.seat_position,
+                            isReady: true // Mark as ready for resumed game
+                        });
+                        
+                        // Set lobby leader if first player (or maintain original leader)
+                        if (this.lobbyGame.lobbyLeader === null) {
+                            this.lobbyGame.lobbyLeader = savedPlayer.seat_position;
+                        }
+                    }
                 }
-            }
+                // Add the resumed game to activeGames instead of replacing lobbyGame
+                this.activeGames.set(gameId, loadedGame);
+                
+                // Update player mappings for the resumed game
+                for (const [seat, player] of loadedGame.players) {
+                    if (player && !player.isBot) {
+                        this.playerToGame.set(player.userId, gameId);
+                    }
+                }
+                
+                // Create a fresh lobby game for new players
+                await this.createLobbyGame();
+                
+                // Try to resume the game state
+                const resumeResult = loadedGame.resumeGame();
+                
+                // Validate that the resume was successful
+                if (!resumeResult || !resumeResult.gameResumed) {
+                    throw new Error('Resume operation failed to complete properly');
+                }
+                
+                // Only now update the database since the resume was successful
+                await db.query(`
+                    UPDATE hearts_games SET 
+                        game_state = $1, 
+                        saved_at = NULL, 
+                        abandoned_reason = NULL,
+                        last_activity = NOW()
+                    WHERE id = $2
+                `, [loadedGame.state, gameId]);
 
-            if (seatMismatches.length > 0) {
                 return {
-                    error: 'Cannot resume game',
-                    details: `Seat assignments don't match: ${seatMismatches.join(', ')}`
+                    success: true,
+                    gameId: gameId,
+                    gameState: this.getGameState(gameId, requestingUserId),
+                    message: 'Game resumed successfully - players have been reseated'
                 };
+                
+            } catch (resumeError) {
+                // Resume failed - restore original lobby game
+                this.lobbyGame = originalLobbyGame;
+                console.error('Game resume failed, restored original lobby:', resumeError);
+                throw new Error(`Game resume failed: ${resumeError.message}`);
             }
-
-            // Replace lobby game with loaded game
-            this.lobbyGame = loadedGame;
-            
-            // Resume the game state
-            const resumeResult = this.lobbyGame.resumeGame();
-            
-            // Save updated state to database
-            await this.lobbyGame.saveToDatabase();
-
-            return {
-                success: true,
-                gameId: gameId,
-                gameState: this.lobbyGame.getGameState(),
-                message: 'Game resumed successfully'
-            };
 
         } catch (error) {
             console.error('Error resuming game:', error);
@@ -1197,26 +1245,35 @@ class GameManager {
 
         if (gameData.tricks_won) {
             try {
-                game.tricksWon = JSON.parse(gameData.tricks_won);
+                const tricksWonData = JSON.parse(gameData.tricks_won);
+                game.tricksWon = new Map(tricksWonData || []);
             } catch (e) {
-                game.tricksWon = {};
+                game.tricksWon = new Map();
             }
+        } else {
+            game.tricksWon = new Map();
         }
 
         if (gameData.round_scores) {
             try {
-                game.roundScores = JSON.parse(gameData.round_scores);
+                const roundScoresData = JSON.parse(gameData.round_scores);
+                game.roundScores = new Map(roundScoresData || []);
             } catch (e) {
-                game.roundScores = {};
+                game.roundScores = new Map();
             }
+        } else {
+            game.roundScores = new Map();
         }
 
         if (gameData.total_scores) {
             try {
-                game.totalScores = JSON.parse(gameData.total_scores);
+                const totalScoresData = JSON.parse(gameData.total_scores);
+                game.totalScores = new Map(totalScoresData || []);
             } catch (e) {
-                game.totalScores = {};
+                game.totalScores = new Map();
             }
+        } else {
+            game.totalScores = new Map();
         }
 
         if (gameData.historical_rounds) {
@@ -1239,9 +1296,11 @@ class GameManager {
                 seat: playerRow.seat_position,
                 isBot: playerRow.is_bot,
                 isReady: true, // All players ready for resumed game
+                isConnected: true, // Mark as connected for resumed game
                 hand: [],
                 passedCards: [],
-                hasPassedCards: false
+                hasPassedCards: false,
+                profilePicture: null // Add default profile picture
             };
 
             // Parse hand if available

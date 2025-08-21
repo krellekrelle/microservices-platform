@@ -295,9 +295,9 @@ function initializeSocket() {
         rowsDiv.innerHTML = html;
     }
     updateScoreboard();
-        ensureGameSectionVisible();
-        lobbyState = data;
-        
+    ensureGameSectionVisible();
+    lobbyState = data;
+        console.log('🎮 Received game-state update:', data);
         // Determine mySeat from game state data (important for reconnecting players)
         if (currentUser && data.players) {
             let mySeatLocal = null;

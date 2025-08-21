@@ -462,6 +462,29 @@ router.post('/resume-game/:gameId', async (req, res) => {
         // Check current lobby state
         const result = await gameManager.resumeSavedGame(gameId, userId, savedHumanPlayers);
         
+        // If resume was successful, send notification to all players
+        if (result.success) {
+            // Import socketHandler dynamically to avoid circular dependency
+            const socketHandler = require('../services/socketHandler');
+            
+            // Send a specific resume notification to all players
+            if (socketHandler && typeof socketHandler.sendToGame === 'function') {
+                socketHandler.sendToGame(gameId, 'game-resumed', {
+                    message: 'Game has been resumed by the lobby leader',
+                    gameId: gameId,
+                    resumedBy: req.user.name || req.user.email
+                });
+            }
+            
+            // // Broadcast the game state to all players in the game room
+            // if (socketHandler && typeof socketHandler.broadcastGameStateToRoom === 'function') {
+            //     // Small delay to ensure players have joined the correct rooms
+            //     socketHandler.broadcastGameStateToRoom(gameId, 7000);
+            // }
+            
+            console.log(`Game ${gameId} resumed by user ${userId}`);
+        }
+        
         res.json(result);
     } catch (error) {
         console.error('Resume game error:', error);
