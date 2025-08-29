@@ -434,18 +434,23 @@ class VideoManager {
             console.log(`🎬 Local video element found:`, videoElement);
             
             if (videoElement) {
-                videoElement.srcObject = this.localStream;
-                videoElement.style.display = 'block';
-                
-                // Remove debug styling and add stream debugging
-                videoElement.style.border = 'none';
-                videoElement.style.background = 'transparent';
-                
-                // Debug stream attachment
-                console.log(`🎬 Attaching stream to video element:`, this.localStream);
-                console.log(`🎬 Stream tracks:`, this.localStream.getTracks());
-                console.log(`🎬 Video tracks:`, this.localStream.getVideoTracks());
-                console.log(`🎬 Video element srcObject:`, videoElement.srcObject);
+                // Force re-attach the stream even if it's already attached
+                console.log(`🎬 Force re-attaching stream to video element`);
+                videoElement.srcObject = null; // Clear first
+                setTimeout(() => {
+                    videoElement.srcObject = this.localStream;
+                    videoElement.style.display = 'block';
+                    
+                    // Remove debug styling and add stream debugging
+                    videoElement.style.border = 'none';
+                    videoElement.style.background = 'transparent';
+                    
+                    // Debug stream attachment
+                    console.log(`🎬 Attaching stream to video element:`, this.localStream);
+                    console.log(`🎬 Stream tracks:`, this.localStream.getTracks());
+                    console.log(`🎬 Video tracks:`, this.localStream.getVideoTracks());
+                    console.log(`🎬 Video element srcObject:`, videoElement.srcObject);
+                }, 50);
                 
                 // Track local video as active
                 this.activeVideoSeats.add(mySeat);
@@ -969,12 +974,23 @@ function initializeSocket() {
         endGameShown = false; // Reset end-game animation flag for new game
         showGameSection();
         
-        // Restore video streams after transitioning to game view
+        // Restore video streams after transitioning to game view with longer delay
         if (videoManager) {
-            // Small delay to ensure DOM is updated
+            // Multiple restoration attempts to ensure it works
             setTimeout(() => {
+                console.log('🎮 First video restoration attempt after game start');
                 videoManager.restoreVideoStreams();
             }, 100);
+            
+            setTimeout(() => {
+                console.log('🎮 Second video restoration attempt after game start');
+                videoManager.restoreVideoStreams();
+            }, 300);
+            
+            setTimeout(() => {
+                console.log('🎮 Final video restoration attempt after game start');
+                videoManager.restoreVideoStreams();
+            }, 500);
         }
     });
     // cards-dealt event is no longer needed; hand is always included in game-state
@@ -1114,9 +1130,16 @@ function initializeSocket() {
     // Update controls (including lobby leader controls) based on current game state
     updateControls();
     
-    // Restore video streams after game state update
+    // Restore video streams after game state update with delay
     if (videoManager) {
+        // Immediate attempt
         videoManager.restoreVideoStreams();
+        
+        // Delayed backup attempt
+        setTimeout(() => {
+            console.log('🎮 Backup video restoration in game-state handler');
+            videoManager.restoreVideoStreams();
+        }, 200);
     }
 }); // End socket.on('game-state')
     // Listen for trick-completed event (log only; UI is driven by 'game-state')
@@ -1295,7 +1318,9 @@ function showHand(hand) {
         const seatClassesToClear = ['game-seat-hand','game-seat-right','game-seat-upper','game-seat-left'];
         seatClassesToClear.forEach(cls => {
             const cell = gameSeatsContainer.querySelector('.' + cls);
-            if (cell) cell.innerHTML = '';
+            if (cell) {
+                cell.innerHTML = '';
+            }
         });
         // Map logical seat numbers to visual positions so that the order is consistent with the lobby
         // areaMap: [bottom, right, top, left]
@@ -1378,6 +1403,7 @@ function showHand(hand) {
                 cell.classList.remove('current-turn');
             }
         }
+        
         // Always hide the old hand area in passing/playing phase
         // handArea.style.display = 'none';
         updateCardSelectionUI();

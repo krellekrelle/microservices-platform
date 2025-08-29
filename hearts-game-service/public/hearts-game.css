@@ -1318,15 +1318,13 @@ body.game-paused .card-img {
 
 /* Video streaming styles */
 .player-video {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
     width: 100% !important;
     height: 100% !important;
     border-radius: 50% !important;
     object-fit: cover !important;
     z-index: 100 !important;
     background: #1a1a1a;
+    display: block !important;
 }
 
 /* Ensure video elements are visible when displayed */
