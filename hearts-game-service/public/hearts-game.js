@@ -675,8 +675,10 @@ function showHand(hand) {
                     cell.innerHTML = `
                         <div class="my-player-info">
                             ${leaderCrown}
-                            ${renderPlayerAvatar(player, 'small')}
-                            ${renderTricksWon(tricksWon)}
+                            <div class="opponent-top-row">
+                                ${renderPlayerAvatar(player, 'large')}
+                                ${renderTricksWon(tricksWon)}
+                            </div>
                         </div>
                         <div id="hand-cards" style="display:flex;justify-content:center;align-items:center;margin-top:8px;"></div>
                     `;
@@ -704,9 +706,11 @@ function showHand(hand) {
                 cell.innerHTML = `
                     <div class="opponent-info${isTurn?' current-turn':''}">
                         ${leaderCrown}
-                        ${renderPlayerAvatar(player, 'small')}
+                        <div class="opponent-top-row">
+                            ${renderPlayerAvatar(player, 'large')}
+                            ${renderTricksWon(tricksWon)}
+                        </div>
                         ${renderOpponentHand(handSize)}
-                        ${renderTricksWon(tricksWon)}
                     </div>
                 `;
             }

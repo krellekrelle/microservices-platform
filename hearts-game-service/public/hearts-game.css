@@ -599,18 +599,27 @@ body {
     height: 200px; /* Fixed height to prevent resizing */
 }
 
+/* New top row layout for avatar and tricks */
+.opponent-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 10px;
+}
+
 .opponent-info.current-turn {
     background: rgba(255, 235, 59, 0.15);
     border-color: rgba(255, 235, 59, 0.3);
     box-shadow: 0 0 8px rgba(255, 235, 59, 0.4);
 }
 
-/* Player Avatar System */
+/* Player Avatar System - Updated for larger icons */
 .player-avatar-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .player-avatar {
@@ -622,13 +631,13 @@ body {
 }
 
 .avatar-large {
-    width: 48px;
-    height: 48px;
+    width: 50px;  /* Increased from 48px to meet 50x50 requirement */
+    height: 50px;
 }
 
 .avatar-medium {
-    width: 40px;
-    height: 40px;
+    width: 42px;  /* Slightly increased for better proportions */
+    height: 42px;
 }
 
 .avatar-small {
@@ -651,22 +660,26 @@ body {
     justify-content: center;
     color: white;
     font-weight: bold;
-    font-size: 16px;
+    font-size: 18px;  /* Increased default size for larger avatars */
 }
 
 .avatar-small .avatar-fallback {
     font-size: 14px;
 }
 
+.avatar-medium .avatar-fallback {
+    font-size: 16px;  /* Added medium size */
+}
+
 .avatar-large .avatar-fallback {
-    font-size: 18px;
+    font-size: 20px;  /* Increased for 50px avatars */
 }
 
 .player-name {
     font-size: 13px;
     font-weight: 500;
     text-align: center;
-    max-width: 80px;
+    max-width: 90px;  /* Slightly increased to accommodate layout */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -712,19 +725,19 @@ body {
     font-weight: 500;
 } */
 
-/* Tricks Won Visualization */
+/* Tricks Won Visualization - Updated for side-by-side layout */
 .tricks-won-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    margin: 4px 0;
+    margin: 0;  /* Remove margin since it's now in top row */
 }
 
 .trick-stack {
     position: relative;
-    height: 22px; /* Height of single card */
-    width: 60px; /* Wider to accommodate horizontal stacking */
+    height: 22px; /* Keep current height */
+    width: 60px; /* Keep current width */
 }
 
 .trick-card {
@@ -734,8 +747,8 @@ body {
 }
 
 .trick-card-image {
-    width: 16px;
-    height: 22px;
+    width: 16px;  /* Keep current size */
+    height: 22px; /* Keep current size */
     border-radius: 1px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
