@@ -1213,11 +1213,14 @@ class GameManager {
         }
         const gameData = gameRes.rows[0];
 
-        // Get players
-        const playersRes = await db.query(
-            'SELECT * FROM hearts_players WHERE game_id = $1 ORDER BY seat_position',
-            [gameId]
-        );
+        // Get players with user information
+        const playersRes = await db.query(`
+            SELECT hp.*, u.name as user_name, u.profile_picture_url
+            FROM hearts_players hp
+            LEFT JOIN users u ON hp.user_id = u.id
+            WHERE hp.game_id = $1
+            ORDER BY hp.seat_position
+        `, [gameId]);
 
         // Create new HeartsGame instance
         const game = new HeartsGame();
@@ -1230,6 +1233,25 @@ class GameManager {
         game.lastActivity = gameData.last_activity;
         game.abandonedReason = gameData.abandoned_reason;
 
+        // Restore additional game state fields
+        game.heartsBroken = gameData.hearts_broken || false;
+        
+        // currentTurnSeat needs to be derived since it's not stored
+        // For now, set to null and let game logic determine it
+        game.currentTurnSeat = null;
+        
+        // Handle lobby leader - convert from user_id to seat number
+        game.lobbyLeader = null;
+        if (gameData.lobby_leader_id) {
+            // Find which seat has this user_id
+            for (const playerRow of playersRes.rows) {
+                if (playerRow.user_id && String(playerRow.user_id) === String(gameData.lobby_leader_id)) {
+                    game.lobbyLeader = playerRow.seat_position;
+                    break;
+                }
+            }
+        }
+
         // Restore game state data
         if (gameData.current_trick_cards) {
             try {
@@ -1239,7 +1261,7 @@ class GameManager {
             }
         }
 
-        game.trickLeaderSeat = gameData.trick_leader_seat;
+        game.trickLeader = gameData.trick_leader_seat;
         game.currentTrick = gameData.current_trick || 0;
         game.currentRound = gameData.current_round || 1;
 
@@ -1292,21 +1314,23 @@ class GameManager {
         for (const playerRow of playersRes.rows) {
             const player = {
                 userId: playerRow.user_id,
-                userName: playerRow.user_name,
+                userName: playerRow.user_name || `Player ${playerRow.seat_position + 1}`,
                 seat: playerRow.seat_position,
                 isBot: playerRow.is_bot,
                 isReady: true, // All players ready for resumed game
                 isConnected: true, // Mark as connected for resumed game
+                roundScore: playerRow.round_score || 0,
+                totalScore: playerRow.current_score || 0,
                 hand: [],
                 passedCards: [],
                 hasPassedCards: false,
-                profilePicture: null // Add default profile picture
+                profilePicture: playerRow.profile_picture_url || null
             };
 
             // Parse hand if available
-            if (playerRow.current_hand) {
+            if (playerRow.hand_cards) {
                 try {
-                    player.hand = JSON.parse(playerRow.current_hand);
+                    player.hand = JSON.parse(playerRow.hand_cards);
                 } catch (e) {
                     player.hand = [];
                 }
@@ -1324,6 +1348,22 @@ class GameManager {
             }
 
             game.players.set(playerRow.seat_position, player);
+        }
+
+        // Derive currentTurnSeat from game state
+        if (game.state === 'playing' && game.currentTrickCards) {
+            if (game.currentTrickCards.length === 0) {
+                // No cards played yet, use trick leader
+                game.currentTurnSeat = game.trickLeader;
+            } else if (game.currentTrickCards.length < 4) {
+                // Determine next player in turn order
+                const leadSeat = game.currentTrickCards[0].seat;
+                const nextSeat = (leadSeat + game.currentTrickCards.length) % 4;
+                game.currentTurnSeat = nextSeat;
+            } else {
+                // Trick is complete, next turn depends on trick winner
+                game.currentTurnSeat = null; // Will be set when trick is resolved
+            }
         }
 
         return game;

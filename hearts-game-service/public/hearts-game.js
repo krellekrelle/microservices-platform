@@ -234,6 +234,7 @@ function initializeSocket() {
         updateConnectionStatus(false);
     });
     socket.on('lobby-updated', (data) => {
+        console.log('🏛️ Lobby updated:', data);
         // Reset end-game flag when returning to lobby state
         if (data.state === 'lobby') {
             endGameShown = false;
@@ -295,8 +296,8 @@ function initializeSocket() {
         rowsDiv.innerHTML = html;
     }
     updateScoreboard();
-    ensureGameSectionVisible();
     lobbyState = data;
+    ensureGameSectionVisible();
         console.log('🎮 Received game-state update:', data);
         // Determine mySeat from game state data (important for reconnecting players)
         if (currentUser && data.players) {
@@ -533,74 +534,6 @@ function showTrick(trickCards, winnerSeat) {
     trickArea.innerHTML = `<div style="position:relative;width:120px;height:120px;margin:auto;">${stackedCards}</div>`;
 }
 
-// // Update the game state label in its own element
-// function updateGameStateLabel() {
-//     const labelDiv = document.getElementById('game-state-label');
-//     const handArea = document.getElementById('hand-area');
-//     const gameSeatsContainer = document.querySelector('.game-seats-container');
-//     if (!labelDiv || !handArea) return;
-//     if (lobbyState && lobbyState.state) {
-//         let stateLabel = '';
-//         let turnLabel = '';
-//         switch (lobbyState.state) {
-//             case 'passing':
-//                 stateLabel = 'Passing Round';
-//                 let hasPassed = false;
-//                 if (typeof mySeat === 'number' && lobbyState.players && lobbyState.players[mySeat]) {
-//                     const myPlayer = lobbyState.players[mySeat];
-//                     if (myPlayer.readyToPass) {
-//                         hasPassed = true;
-//                     }
-//                 }
-//                 // Enable/disable button
-//                 updatePassButton();
-//                 break;
-//             case 'playing':
-//                 stateLabel = 'Trick Play';
-//                 window.selectedCards = [];
-//                 // Re-render hand to clear selection highlights
-//                 let myHand = null;
-//                 if (typeof mySeat === 'number' && lobbyState.players && lobbyState.players[mySeat]) {
-//                     myHand = lobbyState.players[mySeat].hand;
-//                 }
-//                 showHand(myHand || []);
-//                 // Show whose turn it is
-//                 // if (typeof lobbyState.currentTurnSeat === 'number' && lobbyState.players) {
-//                 //     if (mySeat === lobbyState.currentTurnSeat) {
-//                 //         turnLabel = '<span style="color:#4caf50;font-weight:bold;">Your turn!</span>';
-//                 //     } else {
-//                 //         const turnPlayer = lobbyState.players[lobbyState.currentTurnSeat];
-//                 //         if (turnPlayer && turnPlayer.userName) {
-//                 //             turnLabel = `${turnPlayer.userName}'s turn`;
-//                 //         } else {
-//                 //             turnLabel = `Player ${lobbyState.currentTurnSeat + 1}'s turn`;
-//                 //         }
-//                 //     }
-//                 // }
-//                 break;
-//             case 'scoring':
-//                 stateLabel = 'Scoring';
-//                 // const passBtnScore = document.getElementById('pass-cards-btn');
-//                 // if (passBtnScore && passBtnScore.parentElement) passBtnScore.parentElement.remove();
-//                 // const waitMsgScore = document.getElementById('waiting-pass-msg');
-//                 // if (waitMsgScore) waitMsgScore.remove();
-//                 break;
-//             default:
-//                 stateLabel = lobbyState.state.charAt(0).toUpperCase() + lobbyState.state.slice(1);
-//                 // const passBtnDefault = document.getElementById('pass-cards-btn');
-//                 // if (passBtnDefault && passBtnDefault.parentElement) passBtnDefault.parentElement.remove();
-//                 // const waitMsgDefault = document.getElementById('waiting-pass-msg');
-//                 // if (waitMsgDefault) waitMsgDefault.remove();
-//         }
-//         labelDiv.innerHTML = `Game State: <span style="color:#ffeb3b;">${stateLabel}</span>` + (turnLabel ? ` &mdash; <span style="color:#fff;">${turnLabel}</span>` : '');
-//     } else {
-//         labelDiv.innerHTML = '';
-//         // const passBtn = document.getElementById('pass-cards-btn');
-//         // if (passBtn && passBtn.parentElement) passBtn.parentElement.remove();
-//         // const waitMsg = document.getElementById('waiting-pass-msg');
-//         // if (waitMsg) waitMsg.remove();
-//     }
-// }
 
 // Map card code (e.g. 'QS') to local SVG in bridge3-box-qr-Large
 function getCardImageUrl(cardCode) {
@@ -619,6 +552,7 @@ function showHand(hand) {
     // console.log("handarea:", handArea);
     // if (!handArea) return;
     const gameSeatsContainer = document.querySelector('.game-seats-container');
+    
     // Always use diamond layout for both passing and playing phases
     if (lobbyState && (lobbyState.state === 'playing' || lobbyState.state === 'passing') && gameSeatsContainer) {
         // Clear only the player seat cells, NOT the center cell

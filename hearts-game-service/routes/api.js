@@ -476,12 +476,6 @@ router.post('/resume-game/:gameId', async (req, res) => {
                 });
             }
             
-            // // Broadcast the game state to all players in the game room
-            // if (socketHandler && typeof socketHandler.broadcastGameStateToRoom === 'function') {
-            //     // Small delay to ensure players have joined the correct rooms
-            //     socketHandler.broadcastGameStateToRoom(gameId, 7000);
-            // }
-            
             console.log(`Game ${gameId} resumed by user ${userId}`);
         }
         
