@@ -198,6 +198,13 @@ class SocketHandler {
         socket.on('pass-cards', (data) => this.handlePassCards(socket, data));
         socket.on('play-card', (data) => this.handlePlayCard(socket, data));
         
+        // Video streaming events
+        socket.on('video-enabled', (data) => this.handleVideoEnabled(socket, data));
+        socket.on('video-disabled', (data) => this.handleVideoDisabled(socket, data));
+        socket.on('webrtc-offer', (data) => this.handleWebRTCOffer(socket, data));
+        socket.on('webrtc-answer', (data) => this.handleWebRTCAnswer(socket, data));
+        socket.on('webrtc-ice-candidate', (data) => this.handleWebRTCIceCandidate(socket, data));
+        
         // Game management events
         socket.on('stop-game', (data) => this.handleStopGame(socket, data));
         socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
@@ -1139,7 +1146,78 @@ class SocketHandler {
             });
         }
     }
+
+    // Video streaming handlers
+    handleVideoEnabled(socket, data) {
+        console.log(`🎥 User ${socket.user.name} (seat ${data.seat}) enabled video`);
+        
+        // Broadcast to all other players in the game
+        socket.broadcast.emit('peer-video-enabled', {
+            seat: data.seat,
+            socketId: socket.id,
+            userId: socket.user.id
+        });
+    }
+
+    handleVideoDisabled(socket, data) {
+        console.log(`🎥 User ${socket.user.name} (seat ${data.seat}) disabled video`);
+        
+        // Broadcast to all other players in the game
+        socket.broadcast.emit('peer-video-disabled', {
+            seat: data.seat,
+            socketId: socket.id,
+            userId: socket.user.id
+        });
+    }
+
+    handleWebRTCOffer(socket, data) {
+        console.log(`🔄 WebRTC offer from seat ${data.fromSeat} to socket ${data.toSocketId}`);
+        
+        // Forward the offer to the specific target socket
+        const targetSocket = this.io.sockets.sockets.get(data.toSocketId);
+        if (targetSocket) {
+            targetSocket.emit('webrtc-offer', {
+                offer: data.offer,
+                fromSeat: data.fromSeat,
+                fromSocketId: socket.id
+            });
+        } else {
+            console.warn(`Target socket ${data.toSocketId} not found for WebRTC offer`);
+        }
+    }
+
+    handleWebRTCAnswer(socket, data) {
+        console.log(`🔄 WebRTC answer from seat to socket ${data.toSocketId}`);
+        
+        // Forward the answer to the specific target socket
+        const targetSocket = this.io.sockets.sockets.get(data.toSocketId);
+        if (targetSocket) {
+            targetSocket.emit('webrtc-answer', {
+                answer: data.answer,
+                fromSeat: data.fromSeat
+            });
+        } else {
+            console.warn(`Target socket ${data.toSocketId} not found for WebRTC answer`);
+        }
+    }
+
+    handleWebRTCIceCandidate(socket, data) {
+        console.log(`🧊 ICE candidate from seat ${data.fromSeat} to socket ${data.toSocketId}`);
+        
+        // Forward the ICE candidate to the specific target socket
+        const targetSocket = this.io.sockets.sockets.get(data.toSocketId);
+        if (targetSocket) {
+            targetSocket.emit('webrtc-ice-candidate', {
+                candidate: data.candidate,
+                fromSeat: data.fromSeat
+            });
+        } else {
+            console.warn(`Target socket ${data.toSocketId} not found for ICE candidate`);
+        }
+    }
 }
+
+module.exports = new SocketHandler();
 
 // Singleton instance
 const socketHandler = new SocketHandler();

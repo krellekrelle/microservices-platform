@@ -151,7 +151,8 @@ body {
     background: rgba(255, 255, 255, 0.1);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 15px;
-    padding: 2rem 1rem;
+    /* padding: 2rem 1rem; */
+    padding: 0rem;
     text-align: center;
     /* only animate visual properties, not size/layout to avoid shifting */
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
@@ -247,7 +248,7 @@ body {
         ".    seat2    .";
     grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: 1fr 1fr 1fr;
-    gap: 4rem 10rem;
+    gap: 1rem 1rem;
     margin: 0;
     max-width: 1000px;
     justify-items: center;
@@ -300,7 +301,8 @@ body {
     overflow: hidden; /* keep overflowing content from increasing size */
     /* keep seats visually consistent regardless of name length */
     min-width: 110px;
-    width: 140px;
+    width: 220px;
+    height: 200px;
     max-width: 260px;
 }
 
@@ -1322,4 +1324,69 @@ body.game-paused .card-img {
         padding: 0.8rem 1.5rem;
         font-size: 1.1rem;
     }
+}
+
+/* Video streaming styles */
+.player-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 100 !important; /* Much higher z-index */
+    background: #00ff00 !important; /* Bright green background for debugging */
+    border: 3px solid #ff0000 !important; /* Keep red border for now */
+}
+
+/* Video toggle button styles */
+#toggle-video-btn {
+    font-size: 0.9rem;
+    padding: 0.6rem 1rem;
+    white-space: nowrap;
+}
+
+#toggle-video-btn.btn-primary {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    border: none;
+    color: white;
+}
+
+#toggle-video-btn.btn-primary:hover {
+    background: linear-gradient(45deg, #0056b3, #003d82);
+    transform: translateY(-1px);
+}
+
+#toggle-video-btn.btn-danger {
+    background: linear-gradient(45deg, #dc3545, #c82333);
+    border: none;
+    color: white;
+}
+
+#toggle-video-btn.btn-danger:hover {
+    background: linear-gradient(45deg, #c82333, #a71e2a);
+    transform: translateY(-1px);
+}
+
+/* Ensure video elements are properly layered */
+.player-avatar {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Video responsiveness for different avatar sizes */
+.avatar-large .player-video {
+    width: 100%;
+    height: 100%;
+}
+
+.avatar-medium .player-video {
+    width: 100%;
+    height: 100%;
+}
+
+.avatar-small .player-video {
+    width: 100%;
+    height: 100%;
 }

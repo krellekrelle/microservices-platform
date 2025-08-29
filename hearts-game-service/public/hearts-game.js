@@ -95,6 +95,470 @@ class SoundManager {
 // Initialize sound manager
 const soundManager = new SoundManager();
 
+// Video Manager for WebRTC peer-to-peer video streaming
+class VideoManager {
+    constructor(socket) {
+        this.socket = socket;
+        this.localStream = null;
+        this.peerConnections = new Map(); // seat -> RTCPeerConnection
+        this.remoteStreams = new Map(); // seat -> MediaStream
+        this.isVideoEnabled = false;
+        this.socketIdToSeat = new Map(); // socketId -> seat mapping
+        
+        // WebRTC configuration with STUN servers
+        this.rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+        
+        this.setupSocketListeners();
+    }
+    
+    setupSocketListeners() {
+        // Listen for other players enabling/disabling video
+        this.socket.on('peer-video-enabled', (data) => {
+            console.log('Peer enabled video:', data);
+            this.socketIdToSeat.set(data.socketId, data.seat);
+            if (this.isVideoEnabled) {
+                this.createPeerConnection(data.seat, data.socketId, true); // We are the initiator
+            }
+        });
+        
+        this.socket.on('peer-video-disabled', (data) => {
+            console.log('Peer disabled video:', data);
+            this.closePeerConnection(data.seat);
+            this.hideVideoForSeat(data.seat);
+        });
+        
+        // WebRTC signaling events
+        this.socket.on('webrtc-offer', async (data) => {
+            console.log('Received WebRTC offer from seat:', data.fromSeat);
+            await this.handleWebRTCOffer(data);
+        });
+        
+        this.socket.on('webrtc-answer', async (data) => {
+            console.log('Received WebRTC answer from seat:', data.fromSeat);
+            await this.handleWebRTCAnswer(data);
+        });
+        
+        this.socket.on('webrtc-ice-candidate', async (data) => {
+            await this.handleICECandidate(data);
+        });
+    }
+    
+    async enableVideo() {
+        try {
+            console.log('🎥 Enabling video...');
+            
+            // Check if getUserMedia is available
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('getUserMedia is not supported in this browser');
+            }
+            
+            console.log('🎬 Requesting camera access...');
+            
+            // Request video stream with specific constraints
+            this.localStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 100, max: 200 },
+                    height: { ideal: 100, max: 200 },
+                    frameRate: { ideal: 15, max: 30 },
+                    facingMode: 'user' // Front camera on mobile
+                },
+                audio: false // Video only for this iteration
+            });
+            
+            console.log('✅ Camera access granted!');
+            console.log('🎬 Stream obtained:', this.localStream);
+            console.log('🎬 Stream ID:', this.localStream.id);
+            console.log('🎬 Stream active:', this.localStream.active);
+            console.log('🎬 Stream tracks:', this.localStream.getTracks().length);
+            
+            this.isVideoEnabled = true;
+            
+            // Show local video
+            this.showLocalVideo();
+            
+            // Notify other players
+            this.socket.emit('video-enabled', { seat: mySeat });
+            
+            // Update UI button
+            this.updateVideoButton();
+            
+            // Show success message
+            this.showToast('Camera enabled successfully!', 'success');
+            
+            console.log('✅ Video enabled successfully');
+            
+        } catch (error) {
+            console.error('❌ Failed to enable video:', error);
+            console.error('❌ Error name:', error.name);
+            console.error('❌ Error message:', error.message);
+            
+            let errorMessage = 'Camera access denied or not available';
+            if (error.name === 'NotAllowedError') {
+                errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'No camera found on this device.';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage = 'Camera not supported in this browser.';
+            }
+            
+            this.showToast(errorMessage, 'error');
+        }
+    }
+    
+    disableVideo() {
+        console.log('🎥 Disabling video...');
+        
+        // Stop local stream
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        
+        // Close all peer connections
+        this.peerConnections.forEach((pc, seat) => {
+            pc.close();
+        });
+        this.peerConnections.clear();
+        this.remoteStreams.clear();
+        
+        this.isVideoEnabled = false;
+        
+        // Hide all video elements
+        this.hideLocalVideo();
+        this.hideAllRemoteVideos();
+        
+        // Notify other players
+        this.socket.emit('video-disabled', { seat: mySeat });
+        
+        // Update UI button
+        this.updateVideoButton();
+        
+        console.log('✅ Video disabled');
+    }
+    
+    async createPeerConnection(remoteSeat, remoteSocketId, isInitiator) {
+        console.log(`Creating peer connection for seat ${remoteSeat}, initiator: ${isInitiator}`);
+        
+        const pc = new RTCPeerConnection(this.rtcConfig);
+        this.peerConnections.set(remoteSeat, pc);
+        
+        // Add local stream to peer connection
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => {
+                pc.addTrack(track, this.localStream);
+            });
+        }
+        
+        // Handle remote stream
+        pc.ontrack = (event) => {
+            console.log('Received remote stream from seat:', remoteSeat);
+            const remoteStream = event.streams[0];
+            this.remoteStreams.set(remoteSeat, remoteStream);
+            this.showVideoForSeat(remoteSeat, remoteStream);
+        };
+        
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.socket.emit('webrtc-ice-candidate', {
+                    candidate: event.candidate,
+                    toSocketId: remoteSocketId,
+                    fromSeat: mySeat
+                });
+            }
+        };
+        
+        // If we're the initiator, create and send offer
+        if (isInitiator) {
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                
+                this.socket.emit('webrtc-offer', {
+                    offer: offer,
+                    toSocketId: remoteSocketId,
+                    fromSeat: mySeat
+                });
+            } catch (error) {
+                console.error('Error creating offer:', error);
+            }
+        }
+    }
+    
+    async handleWebRTCOffer(data) {
+        const { offer, fromSeat, fromSocketId } = data;
+        
+        // Create peer connection (we are not the initiator)
+        const pc = new RTCPeerConnection(this.rtcConfig);
+        this.peerConnections.set(fromSeat, pc);
+        
+        // Add local stream
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => {
+                pc.addTrack(track, this.localStream);
+            });
+        }
+        
+        // Handle remote stream
+        pc.ontrack = (event) => {
+            console.log('Received remote stream from seat:', fromSeat);
+            const remoteStream = event.streams[0];
+            this.remoteStreams.set(fromSeat, remoteStream);
+            this.showVideoForSeat(fromSeat, remoteStream);
+        };
+        
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.socket.emit('webrtc-ice-candidate', {
+                    candidate: event.candidate,
+                    toSocketId: fromSocketId,
+                    fromSeat: mySeat
+                });
+            }
+        };
+        
+        try {
+            await pc.setRemoteDescription(offer);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            
+            this.socket.emit('webrtc-answer', {
+                answer: answer,
+                toSocketId: fromSocketId,
+                fromSeat: mySeat
+            });
+        } catch (error) {
+            console.error('Error handling offer:', error);
+        }
+    }
+    
+    async handleWebRTCAnswer(data) {
+        const { answer, fromSeat } = data;
+        const pc = this.peerConnections.get(fromSeat);
+        
+        if (pc) {
+            try {
+                await pc.setRemoteDescription(answer);
+            } catch (error) {
+                console.error('Error setting remote description:', error);
+            }
+        }
+    }
+    
+    async handleICECandidate(data) {
+        const { candidate, fromSeat } = data;
+        const pc = this.peerConnections.get(fromSeat);
+        
+        if (pc) {
+            try {
+                await pc.addIceCandidate(candidate);
+            } catch (error) {
+                console.error('Error adding ICE candidate:', error);
+            }
+        }
+    }
+    
+    closePeerConnection(seat) {
+        const pc = this.peerConnections.get(seat);
+        if (pc) {
+            pc.close();
+            this.peerConnections.delete(seat);
+        }
+        this.remoteStreams.delete(seat);
+    }
+    
+    showLocalVideo() {
+        console.log(`🎥 Attempting to show local video for seat ${mySeat}`);
+        if (mySeat !== null && this.localStream) {
+            const videoElement = document.getElementById(`video-${mySeat}`);
+            console.log(`Local video element found:`, videoElement);
+            
+            // Debug the local stream
+            console.log(`🎬 Local stream:`, this.localStream);
+            console.log(`🎬 Local stream tracks:`, this.localStream.getTracks());
+            this.localStream.getTracks().forEach((track, index) => {
+                console.log(`Track ${index}:`, track);
+                console.log(`Track ${index} kind:`, track.kind);
+                console.log(`Track ${index} enabled:`, track.enabled);
+                console.log(`Track ${index} readyState:`, track.readyState);
+                console.log(`Track ${index} settings:`, track.getSettings());
+            });
+            
+            if (videoElement) {
+                videoElement.srcObject = this.localStream;
+                videoElement.style.display = 'block';
+                console.log(`✅ Local video element for seat ${mySeat} should now be visible`);
+                
+                // Add video event listeners for debugging
+                videoElement.onloadedmetadata = () => {
+                    console.log(`🎬 Local video metadata loaded - dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                    // Try to play the video explicitly
+                    videoElement.play().then(() => {
+                        console.log(`▶️ Local video play() succeeded`);
+                    }).catch(error => {
+                        console.error(`❌ Local video play() failed:`, error);
+                    });
+                };
+                
+                videoElement.onplay = () => {
+                    console.log(`▶️ Local video started playing`);
+                };
+                
+                videoElement.onerror = (e) => {
+                    console.error(`❌ Local video error:`, e);
+                };
+                
+                // Hide avatar image and fallback, but keep container visible
+                const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
+                console.log(`Local avatar container found:`, avatarContainer);
+                if (avatarContainer) {
+                    // Hide the avatar image and fallback, but keep the container
+                    const avatarImage = avatarContainer.querySelector('.avatar-image');
+                    const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
+                    if (avatarImage) avatarImage.style.display = 'none';
+                    if (avatarFallback) avatarFallback.style.display = 'none';
+                    console.log(`✅ Local avatar image/fallback hidden for seat ${mySeat}`);
+                }
+            } else {
+                console.error(`❌ No local video element found for seat ${mySeat}`);
+            }
+        }
+    }
+    
+    hideLocalVideo() {
+        if (mySeat !== null) {
+            const videoElement = document.getElementById(`video-${mySeat}`);
+            if (videoElement) {
+                videoElement.style.display = 'none';
+                videoElement.srcObject = null;
+                
+                // Show avatar image and fallback again
+                const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
+                if (avatarContainer) {
+                    const avatarImage = avatarContainer.querySelector('.avatar-image');
+                    const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
+                    if (avatarImage) avatarImage.style.display = '';
+                    if (avatarFallback) avatarFallback.style.display = '';
+                }
+            }
+        }
+    }
+    
+    showVideoForSeat(seat, stream) {
+        console.log(`🎥 Attempting to show video for seat ${seat}`);
+        const videoElement = document.getElementById(`video-${seat}`);
+        console.log(`Video element found:`, videoElement);
+        
+        // Debug the remote stream
+        console.log(`🎬 Remote stream for seat ${seat}:`, stream);
+        console.log(`🎬 Remote stream tracks:`, stream.getTracks());
+        stream.getTracks().forEach((track, index) => {
+            console.log(`Remote track ${index}:`, track);
+            console.log(`Remote track ${index} kind:`, track.kind);
+            console.log(`Remote track ${index} enabled:`, track.enabled);
+            console.log(`Remote track ${index} readyState:`, track.readyState);
+            console.log(`Remote track ${index} settings:`, track.getSettings());
+        });
+        
+        if (videoElement) {
+            videoElement.srcObject = stream;
+            videoElement.style.display = 'block';
+            console.log(`✅ Video element for seat ${seat} should now be visible`);
+            
+            // Add video event listeners for debugging
+            videoElement.onloadedmetadata = () => {
+                console.log(`🎬 Remote video metadata loaded for seat ${seat} - dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                // Try to play the video explicitly
+                videoElement.play().then(() => {
+                    console.log(`▶️ Remote video play() succeeded for seat ${seat}`);
+                }).catch(error => {
+                    console.error(`❌ Remote video play() failed for seat ${seat}:`, error);
+                });
+            };
+            
+            videoElement.onplay = () => {
+                console.log(`▶️ Remote video started playing for seat ${seat}`);
+            };
+            
+            videoElement.onerror = (e) => {
+                console.error(`❌ Remote video error for seat ${seat}:`, e);
+            };
+            
+            // Hide avatar image and fallback for this seat, but keep container visible
+            const avatarContainer = document.querySelector(`[data-seat="${seat}"] .player-avatar-container`);
+            console.log(`Avatar container found:`, avatarContainer);
+            if (avatarContainer) {
+                // Hide the avatar image and fallback, but keep the container
+                const avatarImage = avatarContainer.querySelector('.avatar-image');
+                const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
+                if (avatarImage) avatarImage.style.display = 'none';
+                if (avatarFallback) avatarFallback.style.display = 'none';
+                console.log(`✅ Avatar image/fallback hidden for seat ${seat}`);
+            }
+        } else {
+            console.error(`❌ No video element found for seat ${seat}`);
+        }
+    }
+    
+    hideVideoForSeat(seat) {
+        const videoElement = document.getElementById(`video-${seat}`);
+        if (videoElement) {
+            videoElement.style.display = 'none';
+            videoElement.srcObject = null;
+            
+            // Show avatar image and fallback again
+            const avatarContainer = document.querySelector(`[data-seat="${seat}"] .player-avatar-container`);
+            if (avatarContainer) {
+                const avatarImage = avatarContainer.querySelector('.avatar-image');
+                const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
+                if (avatarImage) avatarImage.style.display = '';
+                if (avatarFallback) avatarFallback.style.display = '';
+            }
+        }
+    }
+    
+    hideAllRemoteVideos() {
+        for (let seat = 0; seat < 4; seat++) {
+            if (seat !== mySeat) {
+                this.hideVideoForSeat(seat);
+            }
+        }
+    }
+    
+    updateVideoButton() {
+        const toggleBtn = document.getElementById('toggle-video-btn');
+        if (toggleBtn) {
+            if (this.isVideoEnabled) {
+                toggleBtn.textContent = '🎥 Disable Camera';
+                toggleBtn.classList.remove('btn-primary');
+                toggleBtn.classList.add('btn-danger');
+            } else {
+                toggleBtn.textContent = '📹 Enable Camera';
+                toggleBtn.classList.remove('btn-danger');
+                toggleBtn.classList.add('btn-primary');
+            }
+        }
+    }
+    
+    showToast(message, type = 'info') {
+        // Use existing toast system if available
+        if (window.showToast) {
+            window.showToast(message, type);
+        } else {
+            console.log(`Toast (${type}): ${message}`);
+        }
+    }
+}
+
+// Initialize video manager
+let videoManager = null;
+
 // Helper to extract a player's first name from several possible fields
 function getPlayerFirstName(player, fallback) {
     if (!player) return fallback || '';
@@ -124,7 +588,7 @@ function generateAvatarColor(userId) {
     return colors[Math.abs(hash) % colors.length];
 }
 
-function renderPlayerAvatar(player, size = 'medium') {
+function renderPlayerAvatar(player, size = 'medium', seat = null) {
     const firstName = getPlayerFirstName(player);
     const initials = getInitials(player.userName || player.name || '');
     const avatarColor = generateAvatarColor(player.userId);
@@ -132,9 +596,20 @@ function renderPlayerAvatar(player, size = 'medium') {
     
     const sizeClass = size === 'large' ? 'avatar-large' : size === 'small' ? 'avatar-small' : 'avatar-medium';
     
+    // Determine video element ID if seat is provided
+    const videoId = seat !== null ? `video-${seat}` : '';
+    
     return `
         <div class="player-avatar-container">
             <div class="player-avatar ${sizeClass}">
+                ${seat !== null ? `
+                    <video id="${videoId}" 
+                           class="player-video" 
+                           width="100" height="100" 
+                           autoplay muted playsinline
+                           style="display: none; border-radius: 50%; object-fit: cover;">
+                    </video>
+                ` : ''}
                 <img src="${profilePicture || ''}" 
                      alt="${firstName}" 
                      class="avatar-image"
@@ -307,6 +782,11 @@ function initializeSocket() {
         updateConnectionStatus(true);
         socket.emit('join-lobby');
         setupNewSocketEvents();
+        
+        // Initialize video manager
+        if (!videoManager) {
+            videoManager = new VideoManager(socket);
+        }
     });
     socket.on('disconnect', (reason) => {
         console.log('❌ Disconnected from server. Reason:', reason);
@@ -676,7 +1156,7 @@ function showHand(hand) {
                         <div class="my-player-info">
                             ${leaderCrown}
                             <div class="opponent-top-row">
-                                ${renderPlayerAvatar(player, 'large')}
+                                ${renderPlayerAvatar(player, 'large', mySeat)}
                                 ${renderTricksWon(tricksWon)}
                             </div>
                         </div>
@@ -707,7 +1187,7 @@ function showHand(hand) {
                     <div class="opponent-info${isTurn?' current-turn':''}">
                         ${leaderCrown}
                         <div class="opponent-top-row">
-                            ${renderPlayerAvatar(player, 'large')}
+                            ${renderPlayerAvatar(player, 'large', seatIdx)}
                             ${renderTricksWon(tricksWon)}
                         </div>
                         ${renderOpponentHand(handSize)}
@@ -1016,7 +1496,7 @@ function updateLobbyDisplay(state) {
                 ${leaderCrown}
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
-                    ${renderPlayerAvatar(player, 'medium')}
+                    ${renderPlayerAvatar(player, 'large', seat)}
                     <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
                         ${player.isReady ? 'Ready' : 'Not Ready'}
                     </div>
@@ -1067,16 +1547,24 @@ function updateControls() {
     const leaveSeatBtn = document.getElementById('leave-seat-btn');
     const readyBtn = document.getElementById('ready-btn');
     const startGameBtn = document.getElementById('start-game-btn');
+    const videoBtn = document.getElementById('toggle-video-btn');
     const lobbyLeaderControls = document.getElementById('lobby-leader-controls');
     
     if (mySeat !== null) {
         leaveSeatBtn.classList.remove('hidden');
         readyBtn.classList.remove('hidden');
+        videoBtn.classList.remove('hidden');
         readyBtn.textContent = isReady ? 'Not Ready' : 'Ready';
         readyBtn.className = isReady ? 'btn danger' : 'btn primary';
+        
+        // Update video button state
+        if (videoManager) {
+            videoManager.updateVideoButton();
+        }
     } else {
         leaveSeatBtn.classList.add('hidden');
         readyBtn.classList.add('hidden');
+        videoBtn.classList.add('hidden');
     }
     // Determine whether current user is lobby leader (by seat or by leader's userId)
     const leaderSeat = lobbyState?.lobbyLeader;
@@ -1211,6 +1699,9 @@ function createToast(message, type='error', ttl=4500) {
         setTimeout(() => { toast.remove(); }, 220);
     }, ttl);
 }
+
+// Global toast function for use by other components
+window.showToast = createToast;
 
 // Show or hide a persistent paused banner in the UI and disable interactive controls visually
 function showPausedBanner(show, message) {
@@ -1431,6 +1922,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('leave-seat-btn').addEventListener('click', leaveSeat);
     document.getElementById('ready-btn').addEventListener('click', toggleReady);
     document.getElementById('start-game-btn').addEventListener('click', startGame);
+    
+    // Video toggle button handler
+    document.getElementById('toggle-video-btn').addEventListener('click', function() {
+        if (videoManager) {
+            if (videoManager.isVideoEnabled) {
+                videoManager.disableVideo();
+            } else {
+                videoManager.enableVideo();
+            }
+        }
+    });
     
     // Stop game button handler
     const stopGameBtn = document.getElementById('stop-game-btn');
