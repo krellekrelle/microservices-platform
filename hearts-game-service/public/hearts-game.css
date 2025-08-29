@@ -205,8 +205,8 @@ body {
     padding: 2rem;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    width: 800px;
-    height: 700px;
+    width: 900px;
+    height: 800px;
     max-width: 90vw;
     max-height: 90vh;
     min-width: 320px;
@@ -252,6 +252,7 @@ body {
     max-width: 1000px;
     justify-items: center;
     align-items: center;
+    height: 715px;
 }
 
 .game-seats-container {
@@ -269,6 +270,7 @@ body {
     min-height: 400px;
     justify-items: center;
     align-items: center;
+    height: 715px;
 }
 .game-seat-upper { grid-area: upper; }
 .game-seat-left { grid-area: left; }
@@ -592,9 +594,9 @@ body {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     transition: all 0.3s ease;
-    width: 180px; /* Match game-seat width */
-    min-width: 180px;
-    height: 180px; /* Fixed height to prevent resizing */
+    width: 220px; /* Match game-seat width */
+    min-width: 210px;
+    height: 200px; /* Fixed height to prevent resizing */
 }
 
 .opponent-info.current-turn {
