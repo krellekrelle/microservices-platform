@@ -186,25 +186,17 @@ class GameManager {
 
     async init() {
         try {
-            // Check if there's an existing lobby game in database
-            const result = await db.query(
-                'SELECT * FROM hearts_games WHERE game_state = $1 ORDER BY created_at DESC LIMIT 1',
-                ['lobby']
-            );
+            // Create a fresh lobby game in memory only
+            // Lobby games are now ephemeral and only saved to database when they start
+            await this.createLobbyGame();
 
-            if (result.rows.length > 0) {
-                await this.loadExistingLobby(result.rows[0]);
-            } else {
-                await this.createLobbyGame();
-            }
-
-            console.log('GameManager initialized with lobby game:', this.lobbyGame?.id);
+            console.log('GameManager initialized with fresh lobby game:', this.lobbyGame?.id);
         } catch (error) {
             console.error('Failed to initialize GameManager:', error.message);
-            // If tables don't exist, create a basic lobby in memory only
+            // If creation fails, create a basic lobby in memory only
             try {
                 this.lobbyGame = new HeartsGame();
-                console.log('Created in-memory lobby game (database tables not ready):', this.lobbyGame.id);
+                console.log('Created fallback in-memory lobby game:', this.lobbyGame.id);
             } catch (fallbackError) {
                 console.error('Failed to create fallback lobby:', fallbackError);
             }
@@ -352,17 +344,8 @@ class GameManager {
         try {
             this.lobbyGame = new HeartsGame();
             
-            // Try to save to database, but don't fail if tables don't exist
-            try {
-                const result = await db.query(
-                    'INSERT INTO hearts_games (id, game_state, created_at) VALUES ($1, $2, $3) RETURNING *',
-                    [this.lobbyGame.id, 'lobby', this.lobbyGame.createdAt]
-                );
-                console.log('Created new lobby game in database:', this.lobbyGame.id);
-            } catch (dbError) {
-                console.warn('Could not save lobby to database (tables may not exist yet):', dbError.message);
-                console.log('Created in-memory lobby game:', this.lobbyGame.id);
-            }
+            // Keep lobby games in memory only - they will be saved to database when the game starts
+            console.log('Created in-memory lobby game:', this.lobbyGame.id);
 
             this.activeGames.set(this.lobbyGame.id, this.lobbyGame);
         } catch (error) {
@@ -462,19 +445,8 @@ class GameManager {
             const player = this.lobbyGame.addPlayer(userId, userName, seat);
             if (profilePicture) player.profilePicture = profilePicture;
             
-            // Save to database (DEBUG: players are ready by default)
-            await db.query(
-                'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected) VALUES ($1, $2, $3, $4, $5)',
-                [this.lobbyGame.id, userId, seat, true, true]
-            );
-
-            // Update lobby leader in database if this is the first player
-            if (this.lobbyGame.lobbyLeader === seat) {
-                await db.query(
-                    'UPDATE hearts_games SET lobby_leader_id = $1 WHERE id = $2',
-                    [userId, this.lobbyGame.id]
-                );
-            }
+            // Players are only saved to database when the game starts, not during lobby phase
+            // This keeps lobby games ephemeral and only persists actual games
 
             this.playerToGame.set(userId, this.lobbyGame.id);
 
@@ -508,24 +480,10 @@ class GameManager {
         try {
             const result = this.lobbyGame.removePlayer(seat);
 
-            // If the game is still in lobby state, remove player from DB and mapping.
-            // If the game is in-progress, just mark disconnected (HeartsGame.removePlayer already does that).
+            // If the game is still in lobby state, players are not in database yet.
+            // If the game is in-progress, just mark disconnected and update database.
             if (this.lobbyGame.state === 'lobby') {
-                // Remove from database
-                await db.query(
-                    'DELETE FROM hearts_players WHERE game_id = $1 AND user_id = $2',
-                    [this.lobbyGame.id, userId]
-                );
-
-                // Update lobby leader in database if needed
-                if (this.lobbyGame.lobbyLeader !== null) {
-                    const newLeader = this.lobbyGame.players.get(this.lobbyGame.lobbyLeader);
-                    await db.query(
-                        'UPDATE hearts_games SET lobby_leader_id = $1 WHERE id = $2',
-                        [newLeader?.userId || null, this.lobbyGame.id]
-                    );
-                }
-
+                // Lobby players are not in database, just update memory mapping
                 this.playerToGame.delete(userId);
             } else {
                 // In-progress game: persist disconnected flag but keep playerToGame mapping
@@ -568,12 +526,8 @@ class GameManager {
         try {
             const isReady = this.lobbyGame.toggleReady(seat);
             
-            // Update database
-            await db.query(
-                'UPDATE hearts_players SET is_ready = $1 WHERE game_id = $2 AND user_id = $3',
-                [isReady, this.lobbyGame.id, userId]
-            );
-
+            // Ready states are only persisted when the game starts, not during lobby phase
+            
             // Check if game can start
             const canStart = this.lobbyGame.canStartGame();
             
@@ -589,9 +543,6 @@ class GameManager {
     }
 
     async startGame() {
-
-
-
         // Now check if game can start
         if (!this.lobbyGame || !this.lobbyGame.canStartGame()) {
             throw new Error('Cannot start game');
@@ -601,20 +552,25 @@ class GameManager {
             // 1. Deal cards to all players
             const gameResult = this.lobbyGame.startGame(); // Should deal and assign hands
 
-
-
-
-            // 3. Update database with new game state
+            // 2. Save the game to database for the first time (transition from ephemeral lobby to persistent game)
             await db.query(
-                'UPDATE hearts_games SET game_state = $1, started_at = $2, current_round = $3, pass_direction = $4 WHERE id = $5',
-                ['passing', this.lobbyGame.startedAt, this.lobbyGame.currentRound, this.lobbyGame.passDirection, this.lobbyGame.id]
+                'INSERT INTO hearts_games (id, game_state, created_at, started_at, current_round, pass_direction, lobby_leader_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                [
+                    this.lobbyGame.id, 
+                    'passing', 
+                    this.lobbyGame.createdAt, 
+                    this.lobbyGame.startedAt, 
+                    this.lobbyGame.currentRound, 
+                    this.lobbyGame.passDirection,
+                    this.lobbyGame.lobbyLeader !== null ? this.getPlayerUserId(this.lobbyGame, this.lobbyGame.lobbyLeader) : null
+                ]
             );
 
-            // 4. Save each player's hand to the database
+            // 3. Save all players to the database for the first time
             for (const [seat, player] of this.lobbyGame.players) {
                 await db.query(
-                    'UPDATE hearts_players SET hand_cards = $1 WHERE game_id = $2 AND seat_position = $3',
-                    [JSON.stringify(player.hand), this.lobbyGame.id, seat]
+                    'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected, is_bot, hand_cards) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                    [this.lobbyGame.id, player.userId, seat, player.isReady, player.isConnected, player.isBot, JSON.stringify(player.hand)]
                 );
             }
 
