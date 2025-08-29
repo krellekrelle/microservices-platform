@@ -553,28 +553,33 @@ class GameManager {
             const gameResult = this.lobbyGame.startGame(); // Should deal and assign hands
 
             // 2. Save the game to database for the first time (transition from ephemeral lobby to persistent game)
-            await db.query(
-                'INSERT INTO hearts_games (id, game_state, created_at, started_at, current_round, pass_direction, lobby_leader_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                [
-                    this.lobbyGame.id, 
-                    'passing', 
-                    this.lobbyGame.createdAt, 
-                    this.lobbyGame.startedAt, 
-                    this.lobbyGame.currentRound, 
-                    this.lobbyGame.passDirection,
-                    this.lobbyGame.lobbyLeader !== null ? this.getPlayerUserId(this.lobbyGame, this.lobbyGame.lobbyLeader) : null
-                ]
-            );
-
-            // 3. Save all players to the database for the first time
-            for (const [seat, player] of this.lobbyGame.players) {
-                // For bots, user_id should be NULL since they don't have real user accounts
-                const userIdForDb = player.isBot ? null : player.userId;
-                
+            // Skip database saving for bot games - they remain ephemeral
+            if (!this.hasBotsInGame(this.lobbyGame)) {
                 await db.query(
-                    'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected, is_bot, hand_cards) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                    [this.lobbyGame.id, userIdForDb, seat, player.isReady, player.isConnected, player.isBot, JSON.stringify(player.hand)]
+                    'INSERT INTO hearts_games (id, game_state, created_at, started_at, current_round, pass_direction, lobby_leader_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                    [
+                        this.lobbyGame.id, 
+                        'passing', 
+                        this.lobbyGame.createdAt, 
+                        this.lobbyGame.startedAt, 
+                        this.lobbyGame.currentRound, 
+                        this.lobbyGame.passDirection,
+                        this.lobbyGame.lobbyLeader !== null ? this.getPlayerUserId(this.lobbyGame, this.lobbyGame.lobbyLeader) : null
+                    ]
                 );
+
+                // 3. Save all players to the database for the first time
+                for (const [seat, player] of this.lobbyGame.players) {
+                    // For bots, user_id should be NULL since they don't have real user accounts
+                    const userIdForDb = player.isBot ? null : player.userId;
+                    
+                    await db.query(
+                        'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected, is_bot, hand_cards) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                        [this.lobbyGame.id, userIdForDb, seat, player.isReady, player.isConnected, player.isBot, JSON.stringify(player.hand)]
+                    );
+                }
+            } else {
+                console.log(`🤖 Bot game ${this.lobbyGame.id} started - skipping database persistence`);
             }
 
             // 4. Emit 'cards-dealt' event to each player (to be handled in socketHandler)
@@ -590,6 +595,19 @@ class GameManager {
         } catch (error) {
             throw new Error(`Failed to start game: ${error.message}`);
         }
+    }
+
+    // Check if a game has any bot players
+    hasBotsInGame(game) {
+        if (!game || !game.players) return false;
+        
+        // Check if any player is a bot
+        for (const [seat, player] of game.players) {
+            if (player && player.isBot) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Game state helpers
@@ -783,6 +801,12 @@ class GameManager {
 
     // Save complete game state to database
     async saveGameToDatabase(game) {
+        // Skip database saving for bot games - they remain ephemeral
+        if (this.hasBotsInGame(game)) {
+            console.log(`🤖 Bot game ${game.id} - skipping database persistence`);
+            return;
+        }
+        
         try {
             // Update main game record
             await db.query(`
