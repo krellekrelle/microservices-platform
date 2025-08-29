@@ -1443,16 +1443,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    
-    // Test countdown button handler
-    const testCountdownBtn = document.getElementById('test-countdown-btn');
-    if (testCountdownBtn) {
-        testCountdownBtn.addEventListener('click', function() {
-            console.log('Testing countdown timer...');
-            startDisconnectCountdown(1); // Test with 1 minute
-        });
-    }
-    
 
     // Hand card click handlers (delegated) for diamond layout (game phase)
     const gameSeatsContainer = document.querySelector('.game-seats-container');
