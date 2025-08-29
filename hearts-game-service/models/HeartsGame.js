@@ -681,7 +681,7 @@ class HeartsGame {
 
     // Resume a saved game
     resumeGame() {
-        if (this.state !== 'saved') {
+        if (this.state !== 'saved' && this.state !== 'abandoned') {
             throw new Error('Can only resume saved games');
         }
         
