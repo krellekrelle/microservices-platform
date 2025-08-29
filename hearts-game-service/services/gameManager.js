@@ -568,9 +568,12 @@ class GameManager {
 
             // 3. Save all players to the database for the first time
             for (const [seat, player] of this.lobbyGame.players) {
+                // For bots, user_id should be NULL since they don't have real user accounts
+                const userIdForDb = player.isBot ? null : player.userId;
+                
                 await db.query(
                     'INSERT INTO hearts_players (game_id, user_id, seat_position, is_ready, is_connected, is_bot, hand_cards) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                    [this.lobbyGame.id, player.userId, seat, player.isReady, player.isConnected, player.isBot, JSON.stringify(player.hand)]
+                    [this.lobbyGame.id, userIdForDb, seat, player.isReady, player.isConnected, player.isBot, JSON.stringify(player.hand)]
                 );
             }
 
@@ -848,7 +851,9 @@ class GameManager {
     // Get player's user ID by seat
     getPlayerUserId(game, seat) {
         const player = game.players.get(seat);
-        return player ? player.userId : null;
+        if (!player) return null;
+        // For bots, return null since they don't have real user accounts
+        return player.isBot ? null : player.userId;
     }
 
     // Handle player disconnection with timeout
