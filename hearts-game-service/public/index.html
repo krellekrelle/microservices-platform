@@ -82,9 +82,6 @@
                         <button id="leave-seat-btn" class="btn danger hidden">
                             Leave Seat
                         </button>
-                        <button id="toggle-video-btn" class="btn primary hidden">
-                            📹 Enable Camera
-                        </button>
                         <button id="ready-btn" class="btn success hidden">
                             Ready
                         </button>
@@ -119,7 +116,7 @@
                     <div class="game-seat game-seat-center">
                         <div id="trick-area" class="hidden"></div>
                         <div id="pass-arrow-container" class="hidden" style="text-align:center;margin-top:1.2rem;">
-<                        </div>
+                        </div>
                     </div>
                     <div class="game-seat game-seat-right"></div>
                     <div class="game-seat game-seat-hand">
@@ -177,6 +174,9 @@
     <!-- Game history modal trigger (overlay will be used) -->
     <div style="margin-top:0.2rem;max-width:900px;">
         <button id="toggle-history-btn" class="btn info" style="margin-bottom:8px;">Show Game History</button>
+        <button id="toggle-video-btn" class="btn primary" style="margin-bottom:8px;margin-left:8px;">
+            📹 Enable Camera
+        </button>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>

@@ -201,6 +201,7 @@ class SocketHandler {
         // Video streaming events
         socket.on('video-enabled', (data) => this.handleVideoEnabled(socket, data));
         socket.on('video-disabled', (data) => this.handleVideoDisabled(socket, data));
+        socket.on('ready-for-offer', (data) => this.handleReadyForOffer(socket, data));
         socket.on('webrtc-offer', (data) => this.handleWebRTCOffer(socket, data));
         socket.on('webrtc-answer', (data) => this.handleWebRTCAnswer(socket, data));
         socket.on('webrtc-ice-candidate', (data) => this.handleWebRTCIceCandidate(socket, data));
@@ -1168,6 +1169,20 @@ class SocketHandler {
             socketId: socket.id,
             userId: socket.user.id
         });
+    }
+
+    handleReadyForOffer(socket, data) {
+        console.log(`🔄 User ${socket.user.name} ready for offer from seat ${data.fromSeat}`);
+        
+        // Forward to the specific target socket
+        const targetSocket = this.io.sockets.sockets.get(data.toSocketId);
+        if (targetSocket) {
+            targetSocket.emit('peer-ready-for-offer', {
+                fromSeat: data.fromSeat
+            });
+        } else {
+            console.warn(`Target socket ${data.toSocketId} not found for ready-for-offer`);
+        }
     }
 
     handleWebRTCOffer(socket, data) {
