@@ -282,9 +282,9 @@ class VideoManager {
         
         this.isVideoEnabled = false;
         
-        // Hide all video elements
+        // Hide only local video (not remote videos from other players)
         this.hideLocalVideo();
-        this.hideAllRemoteVideos();
+        // Don't call hideAllRemoteVideos() - other players' videos should remain visible
         
         // Notify other players
         this.socket.emit('video-disabled', { seat: mySeat });
@@ -436,10 +436,20 @@ class VideoManager {
             if (videoElement) {
                 // Force re-attach the stream even if it's already attached
                 console.log(`🎬 Force re-attaching stream to video element`);
+                
+                // Set display to block IMMEDIATELY before any other operations
+                videoElement.style.display = 'block';
+                videoElement.style.visibility = 'visible';
+                videoElement.style.opacity = '1';
+                
                 videoElement.srcObject = null; // Clear first
                 setTimeout(() => {
                     videoElement.srcObject = this.localStream;
+                    
+                    // Force display again after stream attachment
                     videoElement.style.display = 'block';
+                    videoElement.style.visibility = 'visible';
+                    videoElement.style.opacity = '1';
                     
                     // Remove debug styling and add stream debugging
                     videoElement.style.border = 'none';
@@ -474,6 +484,12 @@ class VideoManager {
                     console.log(`🎬 Local video loaded - ${videoElement.videoWidth}x${videoElement.videoHeight}`);
                     console.log(`🎬 Video ready state:`, videoElement.readyState);
                     console.log(`🎬 Video paused:`, videoElement.paused);
+                    
+                    // Force display one more time after video loads
+                    videoElement.style.display = 'block';
+                    videoElement.style.visibility = 'visible';
+                    videoElement.style.opacity = '1';
+                    console.log(`🎬 Forced video display after load: ${videoElement.style.display}`);
                     
                     // Force play the video
                     videoElement.play().then(() => {
@@ -577,13 +593,23 @@ class VideoManager {
                 // Remove local video from active seats
                 this.activeVideoSeats.delete(mySeat);
                 
-                // Show avatar image and fallback again
+                // Restore avatar image and fallback with proper logic
                 const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
                 if (avatarContainer) {
                     const avatarImage = avatarContainer.querySelector('.avatar-image');
                     const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
-                    if (avatarImage) avatarImage.style.display = '';
-                    if (avatarFallback) avatarFallback.style.display = '';
+                    
+                    if (avatarImage && avatarFallback) {
+                        // Try to show the image first
+                        avatarImage.style.display = 'block';
+                        avatarFallback.style.display = 'none';
+                        
+                        // If image fails to load or has no src, show fallback instead
+                        if (!avatarImage.src || avatarImage.src === '' || avatarImage.complete && avatarImage.naturalWidth === 0) {
+                            avatarImage.style.display = 'none';
+                            avatarFallback.style.display = 'flex';
+                        }
+                    }
                 }
             }
         }
@@ -977,15 +1003,15 @@ function initializeSocket() {
         // Restore video streams after transitioning to game view with longer delay
         if (videoManager) {
             // Multiple restoration attempts to ensure it works
-            setTimeout(() => {
-                console.log('🎮 First video restoration attempt after game start');
-                videoManager.restoreVideoStreams();
-            }, 100);
+            // setTimeout(() => {
+            //     console.log('🎮 First video restoration attempt after game start');
+            //     videoManager.restoreVideoStreams();
+            // }, 100);
             
-            setTimeout(() => {
-                console.log('🎮 Second video restoration attempt after game start');
-                videoManager.restoreVideoStreams();
-            }, 300);
+            // setTimeout(() => {
+            //     console.log('🎮 Second video restoration attempt after game start');
+            //     videoManager.restoreVideoStreams();
+            // }, 300);
             
             setTimeout(() => {
                 console.log('🎮 Final video restoration attempt after game start');
@@ -1314,12 +1340,29 @@ function showHand(hand) {
     
     // Always use diamond layout for both passing and playing phases
     if (lobbyState && (lobbyState.state === 'playing' || lobbyState.state === 'passing') && gameSeatsContainer) {
-        // Clear only the player seat cells, NOT the center cell
+        // Clear only the player seat cells, NOT the center cell, but preserve video elements
         const seatClassesToClear = ['game-seat-hand','game-seat-right','game-seat-upper','game-seat-left'];
         seatClassesToClear.forEach(cls => {
             const cell = gameSeatsContainer.querySelector('.' + cls);
             if (cell) {
-                cell.innerHTML = '';
+                // Check if this cell has a video element before clearing
+                const existingVideo = cell.querySelector('.player-video');
+                if (existingVideo && existingVideo.srcObject) {
+                    console.log('🎥 Preserving video during cell clear for class:', cls);
+                    // Store the video element temporarily
+                    const tempVideoContainer = document.createElement('div');
+                    tempVideoContainer.style.display = 'none';
+                    tempVideoContainer.appendChild(existingVideo);
+                    document.body.appendChild(tempVideoContainer);
+                    
+                    // Clear the cell
+                    cell.innerHTML = '';
+                    
+                    // Store reference to restore later
+                    cell._preservedVideo = existingVideo;
+                } else {
+                    cell.innerHTML = '';
+                }
             }
         });
         // Map logical seat numbers to visual positions so that the order is consistent with the lobby
@@ -1403,6 +1446,30 @@ function showHand(hand) {
                 cell.classList.remove('current-turn');
             }
         }
+        
+        // Restore any preserved videos after HTML rebuild
+        seatClassesToClear.forEach(cls => {
+            const cell = gameSeatsContainer.querySelector('.' + cls);
+            if (cell && cell._preservedVideo) {
+                const avatarContainer = cell.querySelector('.avatar-container');
+                if (avatarContainer) {
+                    const playerAvatar = avatarContainer.querySelector('.player-avatar');
+                    if (playerAvatar) {
+                        // Remove the preserved video from temp container
+                        const tempContainer = cell._preservedVideo.parentElement;
+                        if (tempContainer && tempContainer.parentElement === document.body) {
+                            document.body.removeChild(tempContainer);
+                        }
+                        
+                        // Add the preserved video to the player avatar
+                        playerAvatar.appendChild(cell._preservedVideo);
+                        console.log('🎥 Restored preserved video for class:', cls);
+                    }
+                }
+                // Clean up the reference
+                delete cell._preservedVideo;
+            }
+        });
         
         // Always hide the old hand area in passing/playing phase
         // handArea.style.display = 'none';
