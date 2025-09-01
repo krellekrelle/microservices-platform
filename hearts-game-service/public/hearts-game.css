@@ -493,8 +493,10 @@ body {
     
     /* Ensure video elements are properly sized on mobile */
     .player-avatar.avatar-large .player-video {
-        width: 64px;
-        height: 64px;
+        width: 64px !important;
+        height: 64px !important;
+        min-width: 64px !important;
+        min-height: 64px !important;
     }
     
     .card-back-image { 
@@ -1317,19 +1319,42 @@ body.game-paused .card-img {
 }
 
 /* Video streaming styles */
-.player-video {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    border-radius: 50% !important;
-    object-fit: cover !important;
-    z-index: 100 !important;
-    background: #1a1a1a;
+/* Avatar container - force dimensions to prevent collapse */
+.player-avatar.avatar-large {
+  width: 100px !important;
+  height: 100px !important;
+  min-width: 100px !important;
+  min-height: 100px !important;
+  display: block !important;
+  position: relative !important;
 }
 
-/* Ensure video elements are visible when displayed */
+/* Video elements */
+.player-video {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 96px !important;
+  height: 96px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  z-index: 10 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border: none !important;
+  background: transparent !important;
+  min-width: 96px !important;
+  min-height: 96px !important;
+}
+
+/* Mobile-specific adjustments */
+.player-avatar.avatar-large .player-video {
+  width: 96px !important;
+  height: 96px !important;
+  min-width: 96px !important;
+  min-height: 96px !important;
+}/* Ensure video elements are visible when displayed */
 .player-video[style*="display: block"] {
     display: block !important;
 }

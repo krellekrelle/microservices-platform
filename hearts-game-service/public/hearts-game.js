@@ -430,7 +430,32 @@ class VideoManager {
     showLocalVideo() {
         console.log(`🎬 Trying to show local video for seat ${mySeat}`);
         if (mySeat !== null && this.localStream) {
-            const videoElement = document.getElementById(`video-${mySeat}`);
+            // Find the video element in a visible container instead of using getElementById
+            // which returns the first match (often in a collapsed container)
+            let videoElement = null;
+            const allVideoElements = document.querySelectorAll(`#video-${mySeat}`);
+            
+            for (const video of allVideoElements) {
+                const parentAvatar = video.closest('.player-avatar');
+                const parentContainer = video.closest('.player-avatar-container');
+                if (parentAvatar && parentContainer) {
+                    const containerRect = parentContainer.getBoundingClientRect();
+                    const avatarRect = parentAvatar.getBoundingClientRect();
+                    // Choose the video in a visible container (width > 0)
+                    if (containerRect.width > 0 && avatarRect.width > 0) {
+                        videoElement = video;
+                        console.log(`🎬 Found video in visible container:`, containerRect.width, 'x', containerRect.height);
+                        break;
+                    }
+                }
+            }
+            
+            // Fallback to first element if no visible container found
+            if (!videoElement && allVideoElements.length > 0) {
+                videoElement = allVideoElements[0];
+                console.log(`🎬 Using fallback video element (no visible container found)`);
+            }
+            
             console.log(`🎬 Local video element found:`, videoElement);
             
             if (videoElement) {
@@ -572,6 +597,34 @@ class VideoManager {
                             playerAvatar.style.minWidth = '100px';
                             playerAvatar.style.minHeight = '100px';
                         }
+                        
+                        // Force video element dimensions to match container
+                        setTimeout(() => {
+                            const containerRect = playerAvatar.getBoundingClientRect();
+                            if (containerRect.width > 0 && containerRect.height > 0) {
+                                videoElement.style.width = containerRect.width + 'px';
+                                videoElement.style.height = containerRect.height + 'px';
+                                videoElement.style.minWidth = containerRect.width + 'px';
+                                videoElement.style.minHeight = containerRect.height + 'px';
+                                console.log(`🔧 Video element forced to ${containerRect.width}x${containerRect.height}px`);
+                            } else {
+                                // Fallback if container has no dimensions - force absolute size
+                                videoElement.style.width = '96px';
+                                videoElement.style.height = '96px';
+                                videoElement.style.minWidth = '96px';
+                                videoElement.style.minHeight = '96px';
+                                console.log(`🔧 Video element forced to fallback 96x96px`);
+                            }
+                            
+                            // Force the video element to be visible
+                            videoElement.style.display = 'block !important';
+                            videoElement.style.position = 'absolute !important';
+                            videoElement.style.top = '0 !important';
+                            videoElement.style.left = '0 !important';
+                            videoElement.style.zIndex = '100 !important';
+                            videoElement.style.borderRadius = '50% !important';
+                            videoElement.style.objectFit = 'cover !important';
+                        }, 100);
                     }
                     
                     // Debug all children
@@ -585,25 +638,47 @@ class VideoManager {
     
     hideLocalVideo() {
         if (mySeat !== null) {
-            const videoElement = document.getElementById(`video-${mySeat}`);
+            // Find the video element in a visible container instead of using getElementById
+            let videoElement = null;
+            const allVideoElements = document.querySelectorAll(`#video-${mySeat}`);
+            
+            for (const video of allVideoElements) {
+                const parentAvatar = video.closest('.player-avatar');
+                const parentContainer = video.closest('.player-avatar-container');
+                if (parentAvatar && parentContainer) {
+                    const containerRect = parentContainer.getBoundingClientRect();
+                    const avatarRect = parentAvatar.getBoundingClientRect();
+                    // Choose the video in a visible container (width > 0)
+                    if (containerRect.width > 0 && avatarRect.width > 0) {
+                        videoElement = video;
+                        break;
+                    }
+                }
+            }
+            
+            // Fallback to first element if no visible container found
+            if (!videoElement && allVideoElements.length > 0) {
+                videoElement = allVideoElements[0];
+            }
+            
             if (videoElement) {
                 videoElement.style.display = 'none';
                 videoElement.srcObject = null;
-                
+
                 // Remove local video from active seats
                 this.activeVideoSeats.delete(mySeat);
-                
+
                 // Restore avatar image and fallback with proper logic
                 const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
                 if (avatarContainer) {
                     const avatarImage = avatarContainer.querySelector('.avatar-image');
                     const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
-                    
+
                     if (avatarImage && avatarFallback) {
                         // Try to show the image first
                         avatarImage.style.display = 'block';
                         avatarFallback.style.display = 'none';
-                        
+
                         // If image fails to load or has no src, show fallback instead
                         if (!avatarImage.src || avatarImage.src === '' || avatarImage.complete && avatarImage.naturalWidth === 0) {
                             avatarImage.style.display = 'none';
@@ -613,11 +688,34 @@ class VideoManager {
                 }
             }
         }
-    }
-    
-    showVideoForSeat(seat, stream) {
+    }    showVideoForSeat(seat, stream) {
         console.log(`🎬 Trying to show video for seat ${seat}`);
-        const videoElement = document.getElementById(`video-${seat}`);
+        
+        // Find the video element in a visible container instead of using getElementById
+        let videoElement = null;
+        const allVideoElements = document.querySelectorAll(`#video-${seat}`);
+        
+        for (const video of allVideoElements) {
+            const parentAvatar = video.closest('.player-avatar');
+            const parentContainer = video.closest('.player-avatar-container');
+            if (parentAvatar && parentContainer) {
+                const containerRect = parentContainer.getBoundingClientRect();
+                const avatarRect = parentAvatar.getBoundingClientRect();
+                // Choose the video in a visible container (width > 0)
+                if (containerRect.width > 0 && avatarRect.width > 0) {
+                    videoElement = video;
+                    console.log(`🎬 Found video for seat ${seat} in visible container:`, containerRect.width, 'x', containerRect.height);
+                    break;
+                }
+            }
+        }
+        
+        // Fallback to first element if no visible container found
+        if (!videoElement && allVideoElements.length > 0) {
+            videoElement = allVideoElements[0];
+            console.log(`🎬 Using fallback video element for seat ${seat} (no visible container found)`);
+        }
+        
         console.log(`🎬 Video element found:`, videoElement);
         
         if (videoElement) {
@@ -666,14 +764,36 @@ class VideoManager {
     }
     
     hideVideoForSeat(seat) {
-        const videoElement = document.getElementById(`video-${seat}`);
+        // Find the video element in a visible container instead of using getElementById
+        let videoElement = null;
+        const allVideoElements = document.querySelectorAll(`#video-${seat}`);
+        
+        for (const video of allVideoElements) {
+            const parentAvatar = video.closest('.player-avatar');
+            const parentContainer = video.closest('.player-avatar-container');
+            if (parentAvatar && parentContainer) {
+                const containerRect = parentContainer.getBoundingClientRect();
+                const avatarRect = parentAvatar.getBoundingClientRect();
+                // Choose the video in a visible container (width > 0)
+                if (containerRect.width > 0 && avatarRect.width > 0) {
+                    videoElement = video;
+                    break;
+                }
+            }
+        }
+        
+        // Fallback to first element if no visible container found
+        if (!videoElement && allVideoElements.length > 0) {
+            videoElement = allVideoElements[0];
+        }
+        
         if (videoElement) {
             videoElement.style.display = 'none';
             videoElement.srcObject = null;
-            
+
             // Remove from active video seats
             this.activeVideoSeats.delete(seat);
-            
+
             // Show avatar image and fallback again
             const avatarContainer = document.querySelector(`[data-seat="${seat}"] .player-avatar-container`);
             if (avatarContainer) {
@@ -683,9 +803,7 @@ class VideoManager {
                 if (avatarFallback) avatarFallback.style.display = '';
             }
         }
-    }
-    
-    // Method to restore all video streams after DOM updates
+    }    // Method to restore all video streams after DOM updates
     restoreVideoStreams() {
         console.log('🔄 Restoring video streams after DOM update...');
         console.log('🔄 Active video seats:', Array.from(this.activeVideoSeats));

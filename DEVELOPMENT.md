@@ -48,6 +48,14 @@
 - **Hello World App Integration**: Fully functional authentication and user display
 - **Proper Path Stripping**: Caddy `handle_path` configuration for clean URLs
 
+### Phase 8: Hearts Game & Video Chat (September 2025)
+- **Complete Hearts Card Game**: Full multiplayer Hearts implementation with real-time gameplay
+- **Video Chat Integration**: WebRTC camera support with persistent video streams
+- **Smart Video Management**: Intelligent container detection for seamless video during game state transitions
+- **Advanced Game Features**: Bot players, lobby management, game history, and leader controls
+- **Sound Effects System**: Immersive audio feedback for key game events
+- **Mobile-Responsive Design**: Optimized layouts for both desktop and mobile gameplay
+
 ### Phase 8: Database Migration & Admin Panel (August 2025)
 - **PostgreSQL Integration**: Complete migration from JSON files to PostgreSQL database
 - **Database Schema**: Users, sessions, audit trails with automatic initialization

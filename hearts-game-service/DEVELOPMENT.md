@@ -23,9 +23,26 @@
 ---
 # Hearts Game Service - Development Guide
 
-## 📋 Recent Updates (August 2025)
+## 📋 Recent Updates (September 2025)
 
-### ✅ Database Optimization & Sound Effects (NEW August 2025)
+### ✅ Video Chat System - MAJOR FEATURE COMPLETE (NEW September 2025)
+- **Camera Integration**: Full WebRTC camera support with MediaStream API
+- **Smart Container Detection**: Video elements automatically attach to visible containers during game state transitions
+- **Persistent Video Streams**: Camera video persists through lobby ↔ game state changes without interruption
+- **Enhanced CSS Layout**: Fixed avatar container collapsing issues with forced dimensions (100x100px containers, 96x96px videos)
+- **Multi-Container Support**: Intelligent video restoration system finds visible containers when multiple avatar elements exist
+- **Real-time Video Controls**: Enable/disable camera with instant visual feedback
+- **Mobile-Responsive Video**: Optimized video sizing for both desktop and mobile viewports
+- **Video State Management**: Comprehensive video stream restoration after DOM updates and game transitions
+
+#### 🎬 Video Technical Implementation
+- **Container Selection Logic**: `getBoundingClientRect()` detection to find visible avatar containers
+- **Stream Persistence**: MediaStream objects maintained across game state transitions
+- **Fallback Mechanisms**: Multiple video element detection with intelligent container selection
+- **CSS Improvements**: Enhanced `.player-avatar` and `.player-video` styling with `!important` declarations
+- **Event Handling**: Proper video element event management for load, play, and error states
+
+### ✅ Database Optimization & Sound Effects (August 2025)
 - **Ephemeral Lobby Games**: Lobby games are now created in memory only and not saved to database until they start playing
 - **Database Efficiency**: Reduces database writes by ~75% - only actual games are persisted, not lobby states
 - **Sound Effects System**: Immersive audio feedback with two key sound events:

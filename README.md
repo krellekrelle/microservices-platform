@@ -1,8 +1,12 @@
-## Hearts Game Service: Real-time Multiplayer Hearts Card Game
+## Hearts Game Service: Real-time Multiplayer Hearts Card Game with Video Chat
 
 - **Complete Hearts Implementation**: Fully functional Hearts card game with standard rules, card passing, trick-taking, and scoring
+- **Real-time Video Chat**: WebRTC camera integration with persistent video streams through game state transitions
+- **Smart Video Management**: Intelligent container detection ensures video visibility during lobby ↔ game transitions
 - **Real-time Multiplayer**: Socket.IO-based gameplay with lobby system, seat management, and live game state synchronization  
 - **AI Bot Integration**: Server-side bots that can be added to empty seats, with automatic card passing and playing strategies
+- **Mobile-Responsive Video**: Optimized video chat layout for both desktop and mobile gameplay
+- **Sound Effects System**: Immersive audio feedback for key game events (hearts breaking, Queen of Spades)
 - **Dual Interface Support**: Both Socket.IO real-time events and HTTP endpoints for card playing actions
 - **Database Persistence**: Complete game tracking with tricks, rounds, scores, and historical game results
 - **Reconnection Handling**: Players can disconnect and reconnect to ongoing games with full state restoration
@@ -34,9 +38,18 @@ A microservices-based application suite with Google OAuth authentication, Postgr
 - **JWT Token Refresh** - automatic token refresh for seamless user experience
 - **System Monitoring** - Prometheus + Grafana stack for comprehensive infrastructure monitoring
 
-## 🎯 Current Status (August 2025)
+## 🎯 Current Status (September 2025)
 
-**Latest Major Update** (August 5, 2025):
+**Latest Major Update** (September 1, 2025):
+- ✅ **Video Chat Integration**: Complete WebRTC camera system with persistent video streams
+- ✅ **Smart Video Container Detection**: Intelligent video restoration across game state transitions
+- ✅ **Enhanced Hearts Game**: Video chat integration with mobile-responsive design
+- ✅ **Audio Feedback System**: Immersive sound effects for key game events
+- ✅ **CSS Layout Improvements**: Fixed avatar container collapsing with forced dimensions
+- ✅ **Advanced Video Management**: Multi-container support with getBoundingClientRect() detection
+- ✅ **Production-Ready Video**: Comprehensive video state management and error handling
+
+**Previous Major Update** (August 5, 2025):
 - ✅ **System Monitoring**: Added Prometheus + Grafana stack for comprehensive infrastructure monitoring
 - ✅ **Admin-only Monitoring**: System metrics accessible at `/monitor/` with JWT authentication integration
 - ✅ **Zero-maintenance Monitoring**: Pure configuration approach using industry-standard tools
