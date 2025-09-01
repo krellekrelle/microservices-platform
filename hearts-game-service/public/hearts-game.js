@@ -548,6 +548,14 @@ class VideoManager {
                 const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
                 console.log(`🎬 Local avatar container found for seat ${mySeat}:`, avatarContainer);
                 if (avatarContainer) {
+                    let playerAvatar = avatarContainer.querySelector('.player-avatar');
+                    
+                    // Add video-enabled class for enhanced styling
+                    if (playerAvatar) {
+                        playerAvatar.classList.add('video-enabled');
+                        console.log(`🎬 Added video-enabled class to avatar for seat ${mySeat}`);
+                    }
+                    
                     const avatarImage = avatarContainer.querySelector('.avatar-image');
                     const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
                     console.log(`🎬 Avatar image:`, avatarImage, avatarImage?.style.display);
@@ -571,8 +579,7 @@ class VideoManager {
                         position: containerStyles.position
                     });
                     
-                    // Check the player-avatar div specifically
-                    const playerAvatar = avatarContainer.querySelector('.player-avatar');
+                    // Check the player-avatar div specifically (reuse the playerAvatar variable)
                     if (playerAvatar) {
                         const avatarStyles = window.getComputedStyle(playerAvatar);
                         console.log(`🎬 Player avatar computed styles:`, {
@@ -589,13 +596,22 @@ class VideoManager {
                             maxHeight: avatarStyles.maxHeight
                         });
                         
-                        // Force set dimensions if they're too small
+                        // Force set dimensions if they're too small or if video is enabled
                         if (parseInt(avatarStyles.width) < 50 || parseInt(avatarStyles.height) < 50) {
                             console.log(`🔧 Avatar container too small, forcing dimensions...`);
-                            playerAvatar.style.width = '100px';
-                            playerAvatar.style.height = '100px';
-                            playerAvatar.style.minWidth = '100px';
-                            playerAvatar.style.minHeight = '100px';
+                            // Check if video is enabled for this player to use larger size
+                            if (playerAvatar.classList.contains('video-enabled')) {
+                                playerAvatar.style.width = '200px';
+                                playerAvatar.style.height = '200px';
+                                playerAvatar.style.minWidth = '200px';
+                                playerAvatar.style.minHeight = '200px';
+                                console.log(`🔧 Forced video-enabled container to 200x200px`);
+                            } else {
+                                playerAvatar.style.width = '120px';
+                                playerAvatar.style.height = '120px';
+                                playerAvatar.style.minWidth = '120px';
+                                playerAvatar.style.minHeight = '120px';
+                            }
                         }
                         
                         // Force video element dimensions to match container
@@ -608,19 +624,21 @@ class VideoManager {
                                 videoElement.style.minHeight = containerRect.height + 'px';
                                 console.log(`🔧 Video element forced to ${containerRect.width}x${containerRect.height}px`);
                             } else {
-                                // Fallback if container has no dimensions - force absolute size
-                                videoElement.style.width = '96px';
-                                videoElement.style.height = '96px';
-                                videoElement.style.minWidth = '96px';
-                                videoElement.style.minHeight = '96px';
-                                console.log(`🔧 Video element forced to fallback 96x96px`);
+                                // Fallback if container has no dimensions - force absolute size for 192x192 video
+                                videoElement.style.width = '192px';
+                                videoElement.style.height = '192px';
+                                videoElement.style.minWidth = '192px';
+                                videoElement.style.minHeight = '192px';
+                                videoElement.style.top = '4px';
+                                videoElement.style.left = '4px';
+                                console.log(`🔧 Video element forced to fallback 192x192px with 4px offset`);
                             }
                             
-                            // Force the video element to be visible
+                            // Force the video element to be visible with proper positioning for 8px gap
                             videoElement.style.display = 'block !important';
                             videoElement.style.position = 'absolute !important';
-                            videoElement.style.top = '0 !important';
-                            videoElement.style.left = '0 !important';
+                            videoElement.style.top = '4px !important';
+                            videoElement.style.left = '4px !important';
                             videoElement.style.zIndex = '100 !important';
                             videoElement.style.borderRadius = '50% !important';
                             videoElement.style.objectFit = 'cover !important';
@@ -671,6 +689,14 @@ class VideoManager {
                 // Restore avatar image and fallback with proper logic
                 const avatarContainer = document.querySelector(`[data-seat="${mySeat}"] .player-avatar-container`);
                 if (avatarContainer) {
+                    const playerAvatar = avatarContainer.querySelector('.player-avatar');
+                    
+                    // Remove video-enabled class
+                    if (playerAvatar) {
+                        playerAvatar.classList.remove('video-enabled');
+                        console.log(`🎬 Removed video-enabled class from local avatar for seat ${mySeat}`);
+                    }
+                    
                     const avatarImage = avatarContainer.querySelector('.avatar-image');
                     const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
 
@@ -741,6 +767,14 @@ class VideoManager {
             const avatarContainer = document.querySelector(`[data-seat="${seat}"] .player-avatar-container`);
             console.log(`🎬 Avatar container found for seat ${seat}:`, avatarContainer);
             if (avatarContainer) {
+                const playerAvatar = avatarContainer.querySelector('.player-avatar');
+                
+                // Add video-enabled class for enhanced styling
+                if (playerAvatar) {
+                    playerAvatar.classList.add('video-enabled');
+                    console.log(`🎬 Added video-enabled class to avatar for seat ${seat}`);
+                }
+                
                 const avatarImage = avatarContainer.querySelector('.avatar-image');
                 const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
                 console.log(`🎬 Remote avatar image:`, avatarImage, avatarImage?.style.display);
@@ -794,9 +828,17 @@ class VideoManager {
             // Remove from active video seats
             this.activeVideoSeats.delete(seat);
 
-            // Show avatar image and fallback again
+            // Remove video-enabled class and show avatar image and fallback again
             const avatarContainer = document.querySelector(`[data-seat="${seat}"] .player-avatar-container`);
             if (avatarContainer) {
+                const playerAvatar = avatarContainer.querySelector('.player-avatar');
+                
+                // Remove video-enabled class
+                if (playerAvatar) {
+                    playerAvatar.classList.remove('video-enabled');
+                    console.log(`🎬 Removed video-enabled class from avatar for seat ${seat}`);
+                }
+                
                 const avatarImage = avatarContainer.querySelector('.avatar-image');
                 const avatarFallback = avatarContainer.querySelector('.avatar-fallback');
                 if (avatarImage) avatarImage.style.display = '';
@@ -924,10 +966,9 @@ function renderPlayerAvatar(player, size = 'medium', seat = null) {
                      style="display: block;"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div class="avatar-fallback" style="background-color: ${avatarColor}; display: flex;">
-                    ${initials}
+                    ${firstName}
                 </div>
             </div>
-            <div class="player-name">${firstName}</div>
         </div>
     `;
 }
@@ -1872,6 +1913,11 @@ function updateLobbyDisplay(state) {
                 mySeat = seat;
                 isReady = player.isReady;
             }
+            
+            // Add ready state visual indicator
+            if (player.isReady) {
+                seatEl.classList.add('ready-player');
+            }
             const firstName = player.userName ? player.userName.split(' ')[0] : `Player ${seatNumberMap[seat]}`;
             const isLeader = (state.lobbyLeader === seat);
             
@@ -1890,9 +1936,6 @@ function updateLobbyDisplay(state) {
                 <div class="seat-number">Seat ${seatNumberMap[seat]}</div>
                 <div class="seat-content">
                     ${renderPlayerAvatar(player, 'large', seat)}
-                    <div class="seat-status ${player.isReady ? 'ready' : 'not-ready'}">
-                        ${player.isReady ? 'Ready' : 'Not Ready'}
-                    </div>
                     ${removeBotBtn}${kickPlayerBtn}
                 </div>
             `;

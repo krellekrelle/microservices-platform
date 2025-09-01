@@ -292,7 +292,7 @@ body {
 
 /* Prevent layout shifts when buttons appear in seat: reserve footer space and absolutely position buttons */
 .seat { position: relative; }
-.seat .seat-content { padding-bottom: 36px; /* reserve space for buttons (reduced to save vertical space) */ }
+/*.seat .seat-content { padding-bottom: 0px; /* reserve space for buttons (reduced to save vertical space) */ }
 .seat .add-bot-seat-btn, .seat .remove-bot-btn {
     position: absolute;
     bottom: 10px;
@@ -335,7 +335,7 @@ body {
     width: 100%;
     overflow: hidden;
     padding-bottom: 36px; /* reserved space for buttons (reduced) */
-    padding-top: 6px; /* small top padding to vertically center content when seat-number hidden */
+    padding-top: 12px; /* small top padding to vertically center content when seat-number hidden */
 }
 .seat-number {
     font-size: 1rem;
@@ -368,6 +368,18 @@ body {
 .not-ready {
     background: #ff9800;
 }
+
+/* Green outline for seats with ready players */
+.seat.ready-player {
+    border: 3px solid #4caf50 !important;
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.4) !important;
+    background: rgba(76, 175, 80, 0.15) !important;
+}
+
+/* Ensure ready player seats stand out even more */
+.seat.ready-player:hover {
+    background: rgba(76, 175, 80, 0.2) !important;
+}
 .empty-seat {
     font-size: 1.1rem;
     opacity: 0.6;
@@ -386,7 +398,7 @@ body {
     background: transparent;
     border-radius: 20px;
     position: static;
-    z-index: 2;
+    z-index: 100; /* Ensure controls stay above videos */
     max-width: 80%;
     min-height: 80px; /* reduced reserved space so center column stays compact */
 }
@@ -491,12 +503,22 @@ body {
     .player-avatar.avatar-medium { width: 32px; height: 32px; }
     .player-avatar.avatar-small { width: 28px; height: 28px; }
     
-    /* Ensure video elements are properly sized on mobile */
+    /* Ensure video elements are properly sized on mobile - support video-enabled state */
     .player-avatar.avatar-large .player-video {
         width: 64px !important;
         height: 64px !important;
         min-width: 64px !important;
         min-height: 64px !important;
+    }
+    
+    /* Override for video-enabled avatars on mobile - allow large videos */
+    .player-avatar.avatar-large.video-enabled .player-video {
+        width: 192px !important;
+        height: 192px !important;
+        min-width: 192px !important;
+        min-height: 192px !important;
+        top: 4px !important;
+        left: 4px !important;
     }
     
     .card-back-image { 
@@ -655,18 +677,21 @@ body {
     color: white;
     font-weight: bold;
     font-size: 18px;  /* Increased default size for larger avatars */
+    text-align: center;
+    padding: 2px; /* Add small padding to prevent text from touching edges */
+    box-sizing: border-box;
 }
 
 .avatar-small .avatar-fallback {
-    font-size: 14px;
+    font-size: 12px;
 }
 
 .avatar-medium .avatar-fallback {
-    font-size: 16px;  /* Added medium size */
+    font-size: 14px;  /* Smaller for medium size names */
 }
 
 .avatar-large .avatar-fallback {
-    font-size: 20px;  /* Increased for 50px avatars */
+    font-size: 24px;  /* Larger for the big 200px avatars, suitable for first names */
 }
 
 .player-name {
@@ -1319,41 +1344,54 @@ body.game-paused .card-img {
 }
 
 /* Video streaming styles */
-/* Avatar container - force dimensions to prevent collapse */
+/* Avatar container - LARGE size when video is enabled to fill most of the seat */
 .player-avatar.avatar-large {
-  width: 100px !important;
-  height: 100px !important;
-  min-width: 100px !important;
-  min-height: 100px !important;
+  width: 180px !important;
+  height: 180px !important;
+  min-width: 120px !important;
+  min-height: 120px !important;
   display: block !important;
   position: relative !important;
+  margin: 0 auto !important; /* Center avatar in lobby seats */
 }
 
-/* Video elements */
+/* Video-enabled avatar containers - Make them much larger when video is active to almost fill the seat */
+.player-avatar.avatar-large.video-enabled {
+  width: 200px !important;
+  height: 200px !important;
+  min-width: 200px !important;
+  min-height: 200px !important;
+  margin: 0 auto !important; /* Keep centered when enlarged */
+}
+
+/* Video elements - Large size 192x192 with 8px gap to fill most of the opponent seat */
 .player-video {
   position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 96px !important;
-  height: 96px !important;
+  top: 4px !important;
+  left: 4px !important;
+  width: 192px !important;
+  height: 192px !important;
   border-radius: 50% !important;
   object-fit: cover !important;
   z-index: 10 !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  border: none !important;
+  border: 2px solid rgba(255, 255, 255, 0.8) !important;
   background: transparent !important;
-  min-width: 96px !important;
-  min-height: 96px !important;
+  min-width: 192px !important;
+  min-height: 192px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Mobile-specific adjustments */
 .player-avatar.avatar-large .player-video {
-  width: 96px !important;
-  height: 96px !important;
-  min-width: 96px !important;
-  min-height: 96px !important;
+  width: 192px !important;
+  height: 192px !important;
+  min-width: 192px !important;
+  min-height: 192px !important;
+  top: 4px !important;
+  left: 4px !important;
 }/* Ensure video elements are visible when displayed */
 .player-video[style*="display: block"] {
     display: block !important;
