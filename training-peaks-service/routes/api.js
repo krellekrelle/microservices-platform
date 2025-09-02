@@ -135,11 +135,11 @@ router.post('/scrape', async (req, res) => {
         }
         
         // Perform scraping
-        const schedule = await scraper.scrapeWeeklySchedule(credentials.username, credentials.password);
+        const schedule = await scraper.scrapeWithCredentials(credentials.username, credentials.password);
         
         if (schedule.length > 0) {
             await storageService.storeTrainingSessions(userId, schedule);
-            await storageService.logScrapingAttempt(userId, true, 'Manual scraping successful');
+            await storageService.logScrapingAttempt(userId, 'manual', 'success', 'Manual scraping successful', schedule.length);
             
             res.json({
                 success: true,
@@ -147,7 +147,7 @@ router.post('/scrape', async (req, res) => {
                 sessions: schedule.length
             });
         } else {
-            await storageService.logScrapingAttempt(userId, true, 'No training sessions found');
+            await storageService.logScrapingAttempt(userId, 'manual', 'warning', 'No training sessions found', 0);
             res.json({
                 success: true,
                 message: 'No training sessions found for the current week',
@@ -156,7 +156,7 @@ router.post('/scrape', async (req, res) => {
         }
     } catch (error) {
         console.error('Error in manual scraping:', error);
-        await storageService.logScrapingAttempt(req.user.id, false, error.message);
+        await storageService.logScrapingAttempt(req.user.id, 'manual', 'error', error.message, 0);
         res.status(500).json({ 
             error: 'Scraping failed',
             details: error.message 
@@ -196,6 +196,37 @@ router.post('/test-email', async (req, res) => {
         console.error('Error sending test email:', error);
         res.status(500).json({ 
             error: 'Failed to send test email',
+            details: error.message 
+        });
+    }
+});
+
+// Test scraping endpoint with direct credentials (for testing only)
+router.post('/test-scraping', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password are required for testing' });
+        }
+        
+        console.log('🧪 Starting test scraping with provided credentials...');
+        
+        // Perform scraping with test credentials
+        const schedule = await scraper.scrapeWithCredentials(username, password);
+        
+        // Don't store data for test endpoint, just return it
+        res.json({
+            success: true,
+            message: `Test scraping completed - found ${schedule.length} training sessions`,
+            sessions: schedule.length,
+            data: schedule
+        });
+        
+    } catch (error) {
+        console.error('Error in test scraping:', error);
+        res.status(500).json({ 
+            error: 'Test scraping failed',
             details: error.message 
         });
     }

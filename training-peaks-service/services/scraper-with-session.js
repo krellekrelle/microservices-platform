@@ -301,64 +301,392 @@ class TrainingPeaksScraper {
         }
     }
 
+    async scrapeWithCredentials(username, password) {
+        try {
+            console.log(`🔐 Starting complete scraping flow with credentials...`);
+            
+            // Initialize browser if not already done
+            if (!this.browser) {
+                await this.initialize();
+            }
+            
+            // Login first
+            await this.loginToTrainingPeaks(username, password);
+            
+            // Then scrape the weekly schedule
+            const weekData = await this.scrapeWeeklySchedule('2025-09-01');
+            
+            return weekData;
+            
+        } catch (error) {
+            console.error(`❌ Failed to scrape with credentials:`, error.message);
+            throw error;
+        }
+    }
+
     async scrapeWeeklySchedule(startDate) {
         try {
-            console.log(`📅 Scraping training schedule starting from ${startDate}`);
+            console.log(`📅 Scraping training schedule for September 1-7, 2025`);
             
-            // Navigate to calendar view for the specific week
-            const calendarUrl = `https://home.trainingpeaks.com/athlete/calendar?view=week&start=${startDate}`;
-            await this.page.goto(calendarUrl, { waitUntil: 'networkidle' });
-            
-            // Wait for calendar content to load
-            await this.page.waitForTimeout(3000);
-            
-            // Extract training sessions
-            const trainingSessions = await this.page.evaluate(() => {
-                const sessions = [];
-                
-                // Try multiple possible selectors for training sessions
-                const selectors = [
-                    '.calendar-workout',
-                    '.workout-item',
-                    '.training-item',
-                    '[data-testid*="workout"]',
-                    '.session',
-                    '.activity'
-                ];
-                
-                for (const selector of selectors) {
-                    const elements = document.querySelectorAll(selector);
-                    if (elements.length > 0) {
-                        elements.forEach(element => {
-                            const title = element.querySelector('.title, .workout-title, h3, h4')?.textContent?.trim();
-                            const description = element.querySelector('.description, .workout-description, .notes')?.textContent?.trim();
-                            const dateAttr = element.getAttribute('data-date') || 
-                                           element.closest('[data-date]')?.getAttribute('data-date');
-                            
-                            if (title || description) {
-                                sessions.push({
-                                    date: dateAttr || new Date().toISOString().split('T')[0],
-                                    title: title || 'Training Session',
-                                    description: description || '',
-                                    duration: null,
-                                    type: 'workout'
-                                });
-                            }
-                        });
-                        break; // If we found sessions with one selector, stop trying others
-                    }
-                }
-                
-                return sessions;
+            // Navigate to calendar
+            await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
+                waitUntil: 'networkidle0',
+                timeout: 30000 
             });
             
-            console.log(`✅ Scraped ${trainingSessions.length} training sessions`);
-            return trainingSessions;
+            // Wait for calendar to load
+            await this.page.waitForTimeout(3000);
+            
+            // Get September 1-7, 2025 week data
+            const weekData = await this.extractWeekData();
+            
+            return weekData;
             
         } catch (error) {
             console.error(`❌ Failed to scrape training schedule:`, error.message);
             throw error;
         }
+    }
+
+        // Extract workout data for September 1-7, 2025
+    async extractWeekData() {
+        console.log('📅 Extracting September 1-7, 2025 workout data...');
+        
+        try {
+            // First, save the HTML content to a file for debugging
+            await this.saveHtmlToFile();
+            
+            const weekData = [];
+            
+            // Look for the specific week container for September 1-7, 2025
+            const weekContainer = await this.page.$('div.calendarWeekContainer[data-date="2025-09-01"]');
+            
+            if (!weekContainer) {
+                console.log('❌ Could not find week container for September 1-7, 2025');
+                // Try to find any week container to debug
+                const anyWeekContainer = await this.page.$('div.calendarWeekContainer');
+                if (anyWeekContainer) {
+                    const dataDate = await anyWeekContainer.getAttribute('data-date');
+                    console.log(`🔍 Found week container with data-date: ${dataDate}`);
+                } else {
+                    console.log('❌ Could not find any week container at all');
+                }
+                return weekData;
+            }
+            
+            console.log('✅ Found week container for September 1-7, 2025');
+            
+            // Extract workouts for each day in the week
+            const targetDates = ['2025-09-01', '2025-09-02', '2025-09-03', '2025-09-04', '2025-09-05', '2025-09-06', '2025-09-07'];
+            
+            for (const date of targetDates) {
+                console.log(`🗓️ Processing ${date}...`);
+                
+                const dayWorkouts = await this.extractDayWorkouts(date);
+                
+                weekData.push({
+                    date: date,
+                    workouts: dayWorkouts
+                });
+                
+                console.log(`✅ Found ${dayWorkouts.length} workouts for ${date}`);
+            }
+            
+            return weekData;
+            
+        } catch (error) {
+            console.error('❌ Error extracting week data:', error);
+            throw error;
+        }
+    }
+
+    // Save HTML content to file for debugging
+    async saveHtmlToFile() {
+        try {
+            const htmlContent = await this.page.content();
+            const fs = require('fs').promises;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `/app/debug_calendar_${timestamp}.html`;
+            
+            await fs.writeFile(filename, htmlContent, 'utf8');
+            console.log(`� Saved HTML content to: ${filename}`);
+            
+            // Also log some basic info about what's on the page
+            const title = await this.page.title();
+            const url = this.page.url();
+            console.log(`📄 Page title: ${title}`);
+            console.log(`🔗 Page URL: ${url}`);
+            
+            // Check for common selectors
+            const weekContainers = await this.page.$$('div.calendarWeekContainer');
+            console.log(`📅 Found ${weekContainers.length} week containers`);
+            
+            const dayContainers = await this.page.$$('div.dayContainer');
+            console.log(`📊 Found ${dayContainers.length} day containers`);
+            
+            const workoutCards = await this.page.$$('div.activity.workout');
+            console.log(`🏃 Found ${workoutCards.length} workout cards`);
+            
+        } catch (error) {
+            console.error('❌ Error saving HTML to file:', error);
+        }
+    }
+
+    // Extract workouts for a specific day
+    async extractDayWorkouts(weekContainer, date) {
+        const workouts = [];
+        
+        try {
+            // Find the day container for this specific date
+            const dayContainer = await weekContainer.$(`[data-date="${date}"]`);
+            
+            if (!dayContainer) {
+                console.log(`❌ Could not find day container for ${date}`);
+                return workouts;
+            }
+            
+            // Find all workout cards within this day
+            const workoutCards = await dayContainer.$$('.MuiCard-root.activity.workout');
+            
+            console.log(`🔍 Found ${workoutCards.length} workout cards for ${date}`);
+            
+            for (const card of workoutCards) {
+                try {
+                    const workoutData = await this.extractWorkoutFromCard(card);
+                    
+                    if (workoutData) {
+                        workouts.push(workoutData);
+                        console.log(`✅ Extracted workout: ${workoutData.title} - ${workoutData.description?.substring(0, 50) || 'No description'}...`);
+                    }
+                    
+                } catch (elementError) {
+                    console.log('⚠️ Could not extract data from workout card:', elementError.message);
+                    continue;
+                }
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error extracting workouts for ${date}:`, error);
+        }
+        
+        return workouts;
+    }
+
+    // Extract data from a single workout card
+    async extractWorkoutFromCard(card) {
+        try {
+            const workoutData = {};
+            
+            // Extract workout ID
+            const workoutId = await card.evaluate(el => el.getAttribute('data-workoutid'));
+            if (workoutId) {
+                workoutData.workoutId = workoutId;
+            }
+            
+            // Extract title from h6.newActivityUItitle
+            const titleElement = await card.$('h6.newActivityUItitle');
+            if (titleElement) {
+                workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), titleElement);
+            }
+            
+            // Extract duration, distance, TSS from keyStats
+            const keyStats = await card.$('.keyStats');
+            if (keyStats) {
+                // Duration
+                const durationElement = await keyStats.$('.duration .value');
+                if (durationElement) {
+                    workoutData.duration = await this.page.evaluate(el => el.textContent?.trim(), durationElement);
+                }
+                
+                // Distance
+                const distanceValue = await keyStats.$('.distance .value');
+                const distanceUnits = await keyStats.$('.distance .units');
+                if (distanceValue && distanceUnits) {
+                    const value = await this.page.evaluate(el => el.textContent?.trim(), distanceValue);
+                    const units = await this.page.evaluate(el => el.textContent?.trim(), distanceUnits);
+                    workoutData.distance = `${value}${units}`;
+                }
+                
+                // TSS
+                const tssValue = await keyStats.$('.tss .value');
+                const tssUnits = await keyStats.$('.tss .units');
+                if (tssValue && tssUnits) {
+                    const value = await this.page.evaluate(el => el.textContent?.trim(), tssValue);
+                    const units = await this.page.evaluate(el => el.textContent?.trim(), tssUnits);
+                    workoutData.tss = `${value}${units}`;
+                }
+            }
+            
+            // Extract description from .description element
+            const descriptionElement = await card.$('.description');
+            if (descriptionElement) {
+                workoutData.description = await this.page.evaluate(el => el.textContent?.trim(), descriptionElement);
+            }
+            
+            // Extract planned info if available
+            const plannedElement = await card.$('.totalTimePlanned');
+            if (plannedElement) {
+                workoutData.planned = await this.page.evaluate(el => el.textContent?.trim(), plannedElement);
+            }
+            
+            // Determine workout type from title or sport type
+            const sportTypeElement = await card.$('.printOnly.sportType');
+            if (sportTypeElement) {
+                workoutData.sportType = await this.page.evaluate(el => el.textContent?.trim(), sportTypeElement);
+            }
+            
+            // Set workout type
+            if (workoutData.title) {
+                workoutData.type = this.determineWorkoutType(workoutData.title);
+            } else if (workoutData.sportType) {
+                workoutData.type = workoutData.sportType;
+            }
+            
+            // Only return if we have meaningful data
+            if (workoutData.title || workoutData.description) {
+                return workoutData;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error extracting workout data from card:', error);
+        }
+        
+        return null;
+    }
+
+    // Extract workouts for a specific day
+    async extractDayWorkouts(targetDate) {
+        const workouts = [];
+        
+        try {
+            console.log(`🔍 Looking for workout elements on ${targetDate.date}...`);
+            
+            // Try multiple selectors to find workout elements
+            const selectorAttempts = [
+                'generic[cursor="pointer"]',  // Accessibility selector
+                '[role="button"]',           // Button role
+                '.workout',                   // Common class name
+                '.session',                   // Session class
+                '.activity',                  // Activity class
+                '[data-testid*="workout"]',   // Test ID
+                'div[onclick]',              // Clickable divs
+                'a[href*="workout"]'         // Workout links
+            ];
+            
+            let workoutElements = [];
+            
+            for (const selector of selectorAttempts) {
+                workoutElements = await this.page.$$(selector);
+                console.log(`🔍 Selector "${selector}" found ${workoutElements.length} elements`);
+                
+                if (workoutElements.length > 0) {
+                    // Test if these elements contain workout data
+                    for (let i = 0; i < Math.min(3, workoutElements.length); i++) {
+                        const testText = await this.page.evaluate(el => el.textContent?.trim(), workoutElements[i]);
+                        console.log(`📝 Element ${i} text sample:`, testText?.substring(0, 100) + '...');
+                    }
+                    break; // Use the first selector that finds elements
+                }
+            }
+            
+            if (workoutElements.length === 0) {
+                console.log('❌ No workout elements found with any selector');
+                return workouts;
+            }
+            
+            console.log(`✅ Processing ${workoutElements.length} workout elements...`);
+            
+            for (let i = 0; i < workoutElements.length; i++) {
+                try {
+                    console.log(`🔍 Processing element ${i + 1}/${workoutElements.length}...`);
+                    
+                    // Extract workout data
+                    const workoutData = await this.extractWorkoutData(workoutElements[i]);
+                    
+                    if (workoutData) {
+                        workouts.push(workoutData);
+                        console.log(`✅ Extracted workout:`, workoutData);
+                    }
+                    
+                } catch (elementError) {
+                    console.error(`❌ Error processing element ${i}:`, elementError);
+                    continue;
+                }
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error extracting workouts for ${targetDate.date}:`, error);
+        }
+        
+        console.log(`📊 Found ${workouts.length} workouts for ${targetDate.date}`);
+        return workouts;
+    }
+
+    // Extract data from individual workout element
+    async extractWorkoutData(workoutElement) {
+        try {
+            const workoutData = {};
+            
+            // Debug: Log the element HTML to understand structure
+            const elementHTML = await this.page.evaluate(el => el.outerHTML, workoutElement);
+            console.log('🔍 Workout element HTML:', elementHTML.substring(0, 500) + '...');
+            
+            // Extract title
+            const headingElement = await workoutElement.$('heading[level="6"]');
+            if (headingElement) {
+                workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), headingElement);
+                console.log('📝 Found title:', workoutData.title);
+            } else {
+                console.log('❌ No heading element found');
+            }
+            
+            // Try alternative selectors for title
+            if (!workoutData.title) {
+                const altSelectors = ['h6', '.workout-title', '.title', '[data-testid*="title"]'];
+                for (const selector of altSelectors) {
+                    const titleEl = await workoutElement.$(selector);
+                    if (titleEl) {
+                        workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), titleEl);
+                        console.log(`📝 Found title with ${selector}:`, workoutData.title);
+                        break;
+                    }
+                }
+            }
+            
+            // Extract all text content for debugging
+            const allText = await this.page.evaluate(el => el.textContent?.trim(), workoutElement);
+            console.log('📄 All element text:', allText);
+            
+            // Set description to all text for now (debugging)
+            if (allText && allText.length > 10) {
+                workoutData.description = allText;
+            }
+            
+            // Always return something for debugging, even if just description
+            if (workoutData.description || workoutData.title) {
+                return workoutData;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error extracting workout data:', error);
+        }
+        
+        return null;
+    }
+
+    // Determine workout type from title
+    determineWorkoutType(title) {
+        const titleLower = title.toLowerCase();
+        
+        if (titleLower.includes('cycling') || titleLower.includes('bike')) return 'Cycling';
+        if (titleLower.includes('running') || titleLower.includes('jog') || titleLower.includes('løb')) return 'Running';
+        if (titleLower.includes('strength') || titleLower.includes('weight')) return 'Strength';
+        if (titleLower.includes('hiking') || titleLower.includes('walk')) return 'Hiking';
+        if (titleLower.includes('basketball')) return 'Basketball';
+        if (titleLower.includes('intervaller')) return 'Intervals';
+        if (titleLower.includes('tempo')) return 'Tempo';
+        
+        return 'Other';
     }
 
     async cleanup() {

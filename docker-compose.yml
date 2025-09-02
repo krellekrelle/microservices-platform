@@ -127,6 +127,8 @@ services:
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_APP_PASSWORD=${EMAIL_APP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+    volumes:
+      - ./training-peaks-service/data:/app/data
     depends_on:
       database:
         condition: service_healthy
