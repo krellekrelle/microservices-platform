@@ -182,14 +182,15 @@ class StorageService {
     }
 
     // Log scraping attempts
-    async logScrapingAttempt(userId, success, message) {
+    async logScrapingAttempt(userId, scrapeType, status, message, sessionsFound = 0, weekStartDate = null) {
         try {
+            const weekStart = weekStartDate || this.getCurrentWeekStart();
             const query = `
-                INSERT INTO scraping_logs (user_id, success, message, created_at)
-                VALUES ($1, $2, $3, NOW())
+                INSERT INTO training_scraping_logs (user_id, scrape_type, status, message, sessions_found, week_start_date, scraped_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
             `;
             
-            await db.query(query, [userId, success, message]);
+            await db.query(query, [userId, scrapeType, status, message, sessionsFound, weekStart]);
         } catch (error) {
             console.error('❌ Error logging scraping attempt:', error);
             throw error;
@@ -238,10 +239,10 @@ class StorageService {
             
             const query = `
                 SELECT COUNT(*) as count
-                FROM scraping_logs
+                FROM training_scraping_logs
                 WHERE user_id = $1 
-                AND success = false 
-                AND created_at >= $2::date
+                AND status = 'error' 
+                AND scraped_at >= $2::date
             `;
             
             const result = await db.query(query, [userId, weekStart]);
