@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const StorageService = require('../services/storage');
-const TrainingPeaksScraper = require('../services/scraper');
+const TrainingPeaksScraper = require('../services/scraper-with-session');
 const EmailNotificationService = require('../services/email');
 
 const storageService = new StorageService();

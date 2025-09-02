@@ -5,19 +5,31 @@ class StorageService {
     // Store user TrainingPeaks credentials
     async storeUserCredentials(userId, username, password) {
         try {
+            const encryptedUsername = encryptionUtil.encrypt(username);
             const encryptedPassword = encryptionUtil.encrypt(password);
             
             const query = `
-                INSERT INTO training_peaks_credentials (user_id, username, encrypted_password, created_at, updated_at)
-                VALUES ($1, $2, $3, NOW(), NOW())
+                INSERT INTO training_peaks_credentials (
+                    user_id, username_encrypted, password_encrypted, 
+                    iv_username, iv_password, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
                 ON CONFLICT (user_id) 
                 DO UPDATE SET 
-                    username = $2,
-                    encrypted_password = $3,
+                    username_encrypted = $2,
+                    password_encrypted = $3,
+                    iv_username = $4,
+                    iv_password = $5,
                     updated_at = NOW()
             `;
             
-            await db.query(query, [userId, username, encryptedPassword]);
+            await db.query(query, [
+                userId, 
+                encryptedUsername.encryptedData, 
+                encryptedPassword.encryptedData,
+                encryptedUsername.iv,
+                encryptedPassword.iv
+            ]);
             console.log(`✅ Stored credentials for user ${userId}`);
         } catch (error) {
             console.error('❌ Error storing user credentials:', error);
@@ -29,7 +41,7 @@ class StorageService {
     async getUserCredentials(userId) {
         try {
             const query = `
-                SELECT username, encrypted_password 
+                SELECT username_encrypted, password_encrypted, iv_username, iv_password
                 FROM training_peaks_credentials 
                 WHERE user_id = $1
             `;
@@ -40,8 +52,9 @@ class StorageService {
                 return null;
             }
             
-            const { username, encrypted_password } = result.rows[0];
-            const password = encryptionUtil.decrypt(encrypted_password);
+            const { username_encrypted, password_encrypted, iv_username, iv_password } = result.rows[0];
+            const username = encryptionUtil.decrypt({ encryptedData: username_encrypted, iv: iv_username });
+            const password = encryptionUtil.decrypt({ encryptedData: password_encrypted, iv: iv_password });
             
             return { username, password };
         } catch (error) {
@@ -57,8 +70,10 @@ class StorageService {
                 SELECT 
                     u.id,
                     u.email,
-                    tpc.username,
-                    tpc.encrypted_password
+                    tpc.username_encrypted,
+                    tpc.password_encrypted,
+                    tpc.iv_username,
+                    tpc.iv_password
                 FROM users u
                 JOIN training_peaks_credentials tpc ON u.id = tpc.user_id
                 WHERE u.status = 'approved'
@@ -69,8 +84,8 @@ class StorageService {
             return result.rows.map(row => ({
                 id: row.id,
                 email: row.email,
-                username: row.username,
-                password: encryptionUtil.decrypt(row.encrypted_password)
+                username: encryptionUtil.decrypt({ encryptedData: row.username_encrypted, iv: row.iv_username }),
+                password: encryptionUtil.decrypt({ encryptedData: row.password_encrypted, iv: row.iv_password })
             }));
         } catch (error) {
             console.error('❌ Error getting users with credentials:', error);
@@ -89,15 +104,13 @@ class StorageService {
                 for (const session of sessions) {
                     const query = `
                         INSERT INTO training_sessions (
-                            user_id, date, time, title, description, 
-                            training_type, duration_minutes, week_start_date, created_at
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-                        ON CONFLICT (user_id, date, time, title) 
+                            user_id, date, type, description, 
+                            duration, week_start_date, scraped_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                        ON CONFLICT (user_id, date, type, description) 
                         DO UPDATE SET 
-                            description = $5,
-                            training_type = $6,
-                            duration_minutes = $7,
-                            updated_at = NOW()
+                            duration = $5,
+                            scraped_at = NOW()
                     `;
                     
                     const trainingType = this.detectTrainingType(session.title, session.description);
@@ -106,10 +119,8 @@ class StorageService {
                     await client.query(query, [
                         userId,
                         session.date,
-                        session.time,
-                        session.title,
-                        session.description,
                         trainingType,
+                        session.description || session.title || '',
                         session.duration || null,
                         weekStart
                     ]);
@@ -156,10 +167,10 @@ class StorageService {
     async getUserTrainingSessions(userId, startDate, endDate) {
         try {
             const query = `
-                SELECT date, time, title, description, training_type, duration_minutes
+                SELECT date, type, description, duration
                 FROM training_sessions 
                 WHERE user_id = $1 AND date >= $2 AND date <= $3
-                ORDER BY date, time
+                ORDER BY date
             `;
             
             const result = await db.query(query, [userId, startDate, endDate]);

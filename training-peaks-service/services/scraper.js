@@ -9,8 +9,24 @@ class TrainingPeaksScraper {
     
     async initialize() {
         try {
+            this.browser = await chromium.launch({
+                headless: true,
+                executablePath: '/usr/bin/chromium-browser',
+                args: [
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-extensions',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--ignore-certificate-errors'
+                ]
+            });
             this.browser = await chromium.launch({ 
                 headless: true,
+                executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
                 args: [
                     '--no-sandbox', 
                     '--disable-setuid-sandbox',
@@ -23,10 +39,13 @@ class TrainingPeaksScraper {
             
             this.page = await this.browser.newPage();
             
-            // Set realistic user agent
-            await this.page.setUserAgent(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            );
+            // Set a realistic user agent to avoid being blocked
+            await this.page.setExtraHTTPHeaders({
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            });
+            
+            // Set viewport for consistency
+            await this.page.setViewportSize({ width: 1280, height: 720 });
             
             this.isInitialized = true;
             console.log('🎭 Playwright browser initialized');
@@ -37,33 +56,38 @@ class TrainingPeaksScraper {
     }
 
     // Test credentials without full scraping
-    async testCredentials(email, password) {
+    async testCredentials(username, password) {
         try {
             if (!this.isInitialized) {
                 await this.initialize();
             }
 
-            console.log(`🧪 Testing credentials for ${email}`);
+            console.log(`🧪 Testing credentials for ${username}`);
             
-            // Navigate to login page
-            await this.page.goto('https://www.trainingpeaks.com/login', { 
-                waitUntil: 'networkidle' 
+            // Navigate to login page with more robust options
+            console.log('📡 Navigating to TrainingPeaks login page...');
+            await this.page.goto('https://home.trainingpeaks.com/login', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 30000
             });
+            console.log('✅ Navigation completed');
             
-            // Wait for and fill login form
-            await this.page.waitForSelector('input[name="email"], input[type="email"], #email', { timeout: 10000 });
+            // Wait for and fill login form - use exact TrainingPeaks selectors
+            console.log('🔍 Looking for TrainingPeaks login form...');
             
-            const emailSelector = await this.page.$('input[name="email"]') || 
-                                 await this.page.$('input[type="email"]') || 
-                                 await this.page.$('#email');
+            // Wait for the specific form fields to load
+            await this.page.waitForSelector('input[name="Username"]', { timeout: 10000 });
             
-            const passwordSelector = await this.page.$('input[name="password"], input[type="password"], #password');
+            const emailSelector = await this.page.$('input[name="Username"]');
+            const passwordSelector = await this.page.$('input[name="Password"]');
+            
+            console.log('✅ Found TrainingPeaks login form fields');
             
             if (!emailSelector || !passwordSelector) {
                 throw new Error('Could not find login form elements');
             }
             
-            await emailSelector.fill(email);
+            await emailSelector.fill(username);
             await passwordSelector.fill(password);
             
             // Submit login
@@ -85,40 +109,36 @@ class TrainingPeaksScraper {
                 throw new Error('Login failed - still on login page');
             }
             
-            console.log(`✅ Credentials test successful for ${email}`);
+            console.log(`✅ Credentials test successful for ${username}`);
             return true;
         } catch (error) {
-            console.error(`❌ Credentials test failed for ${email}:`, error.message);
+            console.error(`❌ Credentials test failed for ${username}:`, error.message);
             throw new Error(`Login test failed: ${error.message}`);
         }
     }
     
-    async loginToTrainingPeaks(email, password) {
+    async loginToTrainingPeaks(username, password) {
         try {
-            console.log(`🔐 Logging into TrainingPeaks for ${email}`);
+            console.log(`🔐 Logging into TrainingPeaks for ${username}`);
             
             // Navigate to login page
-            await this.page.goto('https://www.trainingpeaks.com/login', { 
+            await this.page.goto('https://home.trainingpeaks.com/login', { 
                 waitUntil: 'networkidle' 
             });
             
             // Wait for login form
-            await this.page.waitForSelector('input[name="email"], input[type="email"], #email', { timeout: 10000 });
+            await this.page.waitForSelector('input[name="Username"]', { timeout: 10000 });
             
-            // Fill login form - try multiple possible selectors
-            const emailSelector = await this.page.$('input[name="email"]') || 
-                                 await this.page.$('input[type="email"]') || 
-                                 await this.page.$('#email');
+            // Fill login form - use exact TrainingPeaks selectors
+            const emailSelector = await this.page.$('input[name="Username"]');
             
             if (emailSelector) {
-                await emailSelector.fill(email);
+                await emailSelector.fill(username);
             } else {
-                throw new Error('Could not find email input field');
+                throw new Error('Could not find username input field');
             }
             
-            const passwordSelector = await this.page.$('input[name="password"]') || 
-                                   await this.page.$('input[type="password"]') || 
-                                   await this.page.$('#password');
+            const passwordSelector = await this.page.$('input[name="Password"]');
             
             if (passwordSelector) {
                 await passwordSelector.fill(password);

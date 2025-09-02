@@ -29,7 +29,7 @@ async function initializeApp() {
 
         // Setup routes and middleware after initialization
         setupApp();
-        startCronJobs();
+        // startCronJobs(); // Disabled for now - no automatic scraping
         startServer();
     } catch (error) {
         console.error('❌ Failed to initialize app:', error);

@@ -4,174 +4,480 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Training Schedule Manager</title>
-    <link rel="stylesheet" href="/training/static/training-peaks.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 10px 0;
+            opacity: 0.9;
+        }
+        .back-link {
+            color: white;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .training-schedule {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .day-card {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+        }
+        .day-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .session {
+            background: white;
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 8px;
+            border-left: 3px solid #28a745;
+        }
+        .session-time {
+            font-weight: 600;
+            color: #667eea;
+        }
+        .session-title {
+            color: #333;
+            margin: 5px 0;
+        }
+        .session-description {
+            color: #666;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header>
+        <header class="header">
             <h1>🏃 Training Schedule Manager</h1>
             <p>TrainingPeaks Integration Service</p>
-            <div class="user-info">
-                <span id="user-name">Loading...</span>
-                <a href="/" class="logout-btn">← Back to Dashboard</a>
-            </div>
+            <a href="/" class="back-link">← Back to Dashboard</a>
         </header>
-        
-        <main>
-            <!-- Loading indicator -->
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <p>Loading your training data...</p>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="hidden"></div>
+
+        <!-- Credentials Section -->
+        <div class="card">
+            <h2>⚙️ TrainingPeaks Credentials</h2>
+            <div id="credentials-status">
+                <div class="status info">
+                    <strong>Setup Required:</strong> Please enter your TrainingPeaks login credentials to get started.
+                </div>
             </div>
-
-            <!-- User Setup Section -->
-            <section id="setup-section" class="card" style="display: none;">
-                <h2>⚙️ TrainingPeaks Setup</h2>
-                <div id="credentials-status">
-                    <!-- Dynamically populated based on whether user has credentials -->
-                </div>
-                
-                <!-- Credentials Form (shown if not configured or editing) -->
-                <form id="credentials-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="tp-email">TrainingPeaks Email:</label>
-                        <input type="email" id="tp-email" placeholder="your@email.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="tp-password">TrainingPeaks Password:</label>
-                        <input type="password" id="tp-password" placeholder="Password" required>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" id="save-credentials">Save Credentials</button>
-                        <button type="button" id="cancel-credentials">Cancel</button>
-                    </div>
-                </form>
-            </section>
-
-            <!-- Service Status -->
-            <section id="service-status" class="card" style="display: none;">
-                <h2>📊 Service Status</h2>
-                <div class="status-grid">
-                    <div class="status-item">
-                        <span class="status-label">Last Scraping:</span>
-                        <span id="last-scraping" class="status-value">-</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Next Check:</span>
-                        <span id="next-check" class="status-value">-</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Status:</span>
-                        <span id="scraping-status" class="status-value">-</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Training Week:</span>
-                        <span class="status-value">Monday - Sunday</span>
-                    </div>
-                </div>
-                <button id="scrape-now-btn" class="action-btn">Refresh from TrainingPeaks</button>
-            </section>
             
-            <!-- Current Week Training -->
-            <section id="current-week" class="card" style="display: none;">
-                <h2>📅 This Week's Training</h2>
-                <div class="week-header">
-                    <span id="current-week-dates"></span>
-                    <div class="week-stats">
-                        <span id="current-week-sessions">0 sessions</span>
-                    </div>
+            <form id="credentials-form">
+                <div class="form-group">
+                    <label for="tp-username">TrainingPeaks Username:</label>
+                    <input type="text" id="tp-username" placeholder="your_username" required>
                 </div>
-                <div id="current-week-schedule" class="training-schedule">
-                    <!-- Dynamically populated -->
+                <div class="form-group">
+                    <label for="tp-password">TrainingPeaks Password:</label>
+                    <input type="password" id="tp-password" placeholder="Your TrainingPeaks password" required>
                 </div>
-            </section>
-            
-            <!-- Next Week Training -->
-            <section id="next-week" class="card" style="display: none;">
-                <h2>📋 Next Week's Training</h2>
-                <div class="week-header">
-                    <span id="next-week-dates"></span>
-                    <div class="week-stats">
-                        <span id="next-week-sessions">0 sessions</span>
-                    </div>
-                </div>
-                <div id="next-week-schedule" class="training-schedule">
-                    <!-- Dynamically populated -->
-                </div>
-            </section>
+                <button type="submit" class="btn btn-success">Save Credentials</button>
+                <button type="button" id="delete-credentials" class="btn btn-danger hidden">Delete Credentials</button>
+            </form>
+        </div>
 
-            <!-- Training Statistics -->
-            <section id="training-stats" class="card" style="display: none;">
-                <h2>📈 Training Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">This Week:</span>
-                        <span id="current-week-total" class="stat-value">0 sessions</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Next Week:</span>
-                        <span id="next-week-total" class="stat-value">0 sessions</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Training Types:</span>
-                        <span id="training-types" class="stat-value">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Total Scraped:</span>
-                        <span id="total-sessions" class="stat-value">0</span>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Scraping History & Logs -->
-            <section id="scraping-history" class="card" style="display: none;">
-                <h2>📋 Scraping History</h2>
-                <div class="history-controls">
-                    <select id="history-period">
-                        <option value="7">Last 7 days</option>
-                        <option value="30">Last 30 days</option>
-                        <option value="90">Last 90 days</option>
-                    </select>
-                    <button id="refresh-history">Refresh</button>
-                    <button id="test-email-btn">Test Email</button>
-                </div>
-                <div id="history-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Status</th>
-                                <th>Sessions Found</th>
-                                <th>Triggered By</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-tbody">
-                            <!-- Dynamic content -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+        <!-- Test Section -->
+        <div class="card">
+            <h2>🧪 Test TrainingPeaks Integration</h2>
+            <p>Test fetching training data for the week of September 1-7, 2025 (Sunday to Saturday).</p>
+            <button id="test-fetch" class="btn" disabled>Test Fetch Training Data</button>
+            <div id="test-results" class="hidden">
+                <h3>Test Results:</h3>
+                <div id="test-output"></div>
+            </div>
+        </div>
 
-            <!-- Future Features Preview -->
-            <section id="future-features" class="card disabled" style="display: none;">
-                <h2>🔮 Coming Soon</h2>
-                <div class="feature-grid">
-                    <div class="feature-item">
-                        <h3>📱 Apple Calendar Sync</h3>
-                        <p>Automatic calendar event creation with training descriptions</p>
-                        <span class="feature-status">Phase 2</span>
-                    </div>
-                    <div class="feature-item">
-                        <h3>⌚ Garmin Integration</h3>
-                        <p>Auto-upload structured workouts to Garmin watches</p>
-                        <span class="feature-status">Phase 3</span>
-                    </div>
-                </div>
-            </section>
-        </main>
+        <!-- Training Schedule Display -->
+        <div id="schedule-section" class="card hidden">
+            <h2>📅 Training Schedule</h2>
+            <div id="week-info">
+                <strong>Week:</strong> September 1-7, 2025
+            </div>
+            <div id="training-schedule" class="training-schedule">
+                <!-- Will be populated with training data -->
+            </div>
+        </div>
     </div>
-    
-    <script src="/training/static/training-peaks.js"></script>
+
+    <script>
+        let hasCredentials = false;
+
+        // Load initial status
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCredentialsStatus();
+        });
+
+        // Load credentials status
+        async function loadCredentialsStatus() {
+            try {
+                const response = await fetch('/training/api/status');
+                const data = await response.json();
+                
+                if (data.hasCredentials) {
+                    hasCredentials = true;
+                    showCredentialsConfigured(data.username);
+                    document.getElementById('test-fetch').disabled = false;
+                } else {
+                    hasCredentials = false;
+                    showCredentialsRequired();
+                }
+            } catch (error) {
+                console.error('Error loading status:', error);
+                showMessage('Error loading status: ' + error.message, 'error');
+            }
+        }
+
+        // Show credentials configured state
+        function showCredentialsConfigured(username) {
+            document.getElementById('credentials-status').innerHTML = `
+                <div class="status success">
+                    <strong>Configured:</strong> TrainingPeaks credentials saved for ${username}
+                </div>
+            `;
+            document.getElementById('tp-username').value = username;
+            document.getElementById('tp-password').value = '••••••••';
+            document.getElementById('tp-username').disabled = true;
+            document.getElementById('tp-password').disabled = true;
+            document.getElementById('delete-credentials').classList.remove('hidden');
+            document.querySelector('button[type="submit"]').textContent = 'Update Credentials';
+        }
+
+        // Show credentials required state
+        function showCredentialsRequired() {
+            document.getElementById('credentials-status').innerHTML = `
+                <div class="status info">
+                    <strong>Setup Required:</strong> Please enter your TrainingPeaks login credentials to get started.
+                </div>
+            `;
+            document.getElementById('tp-username').disabled = false;
+            document.getElementById('tp-password').disabled = false;
+            document.getElementById('delete-credentials').classList.add('hidden');
+            document.querySelector('button[type="submit"]').textContent = 'Save Credentials';
+        }
+
+        // Handle credentials form submission
+        document.getElementById('credentials-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('tp-username').value;
+            const password = document.getElementById('tp-password').value;
+            
+            if (!username || !password || password === '••••••••') {
+                showMessage('Please enter both username and password', 'error');
+                return;
+            }
+
+            try {
+                showMessage('Testing credentials...', 'info');
+                
+                const response = await fetch('/training/api/credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('Credentials saved successfully!', 'success');
+                    hasCredentials = true;
+                    showCredentialsConfigured(username);
+                    document.getElementById('test-fetch').disabled = false;
+                } else {
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving credentials:', error);
+                showMessage('Error saving credentials: ' + error.message, 'error');
+            }
+        });
+
+        // Handle delete credentials
+        document.getElementById('delete-credentials').addEventListener('click', async function() {
+            if (!confirm('Are you sure you want to delete your TrainingPeaks credentials?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/training/api/credentials', {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('Credentials deleted successfully', 'success');
+                    hasCredentials = false;
+                    showCredentialsRequired();
+                    document.getElementById('tp-username').value = '';
+                    document.getElementById('tp-password').value = '';
+                    document.getElementById('test-fetch').disabled = true;
+                    document.getElementById('schedule-section').classList.add('hidden');
+                } else {
+                    showMessage('Error deleting credentials: ' + data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting credentials:', error);
+                showMessage('Error deleting credentials: ' + error.message, 'error');
+            }
+        });
+
+        // Handle test fetch
+        document.getElementById('test-fetch').addEventListener('click', async function() {
+            if (!hasCredentials) {
+                showMessage('Please save your credentials first', 'error');
+                return;
+            }
+
+            try {
+                showMessage('Fetching training data for September 1-7, 2025...', 'info');
+                document.getElementById('test-results').classList.remove('hidden');
+                document.getElementById('test-output').innerHTML = '<div class="loading">Testing...</div>';
+
+                const response = await fetch('/training/api/scrape', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('Successfully fetched training data!', 'success');
+                    document.getElementById('test-output').innerHTML = `
+                        <div class="status success">
+                            <strong>Success!</strong> Found ${data.sessions} training sessions
+                        </div>
+                    `;
+                    
+                    // Load and display the schedule
+                    loadTrainingSchedule();
+                } else {
+                    showMessage('Error fetching data: ' + data.error, 'error');
+                    document.getElementById('test-output').innerHTML = `
+                        <div class="status error">
+                            <strong>Error:</strong> ${data.error}
+                            ${data.details ? '<br><small>' + data.details + '</small>' : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error testing fetch:', error);
+                showMessage('Error testing fetch: ' + error.message, 'error');
+                document.getElementById('test-output').innerHTML = `
+                    <div class="status error">
+                        <strong>Network Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        });
+
+        // Load training schedule
+        async function loadTrainingSchedule() {
+            try {
+                const response = await fetch('/training/api/schedule');
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayTrainingSchedule(data.schedule);
+                    document.getElementById('schedule-section').classList.remove('hidden');
+                } else {
+                    console.error('Error loading schedule:', data.error);
+                }
+            } catch (error) {
+                console.error('Error loading schedule:', error);
+            }
+        }
+
+        // Display training schedule
+        function displayTrainingSchedule(schedule) {
+            const container = document.getElementById('training-schedule');
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            
+            container.innerHTML = '';
+
+            days.forEach(day => {
+                const dayCard = document.createElement('div');
+                dayCard.className = 'day-card';
+                
+                const dayTitle = document.createElement('div');
+                dayTitle.className = 'day-title';
+                dayTitle.textContent = day;
+                dayCard.appendChild(dayTitle);
+
+                const daySessions = schedule[day] || [];
+                
+                if (daySessions.length === 0) {
+                    const noSession = document.createElement('div');
+                    noSession.textContent = 'No training scheduled';
+                    noSession.style.color = '#999';
+                    noSession.style.fontStyle = 'italic';
+                    dayCard.appendChild(noSession);
+                } else {
+                    daySessions.forEach(session => {
+                        const sessionDiv = document.createElement('div');
+                        sessionDiv.className = 'session';
+                        
+                        sessionDiv.innerHTML = `
+                            <div class="session-time">${session.time || 'All day'}</div>
+                            <div class="session-title">${session.title}</div>
+                            ${session.description ? `<div class="session-description">${session.description}</div>` : ''}
+                        `;
+                        
+                        dayCard.appendChild(sessionDiv);
+                    });
+                }
+
+                container.appendChild(dayCard);
+            });
+        }
+
+        // Show status message
+        function showMessage(message, type) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden');
+            
+            // Auto-hide after 5 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+    </script>
 </body>
 </html>
