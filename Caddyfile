@@ -29,6 +29,11 @@
         }
     }
     
+    # Training Peaks Service routes - strip /training prefix
+    handle_path /training/* {
+        reverse_proxy training-peaks-service:3005
+    }
+    
     # System Monitor routes - preserve /monitor prefix for Grafana sub-path
     handle /monitor/* {
         reverse_proxy grafana:3000
@@ -67,6 +72,11 @@ kl-pi.tail9f5728.ts.net {
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
         }
+    }
+    
+    # Training Peaks Service routes - strip /training prefix
+    handle_path /training/* {
+        reverse_proxy training-peaks-service:3005
     }
     
     # System Monitor routes - preserve /monitor prefix for Grafana sub-path

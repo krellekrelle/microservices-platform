@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Schedule Manager</title>
+    <link rel="stylesheet" href="/training/static/training-peaks.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏃 Training Schedule Manager</h1>
+            <p>TrainingPeaks Integration Service</p>
+            <div class="user-info">
+                <span id="user-name">Loading...</span>
+                <a href="/" class="logout-btn">← Back to Dashboard</a>
+            </div>
+        </header>
+        
+        <main>
+            <!-- Loading indicator -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Loading your training data...</p>
+            </div>
+
+            <!-- User Setup Section -->
+            <section id="setup-section" class="card" style="display: none;">
+                <h2>⚙️ TrainingPeaks Setup</h2>
+                <div id="credentials-status">
+                    <!-- Dynamically populated based on whether user has credentials -->
+                </div>
+                
+                <!-- Credentials Form (shown if not configured or editing) -->
+                <form id="credentials-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="tp-email">TrainingPeaks Email:</label>
+                        <input type="email" id="tp-email" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tp-password">TrainingPeaks Password:</label>
+                        <input type="password" id="tp-password" placeholder="Password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" id="save-credentials">Save Credentials</button>
+                        <button type="button" id="cancel-credentials">Cancel</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Service Status -->
+            <section id="service-status" class="card" style="display: none;">
+                <h2>📊 Service Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">Last Scraping:</span>
+                        <span id="last-scraping" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Next Check:</span>
+                        <span id="next-check" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span id="scraping-status" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Training Week:</span>
+                        <span class="status-value">Monday - Sunday</span>
+                    </div>
+                </div>
+                <button id="scrape-now-btn" class="action-btn">Refresh from TrainingPeaks</button>
+            </section>
+            
+            <!-- Current Week Training -->
+            <section id="current-week" class="card" style="display: none;">
+                <h2>📅 This Week's Training</h2>
+                <div class="week-header">
+                    <span id="current-week-dates"></span>
+                    <div class="week-stats">
+                        <span id="current-week-sessions">0 sessions</span>
+                    </div>
+                </div>
+                <div id="current-week-schedule" class="training-schedule">
+                    <!-- Dynamically populated -->
+                </div>
+            </section>
+            
+            <!-- Next Week Training -->
+            <section id="next-week" class="card" style="display: none;">
+                <h2>📋 Next Week's Training</h2>
+                <div class="week-header">
+                    <span id="next-week-dates"></span>
+                    <div class="week-stats">
+                        <span id="next-week-sessions">0 sessions</span>
+                    </div>
+                </div>
+                <div id="next-week-schedule" class="training-schedule">
+                    <!-- Dynamically populated -->
+                </div>
+            </section>
+
+            <!-- Training Statistics -->
+            <section id="training-stats" class="card" style="display: none;">
+                <h2>📈 Training Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">This Week:</span>
+                        <span id="current-week-total" class="stat-value">0 sessions</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Next Week:</span>
+                        <span id="next-week-total" class="stat-value">0 sessions</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Training Types:</span>
+                        <span id="training-types" class="stat-value">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Scraped:</span>
+                        <span id="total-sessions" class="stat-value">0</span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Scraping History & Logs -->
+            <section id="scraping-history" class="card" style="display: none;">
+                <h2>📋 Scraping History</h2>
+                <div class="history-controls">
+                    <select id="history-period">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                    <button id="refresh-history">Refresh</button>
+                    <button id="test-email-btn">Test Email</button>
+                </div>
+                <div id="history-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Sessions Found</th>
+                                <th>Triggered By</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Future Features Preview -->
+            <section id="future-features" class="card disabled" style="display: none;">
+                <h2>🔮 Coming Soon</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h3>📱 Apple Calendar Sync</h3>
+                        <p>Automatic calendar event creation with training descriptions</p>
+                        <span class="feature-status">Phase 2</span>
+                    </div>
+                    <div class="feature-item">
+                        <h3>⌚ Garmin Integration</h3>
+                        <p>Auto-upload structured workouts to Garmin watches</p>
+                        <span class="feature-status">Phase 3</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="/training/static/training-peaks.js"></script>
+</body>
+</html>
