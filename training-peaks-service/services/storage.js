@@ -94,12 +94,39 @@ class StorageService {
     }
 
     // Store training sessions
-    async storeTrainingSessions(userId, sessions) {
+    async storeTrainingSessions(userId, weekData) {
         try {
+            console.log('🔍 DEBUG: Received weekData for storage:', JSON.stringify(weekData, null, 2));
+            
             const client = await db.pool.connect();
             
             try {
                 await client.query('BEGIN');
+                
+                // Flatten the weekData structure into individual sessions
+                const sessions = [];
+                for (const dayData of weekData) {
+                    console.log(`🔍 DEBUG: Processing day ${dayData.date} with ${dayData.workouts?.length || 0} workouts`);
+                    
+                    for (const workout of dayData.workouts || []) {
+                        console.log('🔍 DEBUG: Processing workout:', {
+                            title: workout.title,
+                            description: workout.description?.substring(0, 100) + '...',
+                            type: workout.type,
+                            duration: workout.duration
+                        });
+                        
+                        sessions.push({
+                            date: dayData.date,
+                            title: workout.title,
+                            description: workout.description,
+                            type: workout.type,
+                            duration: workout.duration
+                        });
+                    }
+                }
+                
+                console.log(`🔍 DEBUG: Flattened ${sessions.length} sessions for database insertion`);
                 
                 for (const session of sessions) {
                     const query = `
@@ -113,8 +140,17 @@ class StorageService {
                             scraped_at = NOW()
                     `;
                     
-                    const trainingType = this.detectTrainingType(session.title, session.description);
+                    const trainingType = session.type || this.detectTrainingType(session.title, session.description);
                     const weekStart = this.getCurrentWeekStart(session.date);
+                    
+                    console.log('🔍 DEBUG: Inserting session:', {
+                        userId,
+                        date: session.date,
+                        type: trainingType,
+                        description: session.description?.substring(0, 100) + '...',
+                        duration: session.duration,
+                        weekStart
+                    });
                     
                     await client.query(query, [
                         userId,
@@ -144,11 +180,12 @@ class StorageService {
     detectTrainingType(title, description) {
         const text = (title + ' ' + (description || '')).toLowerCase();
         
-        if (text.includes('run') || text.includes('løb')) return 'running';
+        if (text.includes('run') || text.includes('løb') || text.includes('jog') || 
+            text.includes('intervaller') || text.includes('tempo') || text.includes('tur')) return 'running';
         if (text.includes('bike') || text.includes('cykel') || text.includes('cycling')) return 'cycling';
         if (text.includes('swim') || text.includes('svømning')) return 'swimming';
         if (text.includes('strength') || text.includes('styrke')) return 'strength';
-        if (text.includes('yoga') || text.includes('stretch')) return 'flexibility';
+        if (text.includes('yoga') || text.includes('stretch') || text.includes('stræk')) return 'flexibility';
         
         return 'other';
     }

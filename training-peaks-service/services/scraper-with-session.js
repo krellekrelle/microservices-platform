@@ -72,7 +72,8 @@ class TrainingPeaksScraper {
         try {
             if (this.context) {
                 const sessionData = await this.context.storageState();
-                await fs.mkdir(path.dirname(this.sessionDataPath), { recursive: true });
+                // Ensure the browser-session directory exists
+                await fs.mkdir(this.sessionDataPath, { recursive: true });
                 const sessionFile = `${this.sessionDataPath}/state.json`;
                 await fs.writeFile(sessionFile, JSON.stringify(sessionData, null, 2));
                 console.log('💾 Session data saved');
@@ -138,26 +139,49 @@ class TrainingPeaksScraper {
 
     async isLoggedIn() {
         try {
-            // Navigate to a protected page to check if we're still logged in
-            await this.page.goto('https://home.trainingpeaks.com/athlete', { 
-                waitUntil: 'domcontentloaded',
-                timeout: 15000
-            });
-            
-            // Wait a bit for redirects
-            await this.page.waitForTimeout(2000);
-            
-            // Check if we're redirected to login page
+            // Check current page first
             const currentUrl = this.page.url();
-            if (currentUrl.includes('/login')) {
-                console.log('🔓 Session expired, need to login again');
+            const currentTitle = await this.page.title();
+            
+            console.log(`🔍 Checking login status - Current URL: ${currentUrl}, Title: ${currentTitle}`);
+            
+            // If we're already on login page, we're definitely not logged in
+            if (currentUrl.includes('/login') || currentTitle.includes('Login')) {
+                console.log('🔓 Currently on login page, not logged in');
                 return false;
             }
             
-            console.log('✅ Still logged in from previous session');
-            return true;
+            // Navigate directly to the calendar page we need
+            await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 10000
+            });
+            
+            // Wait a bit for any redirects
+            await this.page.waitForTimeout(2000);
+            
+            // Check final URL and title
+            const finalUrl = this.page.url();
+            const finalTitle = await this.page.title();
+            
+            console.log(`🔍 After navigation - URL: ${finalUrl}, Title: ${finalTitle}`);
+            
+            // Check if we're redirected to login page
+            if (finalUrl.includes('/login') || finalTitle.includes('Login')) {
+                console.log('🔓 Session expired, redirected to login');
+                return false;
+            }
+            
+            // Check if we're on the calendar page (successful login)
+            if (finalUrl.includes('app.trainingpeaks.com') && !finalUrl.includes('/login')) {
+                console.log('✅ Successfully on calendar page - logged in');
+                return true;
+            }
+            
+            console.log('🔓 Not on expected page after navigation');
+            return false;
         } catch (error) {
-            console.log('🔓 Could not verify login status, assuming need to login');
+            console.log('🔓 Could not verify login status, assuming need to login:', error.message);
             return false;
         }
     }
@@ -330,12 +354,13 @@ class TrainingPeaksScraper {
             
             // Navigate to calendar
             await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
-                waitUntil: 'networkidle0',
+                waitUntil: 'domcontentloaded',
                 timeout: 30000 
             });
             
-            // Wait for calendar to load
-            await this.page.waitForTimeout(3000);
+            // Wait 5 seconds for calendar to fully load all dynamic content
+            console.log('⏳ Waiting 5 seconds for calendar to fully load...');
+            await this.page.waitForTimeout(5000);
             
             // Get September 1-7, 2025 week data
             const weekData = await this.extractWeekData();
@@ -353,6 +378,10 @@ class TrainingPeaksScraper {
         console.log('📅 Extracting September 1-7, 2025 workout data...');
         
         try {
+            // Wait an additional moment for any lazy-loaded content
+            console.log('⏳ Waiting additional 2 seconds for any lazy-loaded content...');
+            await this.page.waitForTimeout(2000);
+            
             // First, save the HTML content to a file for debugging
             await this.saveHtmlToFile();
             
@@ -389,6 +418,7 @@ class TrainingPeaksScraper {
                     workouts: dayWorkouts
                 });
                 
+                console.log(`🔍 DEBUG: Day ${date} workouts:`, JSON.stringify(dayWorkouts, null, 2));
                 console.log(`✅ Found ${dayWorkouts.length} workouts for ${date}`);
             }
             
@@ -406,7 +436,7 @@ class TrainingPeaksScraper {
             const htmlContent = await this.page.content();
             const fs = require('fs').promises;
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `/app/debug_calendar_${timestamp}.html`;
+            const filename = `/app/data/debug_calendar_${timestamp}.html`;
             
             await fs.writeFile(filename, htmlContent, 'utf8');
             console.log(`� Saved HTML content to: ${filename}`);
@@ -484,7 +514,7 @@ class TrainingPeaksScraper {
             }
             
             // Extract title from h6.newActivityUItitle
-            const titleElement = await card.$('h6.newActivityUItitle');
+            const titleElement = await card.$('h6.MuiTypography-subtitle2.newActivityUItitle');
             if (titleElement) {
                 workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), titleElement);
             }
@@ -517,13 +547,28 @@ class TrainingPeaksScraper {
                 }
             }
             
-            // Extract description from .description element
-            const descriptionElement = await card.$('.description');
-            if (descriptionElement) {
-                workoutData.description = await this.page.evaluate(el => el.textContent?.trim(), descriptionElement);
+            // Extract description from .userPreferredFields .description or .printOnly.description
+            let description = '';
+            
+            // Try the visible description first (.userPreferredFields .description)
+            const visibleDescElement = await card.$('.userPreferredFields .description');
+            if (visibleDescElement) {
+                description = await this.page.evaluate(el => el.textContent?.trim(), visibleDescElement);
             }
             
-            // Extract planned info if available
+            // If no visible description, try the print-only description
+            if (!description) {
+                const printDescElement = await card.$('.printOnly.description');
+                if (printDescElement) {
+                    description = await this.page.evaluate(el => el.textContent?.trim(), printDescElement);
+                }
+            }
+            
+            if (description) {
+                workoutData.description = description;
+            }
+            
+            // Extract planned time info if available
             const plannedElement = await card.$('.totalTimePlanned');
             if (plannedElement) {
                 workoutData.planned = await this.page.evaluate(el => el.textContent?.trim(), plannedElement);
@@ -539,7 +584,9 @@ class TrainingPeaksScraper {
             if (workoutData.title) {
                 workoutData.type = this.determineWorkoutType(workoutData.title);
             } else if (workoutData.sportType) {
-                workoutData.type = workoutData.sportType;
+                workoutData.type = workoutData.sportType.toLowerCase();
+            } else {
+                workoutData.type = 'Other';
             }
             
             // Only return if we have meaningful data
@@ -559,134 +606,80 @@ class TrainingPeaksScraper {
         const workouts = [];
         
         try {
-            console.log(`🔍 Looking for workout elements on ${targetDate.date}...`);
+            console.log(`🔍 Looking for workout elements on ${targetDate}...`);
             
-            // Try multiple selectors to find workout elements
-            const selectorAttempts = [
-                'generic[cursor="pointer"]',  // Accessibility selector
-                '[role="button"]',           // Button role
-                '.workout',                   // Common class name
-                '.session',                   // Session class
-                '.activity',                  // Activity class
-                '[data-testid*="workout"]',   // Test ID
-                'div[onclick]',              // Clickable divs
-                'a[href*="workout"]'         // Workout links
-            ];
+            // Find the specific day container for this date
+            const dayContainer = await this.page.$(`div.dayContainer[data-date="${targetDate}"]`);
             
-            let workoutElements = [];
-            
-            for (const selector of selectorAttempts) {
-                workoutElements = await this.page.$$(selector);
-                console.log(`🔍 Selector "${selector}" found ${workoutElements.length} elements`);
-                
-                if (workoutElements.length > 0) {
-                    // Test if these elements contain workout data
-                    for (let i = 0; i < Math.min(3, workoutElements.length); i++) {
-                        const testText = await this.page.evaluate(el => el.textContent?.trim(), workoutElements[i]);
-                        console.log(`📝 Element ${i} text sample:`, testText?.substring(0, 100) + '...');
-                    }
-                    break; // Use the first selector that finds elements
-                }
-            }
-            
-            if (workoutElements.length === 0) {
-                console.log('❌ No workout elements found with any selector');
+            if (!dayContainer) {
+                console.log(`❌ Could not find day container for ${targetDate}`);
                 return workouts;
             }
             
-            console.log(`✅ Processing ${workoutElements.length} workout elements...`);
+            // Find all workout cards within this day's activities section
+            // Only look for planned activities (not completed metrics cards)
+            const workoutCards = await dayContainer.$$('div.activities .MuiCard-root.activity.workout');
             
-            for (let i = 0; i < workoutElements.length; i++) {
+            console.log(`🔍 Found ${workoutCards.length} workout cards for ${targetDate}`);
+            
+            for (let i = 0; i < workoutCards.length; i++) {
                 try {
-                    console.log(`🔍 Processing element ${i + 1}/${workoutElements.length}...`);
+                    console.log(`🔍 Processing workout card ${i + 1}/${workoutCards.length}...`);
+                    
+                    // Check if this is a planned activity (not completed)
+                    const complianceStatus = await workoutCards[i].$('.workoutComplianceStatus');
+                    const statusClasses = complianceStatus ? await this.page.evaluate(el => el.className, complianceStatus) : '';
+                    
+                    // Skip completed workouts, only extract planned/future workouts
+                    if (statusClasses.includes('complete') && !statusClasses.includes('planned')) {
+                        console.log(`⏭️ Skipping completed workout (not planned)`);
+                        continue;
+                    }
                     
                     // Extract workout data
-                    const workoutData = await this.extractWorkoutData(workoutElements[i]);
+                    const workoutData = await this.extractWorkoutFromCard(workoutCards[i]);
                     
                     if (workoutData) {
+                        console.log(`🔍 DEBUG: Extracted workout data:`, {
+                            title: workoutData.title,
+                            type: workoutData.type,
+                            description: workoutData.description?.substring(0, 100) + '...',
+                            duration: workoutData.duration,
+                            distance: workoutData.distance
+                        });
+                        
                         workouts.push(workoutData);
-                        console.log(`✅ Extracted workout:`, workoutData);
+                        console.log(`✅ Extracted planned workout: ${workoutData.title} - ${workoutData.description?.substring(0, 50) || 'No description'}...`);
                     }
                     
                 } catch (elementError) {
-                    console.error(`❌ Error processing element ${i}:`, elementError);
+                    console.error(`❌ Error processing workout card ${i}:`, elementError);
                     continue;
                 }
             }
             
         } catch (error) {
-            console.error(`❌ Error extracting workouts for ${targetDate.date}:`, error);
+            console.error(`❌ Error extracting workouts for ${targetDate}:`, error);
         }
         
-        console.log(`📊 Found ${workouts.length} workouts for ${targetDate.date}`);
+        console.log(`📊 Found ${workouts.length} planned workouts for ${targetDate}`);
         return workouts;
-    }
-
-    // Extract data from individual workout element
-    async extractWorkoutData(workoutElement) {
-        try {
-            const workoutData = {};
-            
-            // Debug: Log the element HTML to understand structure
-            const elementHTML = await this.page.evaluate(el => el.outerHTML, workoutElement);
-            console.log('🔍 Workout element HTML:', elementHTML.substring(0, 500) + '...');
-            
-            // Extract title
-            const headingElement = await workoutElement.$('heading[level="6"]');
-            if (headingElement) {
-                workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), headingElement);
-                console.log('📝 Found title:', workoutData.title);
-            } else {
-                console.log('❌ No heading element found');
-            }
-            
-            // Try alternative selectors for title
-            if (!workoutData.title) {
-                const altSelectors = ['h6', '.workout-title', '.title', '[data-testid*="title"]'];
-                for (const selector of altSelectors) {
-                    const titleEl = await workoutElement.$(selector);
-                    if (titleEl) {
-                        workoutData.title = await this.page.evaluate(el => el.textContent?.trim(), titleEl);
-                        console.log(`📝 Found title with ${selector}:`, workoutData.title);
-                        break;
-                    }
-                }
-            }
-            
-            // Extract all text content for debugging
-            const allText = await this.page.evaluate(el => el.textContent?.trim(), workoutElement);
-            console.log('📄 All element text:', allText);
-            
-            // Set description to all text for now (debugging)
-            if (allText && allText.length > 10) {
-                workoutData.description = allText;
-            }
-            
-            // Always return something for debugging, even if just description
-            if (workoutData.description || workoutData.title) {
-                return workoutData;
-            }
-            
-        } catch (error) {
-            console.error('❌ Error extracting workout data:', error);
-        }
-        
-        return null;
     }
 
     // Determine workout type from title
     determineWorkoutType(title) {
         const titleLower = title.toLowerCase();
         
-        if (titleLower.includes('cycling') || titleLower.includes('bike')) return 'Cycling';
-        if (titleLower.includes('running') || titleLower.includes('jog') || titleLower.includes('løb')) return 'Running';
-        if (titleLower.includes('strength') || titleLower.includes('weight')) return 'Strength';
-        if (titleLower.includes('hiking') || titleLower.includes('walk')) return 'Hiking';
-        if (titleLower.includes('basketball')) return 'Basketball';
-        if (titleLower.includes('intervaller')) return 'Intervals';
-        if (titleLower.includes('tempo')) return 'Tempo';
+        if (titleLower.includes('cycling') || titleLower.includes('bike')) return 'cycling';
+        if (titleLower.includes('running') || titleLower.includes('jog') || titleLower.includes('løb')) return 'running';
+        if (titleLower.includes('strength') || titleLower.includes('weight')) return 'strength';
+        if (titleLower.includes('hiking') || titleLower.includes('walk')) return 'hiking';
+        if (titleLower.includes('basketball')) return 'basketball';
+        if (titleLower.includes('intervaller')) return 'running';
+        if (titleLower.includes('tempo')) return 'running';
+        if (titleLower.includes('tur')) return 'running';
         
-        return 'Other';
+        return 'other';
     }
 
     async cleanup() {
