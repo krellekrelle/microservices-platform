@@ -596,6 +596,119 @@ class StorageService {
             throw error;
         }
     }
+
+    // ===== GARMIN OAUTH TOKEN METHODS =====
+
+    // Store OAuth tokens for session reuse
+    async storeGarminTokens(userId, oauth1Token, oauth2Token) {
+        try {
+            const oauth1Encrypted = encryptionUtil.encrypt(JSON.stringify(oauth1Token));
+            const oauth2Encrypted = encryptionUtil.encrypt(JSON.stringify(oauth2Token));
+            
+            // Calculate token expiry based on OAuth2 token info
+            const expiresAt = new Date(Date.now() + (oauth2Token.expires_in * 1000));
+            
+            const query = `
+                UPDATE garmin_credentials 
+                SET 
+                    oauth1_token = $2,
+                    oauth1_iv = $3,
+                    oauth2_token = $4,
+                    oauth2_iv = $5,
+                    token_expires_at = $6,
+                    last_login_at = NOW(),
+                    updated_at = NOW()
+                WHERE user_id = $1
+            `;
+            
+            await db.query(query, [
+                userId, 
+                oauth1Encrypted.encryptedData,
+                oauth1Encrypted.iv,
+                oauth2Encrypted.encryptedData,
+                oauth2Encrypted.iv,
+                expiresAt
+            ]);
+            
+            console.log(`✅ Stored OAuth tokens for user ${userId}, expires at ${expiresAt}`);
+        } catch (error) {
+            console.error('❌ Error storing OAuth tokens:', error);
+            throw error;
+        }
+    }
+
+    // Get OAuth tokens for session reuse
+    async getGarminTokens(userId) {
+        try {
+            const query = `
+                SELECT oauth1_token, oauth1_iv, oauth2_token, oauth2_iv, token_expires_at, last_login_at
+                FROM garmin_credentials 
+                WHERE user_id = $1 AND is_active = true
+            `;
+            
+            const result = await db.query(query, [userId]);
+            
+            if (result.rows.length === 0) {
+                return null;
+            }
+            
+            const { oauth1_token, oauth1_iv, oauth2_token, oauth2_iv, token_expires_at, last_login_at } = result.rows[0];
+            
+            // If no tokens stored yet
+            if (!oauth1_token || !oauth2_token) {
+                console.log(`ℹ️ No stored OAuth tokens for user ${userId}`);
+                return null;
+            }
+            
+            // Check if tokens are expired
+            if (token_expires_at && new Date() > new Date(token_expires_at)) {
+                console.log(`⚠️ OAuth tokens expired for user ${userId}`);
+                return null;
+            }
+            
+            // Decrypt tokens
+            const oauth1 = JSON.parse(encryptionUtil.decrypt({ 
+                encryptedData: oauth1_token, 
+                iv: oauth1_iv
+            }));
+            
+            const oauth2 = JSON.parse(encryptionUtil.decrypt({ 
+                encryptedData: oauth2_token, 
+                iv: oauth2_iv
+            }));
+            
+            console.log(`✅ Retrieved valid OAuth tokens for user ${userId}`);
+            return { oauth1, oauth2, last_login_at };
+            
+        } catch (error) {
+            console.error('❌ Error getting OAuth tokens:', error);
+            // Return null instead of throwing to allow fallback to fresh login
+            return null;
+        }
+    }
+
+    // Clear OAuth tokens (on logout or auth failure)
+    async clearGarminTokens(userId) {
+        try {
+            const query = `
+                UPDATE garmin_credentials 
+                SET 
+                    oauth1_token = NULL,
+                    oauth1_iv = NULL,
+                    oauth2_token = NULL,
+                    oauth2_iv = NULL,
+                    token_expires_at = NULL,
+                    updated_at = NOW()
+                WHERE user_id = $1
+            `;
+            
+            await db.query(query, [userId]);
+            console.log(`✅ Cleared OAuth tokens for user ${userId}`);
+        } catch (error) {
+            console.error('❌ Error clearing OAuth tokens:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = StorageService;

@@ -2,39 +2,94 @@
 // This service handles authentication and workout creation/sync with Garmin Connect
 
 const { GarminConnect } = require('garmin-connect');
+const StorageService = require('./storage');
 
 class GarminConnectService {
     constructor() {
         this.client = null;
         this.isAuthenticated = false;
+        this.storage = new StorageService();
     }
 
     /**
-     * Authenticate with Garmin Connect using username/password
+     * Authenticate with Garmin Connect using username/password with session reuse
      * @param {string} username - Garmin Connect username
      * @param {string} password - Garmin Connect password
+     * @param {number} userId - User ID for token storage
      * @returns {Promise<boolean>} - Authentication success
      */
-    async authenticate(username, password) {
+    async authenticate(username, password, userId = null) {
         try {
-            console.log('🔐 Authenticating with Garmin Connect using library...');
-            
             // Create new client instance
             this.client = new GarminConnect({
                 username: username,
                 password: password
             });
 
-            // Perform login
+            // Try to reuse existing tokens first if userId provided
+            if (userId) {
+                console.log('� Attempting to reuse stored OAuth tokens...');
+                const storedTokens = await this.storage.getGarminTokens(userId);
+                
+                if (storedTokens && storedTokens.oauth1 && storedTokens.oauth2) {
+                    try {
+                        // Load the stored tokens
+                        this.client.loadToken(storedTokens.oauth1, storedTokens.oauth2);
+                        
+                        // Test if the tokens are still valid by making a simple API call
+                        const userProfile = await this.client.getUserProfile();
+                        
+                        if (userProfile && userProfile.profileId) {
+                            console.log('✅ Successfully reused stored OAuth tokens');
+                            console.log(`👤 Authenticated as: ${userProfile.userName || userProfile.displayName}`);
+                            this.isAuthenticated = true;
+                            return true;
+                        }
+                    } catch (tokenError) {
+                        console.log('⚠️ Stored tokens invalid, falling back to fresh login');
+                        console.log('Token error:', tokenError.message);
+                        // Clear invalid tokens
+                        await this.storage.clearGarminTokens(userId);
+                    }
+                }
+            }
+
+            // If no stored tokens or they're invalid, perform fresh login
+            console.log('🔐 Performing fresh authentication with Garmin Connect...');
             await this.client.login();
             this.isAuthenticated = true;
             
             console.log('✅ Successfully authenticated with Garmin Connect');
+
+            // Store the new tokens for future reuse if userId provided
+            if (userId && this.client.client && this.client.client.oauth1Token && this.client.client.oauth2Token) {
+                try {
+                    await this.storage.storeGarminTokens(
+                        userId, 
+                        this.client.client.oauth1Token, 
+                        this.client.client.oauth2Token
+                    );
+                    console.log('💾 Stored OAuth tokens for future reuse');
+                } catch (storageError) {
+                    console.log('⚠️ Failed to store tokens, but authentication succeeded:', storageError.message);
+                }
+            }
+            
             return true;
 
         } catch (error) {
             console.error('❌ Garmin Connect authentication failed:', error.message);
             this.isAuthenticated = false;
+            
+            // Clear any invalid stored tokens
+            if (userId) {
+                try {
+                    await this.storage.clearGarminTokens(userId);
+                } catch (clearError) {
+                    console.log('Warning: Could not clear tokens:', clearError.message);
+                }
+            }
+            
             return false;
         }
     }
@@ -131,19 +186,27 @@ class GarminConnectService {
      * Test the authentication and basic API access using the library
      * @param {string} username - Garmin Connect username
      * @param {string} password - Garmin Connect password
+     * @param {number} userId - User ID for token storage
      * @returns {Promise<Object>} - Test results
      */
-    async testConnection(username, password) {
+    async testConnection(username, password, userId = null) {
         const result = {
             authentication: false,
             apiAccess: false,
             userInfo: null,
+            tokenReused: false,
             error: null
         };
 
         try {
+            // Check if we have stored tokens
+            if (userId) {
+                const storedTokens = await this.storage.getGarminTokens(userId);
+                result.tokenReused = !!(storedTokens && storedTokens.oauth1 && storedTokens.oauth2);
+            }
+
             // Test authentication
-            result.authentication = await this.authenticate(username, password);
+            result.authentication = await this.authenticate(username, password, userId);
             
             if (result.authentication) {
                 // Test API access by getting user profile and workout count

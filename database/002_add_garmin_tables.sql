@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS garmin_credentials (
     username VARCHAR(255) NOT NULL, -- Garmin Connect username
     password_encrypted TEXT NOT NULL, -- Encrypted Garmin Connect password
     iv_password VARCHAR(32), -- Initialization vector for password encryption/decryption
+    oauth1_token TEXT, -- Encrypted OAuth1 token for session reuse
+    oauth1_iv TEXT, -- IV for OAuth1 token encryption
+    oauth2_token TEXT, -- Encrypted OAuth2 token for session reuse
+    oauth2_iv TEXT, -- IV for OAuth2 token encryption
+    token_expires_at TIMESTAMP, -- When the OAuth tokens expire
+    last_login_at TIMESTAMP, -- Last successful login timestamp
     is_active BOOLEAN DEFAULT true,
     last_successful_auth TIMESTAMP,
     auth_failures INTEGER DEFAULT 0,
@@ -88,8 +94,12 @@ SELECT
 FROM training_sessions ts
 LEFT JOIN garmin_workout_sync gws ON ts.id = gws.training_session_id;
 
-COMMENT ON TABLE garmin_credentials IS 'User Garmin Connect credentials for workout synchronization';
+COMMENT ON TABLE garmin_credentials IS 'User Garmin Connect credentials for workout synchronization with OAuth token storage for session reuse';
 COMMENT ON TABLE garmin_workout_sync IS 'Tracking table for workout synchronization to Garmin Connect';
 COMMENT ON TABLE garmin_sync_logs IS 'Detailed logs for Garmin API interactions and debugging';
 COMMENT ON VIEW training_sessions_with_garmin_status IS 'Training sessions with their Garmin sync status for easy querying';
 COMMENT ON COLUMN garmin_credentials.iv_password IS 'Initialization vector for password encryption/decryption';
+COMMENT ON COLUMN garmin_credentials.oauth1_token IS 'Encrypted OAuth1 token for Garmin Connect session reuse';
+COMMENT ON COLUMN garmin_credentials.oauth2_token IS 'Encrypted OAuth2 token for Garmin Connect session reuse';
+COMMENT ON COLUMN garmin_credentials.token_expires_at IS 'Expiration timestamp for OAuth tokens';
+COMMENT ON COLUMN garmin_credentials.last_login_at IS 'Last successful authentication timestamp';

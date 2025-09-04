@@ -13,9 +13,9 @@
 
 **Phase 1**: ✅ **COMPLETE** - TrainingPeaks scraping and data storage  
 **Phase 2**: ✅ **MOSTLY COMPLETE** - Calendar integration (manual ICS import)  
-**Phase 3**: 🔄 **PLANNED** - Garmin Connect integration  
+**Phase 3**: � **PARTIALLY COMPLETE** - Garmin Connect integration  
 
-**Latest Update (Sept 4, 2025)**: Phase 2 calendar integration is functionally complete with ICS file generation, calendar settings, and proper event creation. The only missing component is automatic CalDAV sync - users currently need to download and manually import ICS files into their calendar applications.
+**Latest Update (Sept 5, 2025)**: Phase 3 Garmin Connect integration has been successfully implemented with OAuth authentication, session reuse, and basic workout creation. However, the intelligent parsing of training descriptions into structured workouts is still missing - currently only creates dummy workouts as proof of concept.
 
 ## 🚀 Implementation Phases
 
@@ -53,11 +53,30 @@
 
 **Remaining Work**: Implement automatic CalDAV protocol integration to eliminate the need for manual file download and import.
 
-### Phase 3: Garmin Integration 🔄 PLANNED
-- **Garmin Connect**: API integration with Garmin Training platform
-- **Workout Creation**: Automatic structured workout creation from training descriptions
-- **Watch Sync**: Automatic upload to connected Garmin devices
-- **Training Plans**: Long-term training plan management and synchronization
+### Phase 3: Garmin Integration � PARTIALLY COMPLETE
+- **Garmin Connect**: ✅ API integration with Garmin Connect using garmin-connect library
+- **OAuth Authentication**: ✅ Complete OAuth1/OAuth2 authentication with encrypted token storage
+- **Session Reuse**: ✅ Persistent OAuth tokens for performance optimization
+- **Database Schema**: ✅ Complete database tables for Garmin credentials and sync tracking
+- **Basic Workout Creation**: ✅ Successfully creates dummy workouts (Test: workout ID 1319661388)
+- **Missing**: 🔄 **Intelligent workout parsing** - Convert TrainingPeaks text descriptions into structured Garmin workouts
+- **Missing**: 🔄 **Training plan logic** - Parse complex training descriptions into intervals, paces, and durations
+
+**Current Status**: Garmin Connect integration infrastructure is complete and functional. Users can authenticate with Garmin Connect and create basic workouts. However, the core intelligence to parse training descriptions like "3x 1 km 4.05-4.15, 200m jog between" into structured workout steps is not yet implemented.
+
+**Example of Missing Logic**:
+```
+Training Description: "4 km opvarmning, 4x 100 meter flowløb, 3x 1 km 4.05-4.15, 200 meter jog imellem, 2x 2 km 4.05-4.15, 3 min pause imellem, 4 km nedløb"
+
+Should Create Structured Workout:
+1. Warm-up: 4km easy pace
+2. Strides: 4x 100m with recovery
+3. Intervals: 3x 1km at 4:05-4:15 pace with 200m jog recovery
+4. Intervals: 2x 2km at 4:05-4:15 pace with 3min rest
+5. Cool-down: 4km easy pace
+```
+
+**Next Steps**: Implement natural language processing to parse Danish training descriptions into Garmin workout structures.
 
 ## 🏗️ Architecture Overview
 
@@ -75,14 +94,16 @@ training-peaks-service/
 │   ├── scraper.js              # TrainingPeaks scraping logic
 │   ├── parser.js               # Training description parsing
 │   ├── scheduler.js            # Weekly automation scheduler
-│   └── storage.js              # Database operations
+│   ├── storage.js              # Database operations with Garmin OAuth token management
+│   └── garminService.js        # Garmin Connect integration (Phase 3)
 ├── db/
 │   ├── database.js             # PostgreSQL connection and schema
-│   └── migrations/             # Database migration scripts
+│   └── migrations/             # Database migration scripts (moved to main database/ folder)
 ├── routes/
 │   ├── api.js                  # API endpoints for training data
 │   ├── admin.js                # Admin panel for user management
-│   └── scraping.js             # Scraping control endpoints
+│   ├── scraping.js             # Scraping control endpoints
+│   └── garmin.js               # Garmin Connect API endpoints (Phase 3)
 └── public/
     ├── index.html              # Main dashboard
     ├── setup.html              # TrainingPeaks credentials setup
@@ -818,13 +839,46 @@ curl -X POST https://kl-pi.tail9f5728.ts.net/training/api/scrape-now \
 - [ ] Docker containerization and deployment
 
 ### Future Phase Preparation
-- [ ] Calendar API research and planning (Phase 2)
-- [ ] Garmin Connect API integration planning (Phase 3)
+- [x] Calendar API research and planning (Phase 2) - COMPLETE
+- [x] Garmin Connect API integration planning (Phase 3) - COMPLETE
+- [ ] Training description parsing intelligence (Phase 3) - IN PROGRESS
 - [ ] User feedback and UI improvement considerations
+
+### Phase 3 Garmin Implementation Checklist
+- [x] Garmin Connect library integration (garmin-connect v1.6.0)
+- [x] OAuth1/OAuth2 authentication implementation
+- [x] Encrypted token storage with session reuse
+- [x] Database schema for Garmin credentials and sync tracking
+- [x] Basic workout creation API (proof of concept)
+- [x] Test workout creation (workout ID: 1319661388)
+- [ ] **Training description parser** - Parse Danish training descriptions
+- [ ] **Workout structure logic** - Convert intervals, paces, and durations to Garmin format
+- [ ] **Complex training support** - Handle multi-phase workouts with different zones
+- [ ] **Pace zone mapping** - Convert Danish pace descriptions to Garmin zones
+- [ ] **Recovery handling** - Parse rest intervals and recovery periods
+- [ ] **Frontend integration** - Add Garmin sync UI to training schedule
+- [ ] **Error handling** - Robust handling of Garmin API failures
+- [ ] **Bulk workout creation** - Process entire weekly schedules
 
 ## ⚠️ Known Challenges & Solutions
 
-### 1. TrainingPeaks Anti-Bot Protection
+### 1. Phase 3 Current Limitation: Workout Parsing Intelligence 🚨
+**Challenge**: Converting Danish training descriptions into structured Garmin workouts
+**Current Status**: Only creates dummy workouts - no intelligent parsing implemented
+**Example Problem**: 
+```
+Input: "4x 100 meter flowløb, 3x 1 km 4.05-4.15, 200 meter jog imellem"
+Current Output: Simple 5K dummy workout
+Needed Output: Structured intervals with specific paces and recovery
+```
+**Required Solutions**: 
+- Natural language processing for Danish training terminology
+- Pace conversion logic (mm:ss format to Garmin zones)
+- Interval structure recognition (reps, distances, rest periods)
+- Multi-phase workout construction
+- Danish-to-English translation for workout step names
+
+### 2. TrainingPeaks Anti-Bot Protection
 **Challenge**: TrainingPeaks may have anti-automation measures
 **Solution**: 
 - Use realistic browser headers and timing

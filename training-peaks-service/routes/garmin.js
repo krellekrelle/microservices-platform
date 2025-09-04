@@ -27,8 +27,8 @@ router.post('/test-credentials', async (req, res) => {
 
         console.log(`🔐 Testing Garmin credentials for user ${req.user.id}`);
         
-        // Test connection to Garmin Connect
-        const testResult = await garminService.testConnection(username, password);
+        // Test connection to Garmin Connect with session reuse
+        const testResult = await garminService.testConnection(username, password, req.user.id);
         
         // Log the test attempt
         await storageService.logGarminSync(
@@ -47,7 +47,8 @@ router.post('/test-credentials', async (req, res) => {
                 message: 'Garmin Connect credentials are valid',
                 details: {
                     apiAccess: testResult.apiAccess,
-                    userInfo: testResult.userInfo
+                    userInfo: testResult.userInfo,
+                    tokenReused: testResult.tokenReused
                 }
             });
         } else {
@@ -183,10 +184,11 @@ router.post('/test-workout', async (req, res) => {
 
         console.log(`🏃 Creating test workout for user ${userId}`);
 
-        // Authenticate with Garmin
+        // Authenticate with Garmin (with session reuse)
         const authSuccess = await garminService.authenticate(
             credentials.username, 
-            credentials.decrypted_password
+            credentials.decrypted_password,
+            userId
         );
 
         if (!authSuccess) {
