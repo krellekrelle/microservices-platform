@@ -103,62 +103,66 @@ class StorageService {
             try {
                 await client.query('BEGIN');
                 
-                // Flatten the weekData structure into individual sessions
-                const sessions = [];
-                for (const dayData of weekData) {
-                    console.log(`🔍 DEBUG: Processing day ${dayData.date} with ${dayData.workouts?.length || 0} workouts`);
-                    
-                    for (const workout of dayData.workouts || []) {
-                        console.log('🔍 DEBUG: Processing workout:', {
-                            title: workout.title,
-                            description: workout.description?.substring(0, 100) + '...',
-                            type: workout.type,
-                            duration: workout.duration
-                        });
-                        
-                        sessions.push({
-                            date: dayData.date,
-                            title: workout.title,
-                            description: workout.description,
-                            type: workout.type,
-                            duration: workout.duration
-                        });
-                    }
-                }
-                
-                console.log(`🔍 DEBUG: Flattened ${sessions.length} sessions for database insertion`);
+    // Flatten the weekData into individual sessions for database storage
+    const sessions = [];
+    weekData.forEach(day => {
+        console.log(`🔍 DEBUG: Processing day ${day.date} with ${day.workouts.length} workouts`);
+        day.workouts.forEach(workout => {
+            console.log('🔍 DEBUG: Processing workout:', {
+                title: workout.title,
+                description: workout.description ? workout.description.substring(0, 100) + '...' : 'No description',
+                type: workout.type,
+                duration: workout.duration
+            });
+            
+            const session = {
+                userId: userId,
+                date: day.date,
+                type: this.detectTrainingTypeFromData(workout),
+                description: workout.description || workout.title || '',
+                duration: this.convertDurationToSeconds(workout.duration),
+                distance: workout.distance || null,
+                workoutId: workout.workoutId || null,
+                weekStart: this.getCurrentWeekStart(day.date)
+            };
+            sessions.push(session);
+        });
+    });                console.log(`🔍 DEBUG: Flattened ${sessions.length} sessions for database insertion`);
                 
                 for (const session of sessions) {
                     const query = `
                         INSERT INTO training_sessions (
                             user_id, date, type, description, 
-                            duration, week_start_date, scraped_at
-                        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                            duration, distance, workout_id, week_start_date, scraped_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
                         ON CONFLICT (user_id, date, type, description) 
                         DO UPDATE SET 
                             duration = $5,
+                            distance = $6,
+                            workout_id = $7,
                             scraped_at = NOW()
                     `;
-                    
-                    const trainingType = session.type || this.detectTrainingType(session.title, session.description);
-                    const weekStart = this.getCurrentWeekStart(session.date);
                     
                     console.log('🔍 DEBUG: Inserting session:', {
                         userId,
                         date: session.date,
-                        type: trainingType,
+                        type: session.type,
                         description: session.description?.substring(0, 100) + '...',
                         duration: session.duration,
-                        weekStart
+                        distance: session.distance,
+                        workoutId: session.workoutId,
+                        weekStart: session.weekStart
                     });
                     
                     await client.query(query, [
                         userId,
                         session.date,
-                        trainingType,
-                        session.description || session.title || '',
-                        session.duration || null,
-                        weekStart
+                        session.type,
+                        session.description,
+                        session.duration,
+                        session.distance,
+                        session.workoutId,
+                        session.weekStart
                     ]);
                 }
                 
@@ -177,18 +181,87 @@ class StorageService {
     }
 
     // Detect training type from title/description
-    detectTrainingType(title, description) {
-        const text = (title + ' ' + (description || '')).toLowerCase();
-        
-        if (text.includes('run') || text.includes('løb') || text.includes('jog') || 
-            text.includes('intervaller') || text.includes('tempo') || text.includes('tur')) return 'running';
-        if (text.includes('bike') || text.includes('cykel') || text.includes('cycling')) return 'cycling';
-        if (text.includes('swim') || text.includes('svømning')) return 'swimming';
-        if (text.includes('strength') || text.includes('styrke')) return 'strength';
-        if (text.includes('yoga') || text.includes('stretch') || text.includes('stræk')) return 'flexibility';
-        
-        return 'other';
+    convertDurationToSeconds(durationStr) {
+    if (!durationStr) return null;
+    
+    // Handle format like "1:00:15" (hours:minutes:seconds)
+    const parts = durationStr.split(':');
+    if (parts.length === 3) {
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parseInt(parts[2]) || 0;
+      return (hours * 3600) + (minutes * 60) + seconds;
     }
+    
+    // Handle format like "45:30" (minutes:seconds)
+    if (parts.length === 2) {
+      const minutes = parseInt(parts[0]) || 0;
+      const seconds = parseInt(parts[1]) || 0;
+      return (minutes * 60) + seconds;
+    }
+    
+    // Handle format like "45" (just minutes)
+    if (parts.length === 1) {
+      const minutes = parseInt(parts[0]) || 0;
+      return minutes * 60;
+    }
+    
+    return null;
+  }
+
+  detectTrainingTypeFromData(workout) {
+    // First check if we have explicit sportType or type from TrainingPeaks
+    if (workout.sportType) {
+      const sportType = workout.sportType.toLowerCase();
+      if (sportType === 'run' || sportType === 'running') return 'running';
+      if (sportType === 'bike' || sportType === 'cycling') return 'cycling';
+      if (sportType === 'swim' || sportType === 'swimming') return 'swimming';
+      if (sportType === 'strength') return 'strength';
+    }
+    
+    if (workout.type) {
+      const type = workout.type.toLowerCase();
+      if (type === 'running') return 'running';
+      if (type === 'cycling') return 'cycling';
+      if (type === 'swimming') return 'swimming';
+      if (type === 'strength') return 'strength';
+    }
+    
+    // Fallback to text-based detection
+    return this.detectTrainingType(workout.title || '', workout.description || '');
+  }
+
+  detectTrainingType(title, description) {
+    const text = `${title} ${description}`.toLowerCase();
+    
+    // Danish terms for different training types
+    if (text.includes('løb') || text.includes('running') || text.includes('jog')) {
+      return 'running';
+    }
+    if (text.includes('cykel') || text.includes('cycling') || text.includes('bike')) {
+      return 'cycling';
+    }
+    if (text.includes('svømning') || text.includes('swimming') || text.includes('swim')) {
+      return 'swimming';
+    }
+    if (text.includes('styrke') || text.includes('strength') || text.includes('weights')) {
+      return 'strength';
+    }
+    if (text.includes('intervaller') || text.includes('interval')) {
+      return 'intervals';
+    }
+    if (text.includes('tempo')) {
+      return 'tempo';
+    }
+    if (text.includes('tur') || text.includes('tour')) {
+      return 'endurance';
+    }
+    if (text.includes('stræk') || text.includes('stretch')) {
+      return 'flexibility';
+    }
+    
+    return 'other';
+  }
 
     // Get current Monday-based week start
     getCurrentWeekStart(dateStr = null) {

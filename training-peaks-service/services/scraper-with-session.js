@@ -418,7 +418,6 @@ class TrainingPeaksScraper {
                     workouts: dayWorkouts
                 });
                 
-                console.log(`🔍 DEBUG: Day ${date} workouts:`, JSON.stringify(dayWorkouts, null, 2));
                 console.log(`✅ Found ${dayWorkouts.length} workouts for ${date}`);
             }
             
@@ -640,14 +639,6 @@ class TrainingPeaksScraper {
                     const workoutData = await this.extractWorkoutFromCard(workoutCards[i]);
                     
                     if (workoutData) {
-                        console.log(`🔍 DEBUG: Extracted workout data:`, {
-                            title: workoutData.title,
-                            type: workoutData.type,
-                            description: workoutData.description?.substring(0, 100) + '...',
-                            duration: workoutData.duration,
-                            distance: workoutData.distance
-                        });
-                        
                         workouts.push(workoutData);
                         console.log(`✅ Extracted planned workout: ${workoutData.title} - ${workoutData.description?.substring(0, 50) || 'No description'}...`);
                     }
