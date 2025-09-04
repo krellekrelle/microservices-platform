@@ -374,6 +374,228 @@ class StorageService {
             throw error;
         }
     }
+
+    // ===== GARMIN CONNECT METHODS =====
+
+    // Store Garmin Connect credentials
+    async storeGarminCredentials(userId, username, password) {
+        try {
+            const encryptedPassword = encryptionUtil.encrypt(password);
+            
+            const query = `
+                INSERT INTO garmin_credentials (
+                    user_id, username, password_encrypted, iv_password, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                ON CONFLICT (user_id) 
+                DO UPDATE SET 
+                    username = $2,
+                    password_encrypted = $3,
+                    iv_password = $4,
+                    updated_at = NOW(),
+                    auth_failures = 0,
+                    last_successful_auth = NOW()
+            `;
+            
+            await db.query(query, [userId, username, encryptedPassword.encryptedData, encryptedPassword.iv]);
+            console.log(`✅ Stored Garmin credentials for user ${userId}`);
+        } catch (error) {
+            console.error('❌ Error storing Garmin credentials:', error);
+            throw error;
+        }
+    }
+
+    // Get Garmin credentials with decryption
+    async getGarminCredentials(userId) {
+        try {
+            const query = `
+                SELECT username, password_encrypted, iv_password, is_active, last_successful_auth, auth_failures
+                FROM garmin_credentials 
+                WHERE user_id = $1 AND is_active = true
+            `;
+            
+            const result = await db.query(query, [userId]);
+            
+            if (result.rows.length === 0) {
+                return null;
+            }
+            
+            const { username, password_encrypted, iv_password, is_active, last_successful_auth, auth_failures } = result.rows[0];
+            
+            // Decrypt password using the stored IV
+            const decrypted_password = encryptionUtil.decrypt({ 
+                encryptedData: password_encrypted, 
+                iv: iv_password 
+            });
+            
+            return { 
+                username, 
+                decrypted_password, 
+                is_active, 
+                last_successful_auth, 
+                auth_failures 
+            };
+        } catch (error) {
+            console.error('❌ Error getting Garmin credentials:', error);
+            throw error;
+        }
+    }
+
+    // Delete Garmin credentials
+    async deleteGarminCredentials(userId) {
+        try {
+            const query = `DELETE FROM garmin_credentials WHERE user_id = $1`;
+            await db.query(query, [userId]);
+            console.log(`✅ Deleted Garmin credentials for user ${userId}`);
+        } catch (error) {
+            console.error('❌ Error deleting Garmin credentials:', error);
+            throw error;
+        }
+    }
+
+    // Log Garmin sync attempts for debugging
+    async logGarminSync(userId, syncType, action, success, errorMessage = null, requestData = null, responseData = null) {
+        try {
+            const query = `
+                INSERT INTO garmin_sync_logs (
+                    user_id, sync_type, action, success, error_message, 
+                    request_data, response_data, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            `;
+            
+            await db.query(query, [
+                userId, 
+                syncType, 
+                action, 
+                success, 
+                errorMessage,
+                requestData ? JSON.stringify(requestData) : null,
+                responseData ? JSON.stringify(responseData) : null
+            ]);
+        } catch (error) {
+            console.error('❌ Error logging Garmin sync:', error);
+            throw error;
+        }
+    }
+
+    // Record workout sync to Garmin
+    async recordGarminWorkoutSync(userId, trainingSessionId, garminWorkoutId, workoutName, syncStatus, errorMessage = null, workoutData = null, garminResponse = null) {
+        try {
+            const query = `
+                INSERT INTO garmin_workout_sync (
+                    user_id, training_session_id, garmin_workout_id, workout_name,
+                    sync_status, sync_attempted_at, sync_completed_at, error_message,
+                    workout_data, garmin_response
+                )
+                VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8, $9)
+                ON CONFLICT (training_session_id)
+                DO UPDATE SET
+                    garmin_workout_id = $3,
+                    workout_name = $4,
+                    sync_status = $5,
+                    sync_completed_at = $6,
+                    error_message = $7,
+                    retry_count = garmin_workout_sync.retry_count + 1,
+                    workout_data = $8,
+                    garmin_response = $9
+            `;
+            
+            const syncCompletedAt = syncStatus === 'success' ? 'NOW()' : null;
+            
+            await db.query(query, [
+                userId,
+                trainingSessionId,
+                garminWorkoutId,
+                workoutName,
+                syncStatus,
+                syncCompletedAt,
+                errorMessage,
+                workoutData ? JSON.stringify(workoutData) : null,
+                garminResponse ? JSON.stringify(garminResponse) : null
+            ]);
+            
+            console.log(`📝 Recorded Garmin workout sync for session ${trainingSessionId}: ${syncStatus}`);
+        } catch (error) {
+            console.error('❌ Error recording Garmin workout sync:', error);
+            throw error;
+        }
+    }
+
+    // Get training session for Garmin sync
+    async getTrainingSession(userId, sessionId) {
+        try {
+            const query = `
+                SELECT * FROM training_sessions 
+                WHERE id = $1 AND user_id = $2
+            `;
+            
+            const result = await db.query(query, [sessionId, userId]);
+            return result.rows.length > 0 ? result.rows[0] : null;
+        } catch (error) {
+            console.error('❌ Error getting training session:', error);
+            throw error;
+        }
+    }
+
+    // Mark training session as Garmin synced
+    async markTrainingSessionGarminSynced(sessionId) {
+        try {
+            const query = `
+                UPDATE training_sessions 
+                SET garmin_synced = true, garmin_sync_attempted = NOW()
+                WHERE id = $1
+            `;
+            
+            await db.query(query, [sessionId]);
+            console.log(`✅ Marked session ${sessionId} as Garmin synced`);
+        } catch (error) {
+            console.error('❌ Error marking session as Garmin synced:', error);
+            throw error;
+        }
+    }
+
+    // Get Garmin sync history for user
+    async getGarminSyncHistory(userId, limit = 50) {
+        try {
+            const query = `
+                SELECT * FROM garmin_sync_logs 
+                WHERE user_id = $1 
+                ORDER BY created_at DESC 
+                LIMIT $2
+            `;
+            
+            const result = await db.query(query, [userId, limit]);
+            return result.rows;
+        } catch (error) {
+            console.error('❌ Error getting Garmin sync history:', error);
+            throw error;
+        }
+    }
+
+    // Get Garmin workout syncs for user
+    async getGarminWorkoutSyncs(userId, limit = 50) {
+        try {
+            const query = `
+                SELECT 
+                    gws.*,
+                    ts.title as training_title,
+                    ts.session_date,
+                    ts.description as training_description
+                FROM garmin_workout_sync gws
+                JOIN training_sessions ts ON gws.training_session_id = ts.id
+                WHERE gws.user_id = $1 
+                ORDER BY gws.sync_attempted_at DESC 
+                LIMIT $2
+            `;
+            
+            const result = await db.query(query, [userId, limit]);
+            return result.rows;
+        } catch (error) {
+            console.error('❌ Error getting Garmin workout syncs:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = StorageService;

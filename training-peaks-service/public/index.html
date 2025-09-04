@@ -149,6 +149,42 @@
             margin-bottom: 8px;
             border-left: 3px solid #28a745;
         }
+        
+        /* Garmin Integration Styles */
+        #garmin-section {
+            border-left: 4px solid #FF6B35;
+        }
+        #garmin-section h2 {
+            color: #FF6B35;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #FF6B35;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .form-actions .btn {
+            flex: 1;
+        }
+        #garmin-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        #garmin-actions .btn {
+            min-width: 200px;
+        }
         .session-time {
             font-weight: 600;
             color: #667eea;
@@ -271,6 +307,64 @@
             <div id="calendar-events-section" class="hidden">
                 <h3>📅 Synced Calendar Events</h3>
                 <div id="calendar-events-list"></div>
+            </div>
+        </div>
+
+        <!-- Phase 3: Garmin Connect Integration -->
+        <div id="garmin-section" class="card">
+            <h2>⌚ Phase 3: Garmin Connect Integration</h2>
+            <p>Automatically create and sync structured workouts to your Garmin watch.</p>
+            
+            <!-- Garmin Credentials -->
+            <div id="garmin-credentials-section">
+                <h3>🔐 Garmin Connect Setup</h3>
+                <div id="garmin-status">
+                    <!-- Will be populated with status -->
+                </div>
+                
+                <form id="garmin-credentials-form" class="hidden">
+                    <div class="form-group">
+                        <label for="garmin-username">Garmin Connect Username:</label>
+                        <input type="text" id="garmin-username" placeholder="your.email@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="garmin-password">Garmin Connect Password:</label>
+                        <input type="password" id="garmin-password" placeholder="Password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-success">Save Garmin Credentials</button>
+                        <button type="button" id="cancel-garmin-credentials" class="btn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Garmin Actions -->
+            <div id="garmin-actions">
+                <button id="setup-garmin" class="btn">Setup Garmin Integration</button>
+                <button id="test-garmin-credentials" class="btn hidden" disabled>Test Credentials</button>
+                <button id="create-test-workout" class="btn btn-success hidden" disabled>Create Test 5K Workout</button>
+                <button id="delete-garmin-credentials" class="btn btn-danger hidden">Delete Credentials</button>
+            </div>
+
+            <!-- Test Workout Info -->
+            <div id="test-workout-info" class="info-box hidden">
+                <h4>🏃 Test Workout Details</h4>
+                <p><strong>Distance:</strong> 5,000 meters (5K)</p>
+                <p><strong>Pace:</strong> 5:00 - 5:10 per kilometer</p>
+                <p><strong>Type:</strong> Structured running workout</p>
+                <p>This test workout will be created in your Garmin Connect account and synced to your connected devices.</p>
+            </div>
+
+            <!-- Garmin Status -->
+            <div id="garmin-sync-status" class="hidden">
+                <h3>📊 Garmin Sync Status</h3>
+                <div id="garmin-stats"></div>
+            </div>
+
+            <!-- Garmin Sync History -->
+            <div id="garmin-history-section" class="hidden">
+                <h3>📋 Garmin Sync History</h3>
+                <div id="garmin-history-list"></div>
             </div>
         </div>
 
@@ -521,6 +615,200 @@
                 container.appendChild(dayCard);
             });
         }
+
+        // ===== GARMIN CONNECT INTEGRATION =====
+
+        // Load Garmin credentials status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCredentialsStatus();
+            loadGarminStatus();
+        });
+
+        // Load Garmin credentials status
+        async function loadGarminStatus() {
+            try {
+                const response = await fetch('/training/api/garmin/credentials');
+                const data = await response.json();
+                
+                displayGarminStatus(data);
+            } catch (error) {
+                console.error('Error loading Garmin status:', error);
+            }
+        }
+
+        // Display Garmin credentials status
+        function displayGarminStatus(status) {
+            const statusDiv = document.getElementById('garmin-status');
+            const setupBtn = document.getElementById('setup-garmin');
+            const testBtn = document.getElementById('test-garmin-credentials');
+            const createWorkoutBtn = document.getElementById('create-test-workout');
+            const deleteBtn = document.getElementById('delete-garmin-credentials');
+            const testWorkoutInfo = document.getElementById('test-workout-info');
+
+            if (status.hasCredentials) {
+                statusDiv.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Connected:</strong> Garmin Connect credentials saved for ${status.username}
+                        <br><small>Last auth: ${status.lastAuth ? new Date(status.lastAuth).toLocaleString() : 'Never'}</small>
+                        ${status.authFailures > 0 ? `<br><small class="error">⚠️ ${status.authFailures} recent auth failures</small>` : ''}
+                    </div>
+                `;
+                setupBtn.textContent = 'Update Garmin Credentials';
+                testBtn.classList.remove('hidden');
+                testBtn.disabled = false;
+                createWorkoutBtn.classList.remove('hidden');
+                createWorkoutBtn.disabled = false;
+                deleteBtn.classList.remove('hidden');
+                testWorkoutInfo.classList.remove('hidden');
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="status info">
+                        <strong>⚙️ Setup Required:</strong> Please enter your Garmin Connect credentials to sync workouts to your watch.
+                    </div>
+                `;
+                setupBtn.textContent = 'Setup Garmin Integration';
+                testBtn.classList.add('hidden');
+                createWorkoutBtn.classList.add('hidden');
+                deleteBtn.classList.add('hidden');
+                testWorkoutInfo.classList.add('hidden');
+            }
+        }
+
+        // Setup Garmin integration button
+        document.getElementById('setup-garmin').addEventListener('click', function() {
+            document.getElementById('garmin-credentials-form').classList.remove('hidden');
+            this.disabled = true;
+        });
+
+        // Cancel Garmin credentials form
+        document.getElementById('cancel-garmin-credentials').addEventListener('click', function() {
+            document.getElementById('garmin-credentials-form').classList.add('hidden');
+            document.getElementById('setup-garmin').disabled = false;
+            document.getElementById('garmin-credentials-form').reset();
+        });
+
+        // Save Garmin credentials
+        document.getElementById('garmin-credentials-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('garmin-username').value;
+            const password = document.getElementById('garmin-password').value;
+
+            if (!username || !password) {
+                showMessage('Please fill in both username and password', 'error');
+                return;
+            }
+
+            try {
+                showMessage('Testing Garmin Connect credentials...', 'info');
+                
+                const response = await fetch('/training/api/garmin/credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMessage('Garmin Connect credentials saved successfully! ✅', 'success');
+                    document.getElementById('garmin-credentials-form').classList.add('hidden');
+                    document.getElementById('garmin-credentials-form').reset();
+                    document.getElementById('setup-garmin').disabled = false;
+                    await loadGarminStatus();
+                } else {
+                    showMessage(result.error || 'Failed to save Garmin credentials', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving Garmin credentials:', error);
+                showMessage('Failed to save Garmin credentials: ' + error.message, 'error');
+            }
+        });
+
+        // Test Garmin credentials
+        document.getElementById('test-garmin-credentials').addEventListener('click', async function() {
+            try {
+                showMessage('Testing Garmin Connect connection...', 'info');
+                
+                const response = await fetch('/training/api/garmin/test-credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMessage(`Garmin Connect test successful! API Access: ${result.details.apiAccess ? '✅' : '❌'}`, 'success');
+                } else {
+                    showMessage(result.error || 'Garmin Connect test failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error testing Garmin credentials:', error);
+                showMessage('Failed to test Garmin credentials: ' + error.message, 'error');
+            }
+        });
+
+        // Create test workout
+        document.getElementById('create-test-workout').addEventListener('click', async function() {
+            if (!confirm('This will create a test 5K workout in your Garmin Connect account. Continue?')) {
+                return;
+            }
+
+            try {
+                showMessage('Creating test workout in Garmin Connect...', 'info');
+                this.disabled = true;
+                
+                const response = await fetch('/training/api/garmin/test-workout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMessage(`Test workout created successfully! Workout ID: ${result.workoutId} 🏃`, 'success');
+                    showMessage('Check your Garmin Connect app or watch for the new workout!', 'success');
+                } else {
+                    showMessage(result.error || 'Failed to create test workout', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating test workout:', error);
+                showMessage('Failed to create test workout: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+            }
+        });
+
+        // Delete Garmin credentials
+        document.getElementById('delete-garmin-credentials').addEventListener('click', async function() {
+            if (!confirm('Are you sure you want to delete your Garmin Connect credentials? This will stop all workout syncing.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/training/api/garmin/credentials', {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMessage('Garmin Connect credentials deleted successfully', 'success');
+                    await loadGarminStatus();
+                } else {
+                    showMessage(result.error || 'Failed to delete Garmin credentials', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting Garmin credentials:', error);
+                showMessage('Failed to delete Garmin credentials: ' + error.message, 'error');
+            }
+        });
 
         // Show status message
         function showMessage(message, type) {
