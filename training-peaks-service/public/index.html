@@ -216,6 +216,64 @@
             </div>
         </div>
 
+        <!-- Phase 2: Calendar Integration -->
+        <div id="calendar-section" class="card">
+            <h2>📱 Phase 2: Apple Calendar Integration</h2>
+            <p>Sync your training schedule directly to Apple Calendar with automatic event creation and reminders.</p>
+            
+            <!-- Calendar Settings -->
+            <div id="calendar-settings" class="hidden">
+                <h3>Calendar Settings</h3>
+                <form id="calendar-settings-form">
+                    <div class="form-group">
+                        <label for="default-time">Default Training Time:</label>
+                        <input type="time" id="default-time" value="07:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="default-location">Default Location:</label>
+                        <input type="text" id="default-location" placeholder="e.g. Home, Gym, Park">
+                    </div>
+                    <div class="form-group">
+                        <label for="timezone">Timezone:</label>
+                        <select id="timezone">
+                            <option value="Europe/Copenhagen">Europe/Copenhagen</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Europe/Berlin">Europe/Berlin</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="auto-sync"> 
+                            Enable automatic synchronization
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-success">Save Calendar Settings</button>
+                </form>
+            </div>
+
+            <!-- Calendar Actions -->
+            <div id="calendar-actions">
+                <button id="setup-calendar" class="btn">Setup Calendar Integration</button>
+                <button id="sync-calendar" class="btn btn-success hidden" disabled>Sync to Calendar</button>
+                <button id="download-ics" class="btn hidden" disabled>Download ICS File</button>
+                <button id="view-calendar-events" class="btn hidden" disabled>View Calendar Events</button>
+            </div>
+
+            <!-- Calendar Status -->
+            <div id="calendar-status" class="hidden">
+                <h3>📊 Calendar Sync Status</h3>
+                <div id="calendar-stats"></div>
+            </div>
+
+            <!-- Calendar Events Display -->
+            <div id="calendar-events-section" class="hidden">
+                <h3>📅 Synced Calendar Events</h3>
+                <div id="calendar-events-list"></div>
+            </div>
+        </div>
+
         <!-- Training Schedule Display -->
         <div id="schedule-section" class="card hidden">
             <h2>📅 Training Schedule</h2>
@@ -479,5 +537,6 @@
             }
         }
     </script>
+    <script src="training-peaks.js"></script>
 </body>
 </html>

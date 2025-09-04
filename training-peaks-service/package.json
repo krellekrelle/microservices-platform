@@ -18,7 +18,10 @@
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
-    "jsdom": "^22.1.0"
+    "jsdom": "^22.1.0",
+    "ical-generator": "^4.1.0",
+    "node-ical": "^0.16.1",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -269,14 +269,20 @@ class TrainingPeaksApp {
         });
 
         // History period change
-        document.getElementById('history-period').addEventListener('change', async (e) => {
-            const days = e.target.value;
-            const response = await fetch(`/training/api/scraping-history?days=${days}`);
-            if (response.ok) {
-                const data = await response.json();
-                this.displayScrapingHistory(data.history);
-            }
-        });
+        const historyPeriod = document.getElementById('history-period');
+        if (historyPeriod) {
+            historyPeriod.addEventListener('change', async (e) => {
+                const days = e.target.value;
+                const response = await fetch(`/training/api/scraping-history?days=${days}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displayScrapingHistory(data.history);
+                }
+            });
+        }
+
+        // Setup calendar event listeners immediately
+        this.setupCalendarEventListeners();
     }
 
     showCredentialsForm() {
@@ -417,9 +423,14 @@ class TrainingPeaksApp {
         messageDiv.className = `message ${type}`;
         messageDiv.textContent = message;
 
-        // Insert at the top of main
-        const main = document.querySelector('main');
-        main.insertBefore(messageDiv, main.firstChild);
+        // Insert at the top of container
+        const container = document.querySelector('.container');
+        if (container) {
+            container.insertBefore(messageDiv, container.firstChild);
+        } else {
+            // Fallback to body if container not found
+            document.body.insertBefore(messageDiv, document.body.firstChild);
+        }
 
         // Auto-remove after 5 seconds
         setTimeout(() => {
@@ -428,7 +439,10 @@ class TrainingPeaksApp {
     }
 
     hideLoading() {
-        document.getElementById('loading').style.display = 'none';
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.style.display = 'none';
+        }
         
         // Show all sections
         const sections = [
@@ -448,9 +462,416 @@ class TrainingPeaksApp {
             }
         });
     }
+
+    // ====== Phase 2: Calendar Integration Methods ======
+
+    async initializeCalendarIntegration() {
+        try {
+            await this.loadCalendarSettings();
+            await this.loadCalendarStats();
+            this.setupCalendarEventListeners();
+            this.showCalendarSection();
+        } catch (error) {
+            console.error('Failed to initialize calendar integration:', error);
+            this.showError('Failed to load calendar integration');
+        }
+    }
+
+    setupCalendarEventListeners() {
+        console.log('🔍 DEBUG: Setting up calendar event listeners');
+        
+        // Setup Calendar button
+        const setupBtn = document.getElementById('setup-calendar');
+        console.log('🔍 DEBUG: setup-calendar button:', setupBtn);
+        if (setupBtn) {
+            setupBtn.addEventListener('click', () => {
+                console.log('🔍 DEBUG: Setup calendar button clicked');
+                this.setupCalendarIntegration();
+            });
+        } else {
+            console.error('❌ DEBUG: setup-calendar button not found!');
+        }
+
+        // Calendar settings form
+        const settingsForm = document.getElementById('calendar-settings-form');
+        console.log('🔍 DEBUG: calendar-settings-form:', settingsForm);
+        if (settingsForm) {
+            settingsForm.addEventListener('submit', (e) => {
+                console.log('🔍 DEBUG: Calendar form submitted');
+                this.saveCalendarSettings(e);
+            });
+        } else {
+            console.error('❌ DEBUG: calendar-settings-form not found!');
+        }
+
+        // Sync calendar button
+        const syncBtn = document.getElementById('sync-calendar');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', () => this.syncToCalendar());
+        }
+
+        // Download ICS button
+        const downloadBtn = document.getElementById('download-ics');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => this.downloadICSFile());
+        }
+
+        // View calendar events button
+        const viewBtn = document.getElementById('view-calendar-events');
+        if (viewBtn) {
+            viewBtn.addEventListener('click', () => this.viewCalendarEvents());
+        }
+    }
+
+    showCalendarSection() {
+        const section = document.getElementById('calendar-section');
+        if (section) {
+            section.classList.remove('hidden');
+        }
+    }
+
+    async setupCalendarIntegration() {
+        try {
+            console.log('🔍 DEBUG: setupCalendarIntegration called');
+            this.showCalendarProgress('Setting up calendar integration...');
+            
+            // Show calendar settings form
+            const settingsDiv = document.getElementById('calendar-settings');
+            console.log('🔍 DEBUG: calendar-settings element:', settingsDiv);
+            if (settingsDiv) {
+                console.log('🔍 DEBUG: Removing hidden class from calendar-settings');
+                settingsDiv.classList.remove('hidden');
+            } else {
+                console.error('❌ DEBUG: calendar-settings element not found!');
+            }
+
+            // Update button states
+            const setupBtn = document.getElementById('setup-calendar');
+            if (setupBtn) {
+                setupBtn.textContent = 'Update Settings';
+            }
+            this.enableCalendarButtons();
+
+            this.hideCalendarProgress();
+            this.showSuccess('Calendar integration setup completed!');
+
+        } catch (error) {
+            console.error('Setup calendar integration failed:', error);
+            this.hideCalendarProgress();
+            this.showError('Failed to setup calendar integration');
+        }
+    }
+
+    async loadCalendarSettings() {
+        try {
+            const response = await fetch(`${this.baseUrl}/calendar/settings`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    this.populateCalendarSettings(data.settings);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load calendar settings:', error);
+        }
+    }
+
+    populateCalendarSettings(settings) {
+        // Populate form fields with current settings
+        const timeInput = document.getElementById('default-time');
+        if (timeInput && settings.default_training_time) {
+            timeInput.value = settings.default_training_time.substring(0, 5); // Remove seconds
+        }
+
+        const locationInput = document.getElementById('default-location');
+        if (locationInput && settings.default_location) {
+            locationInput.value = settings.default_location;
+        }
+
+        const timezoneSelect = document.getElementById('timezone');
+        if (timezoneSelect && settings.timezone) {
+            timezoneSelect.value = settings.timezone;
+        }
+
+        const autoSyncCheckbox = document.getElementById('auto-sync');
+        if (autoSyncCheckbox) {
+            autoSyncCheckbox.checked = settings.auto_sync_enabled;
+        }
+
+        // Show settings if they exist
+        if (settings.user_id) {
+            const settingsDiv = document.getElementById('calendar-settings');
+            if (settingsDiv) {
+                settingsDiv.classList.remove('hidden');
+            }
+            this.enableCalendarButtons();
+        }
+    }
+
+    async saveCalendarSettings(event) {
+        event.preventDefault();
+        console.log('🔍 DEBUG: saveCalendarSettings called');
+        
+        try {
+            this.showCalendarProgress('Saving calendar settings...');
+
+            const formData = new FormData(event.target);
+            const settings = {
+                default_training_time: document.getElementById('default-time').value + ':00',
+                default_location: document.getElementById('default-location').value,
+                timezone: document.getElementById('timezone').value,
+                auto_sync_enabled: document.getElementById('auto-sync').checked,
+                reminder_settings: [
+                    { minutes: 60, description: '1 hour before training' },
+                    { minutes: 15, description: '15 minutes before training' }
+                ]
+            };
+
+            console.log('🔍 DEBUG: Sending settings:', settings);
+
+            const response = await fetch(`${this.baseUrl}/calendar/settings`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings)
+            });
+
+            console.log('🔍 DEBUG: Response status:', response.status);
+            const data = await response.json();
+            console.log('🔍 DEBUG: Response data:', data);
+
+            if (data.success) {
+                this.hideCalendarProgress();
+                this.showSuccess('Calendar settings saved successfully!');
+                this.enableCalendarButtons();
+                await this.loadCalendarStats();
+            } else {
+                throw new Error(data.error || 'Failed to save settings');
+            }
+
+        } catch (error) {
+            console.error('Failed to save calendar settings:', error);
+            this.hideCalendarProgress();
+            this.showError('Failed to save calendar settings: ' + error.message);
+        }
+    }
+
+    async syncToCalendar() {
+        try {
+            this.showCalendarProgress('Syncing training schedule to calendar...');
+
+            const response = await fetch(`${this.baseUrl}/calendar/sync`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dateRange: {
+                        start: '2025-09-01',
+                        end: '2025-09-07'
+                    }
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.hideCalendarProgress();
+                this.showSuccess(`Successfully synced ${data.eventsCreated} training events to calendar!`);
+                await this.loadCalendarStats();
+                await this.loadCalendarEvents();
+            } else {
+                throw new Error(data.error || 'Failed to sync calendar');
+            }
+
+        } catch (error) {
+            console.error('Failed to sync calendar:', error);
+            this.hideCalendarProgress();
+            this.showError('Failed to sync calendar: ' + error.message);
+        }
+    }
+
+    async downloadICSFile() {
+        try {
+            this.showCalendarProgress('Generating ICS file...');
+
+            const response = await fetch(`${this.baseUrl}/calendar/download-ics?startDate=2025-09-01&endDate=2025-09-07`);
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'training-schedule.ics';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                this.hideCalendarProgress();
+                this.showSuccess('ICS file downloaded! Import it into your calendar app.');
+            } else {
+                throw new Error('Failed to generate ICS file');
+            }
+
+        } catch (error) {
+            console.error('Failed to download ICS file:', error);
+            this.hideCalendarProgress();
+            this.showError('Failed to download ICS file: ' + error.message);
+        }
+    }
+
+    async loadCalendarStats() {
+        try {
+            const response = await fetch(`${this.baseUrl}/calendar/stats`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.displayCalendarStats(data.stats);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load calendar stats:', error);
+        }
+    }
+
+    displayCalendarStats(stats) {
+        const statsContainer = document.getElementById('calendar-stats');
+        if (!statsContainer) return;
+
+        const html = `
+            <div class="calendar-stat-item">
+                <span>Total Syncs:</span>
+                <span class="calendar-stat-value">${stats.total_syncs || 0}</span>
+            </div>
+            <div class="calendar-stat-item">
+                <span>Events Created:</span>
+                <span class="calendar-stat-value">${stats.total_events || 0}</span>
+            </div>
+            <div class="calendar-stat-item">
+                <span>Last Sync:</span>
+                <span class="calendar-stat-value">${stats.last_sync ? new Date(stats.last_sync).toLocaleDateString() : 'Never'}</span>
+            </div>
+            <div class="calendar-stat-item">
+                <span>Success Rate:</span>
+                <span class="calendar-stat-value">${stats.avg_success_rate ? Math.round(stats.avg_success_rate * 100) + '%' : '0%'}</span>
+            </div>
+        `;
+
+        statsContainer.innerHTML = html;
+        
+        // Show stats section
+        const statusSection = document.getElementById('calendar-status');
+        if (statusSection) {
+            statusSection.classList.remove('hidden');
+        }
+    }
+
+    async viewCalendarEvents() {
+        try {
+            await this.loadCalendarEvents();
+            
+            // Show events section
+            const eventsSection = document.getElementById('calendar-events-section');
+            if (eventsSection) {
+                eventsSection.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('Failed to view calendar events:', error);
+            this.showError('Failed to load calendar events');
+        }
+    }
+
+    async loadCalendarEvents() {
+        try {
+            const response = await fetch(`${this.baseUrl}/calendar/events?startDate=2025-09-01&endDate=2025-09-07`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.displayCalendarEvents(data.events);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load calendar events:', error);
+        }
+    }
+
+    displayCalendarEvents(events) {
+        const container = document.getElementById('calendar-events-list');
+        if (!container) return;
+
+        if (events.length === 0) {
+            container.innerHTML = '<p>No calendar events found. Sync your training schedule first.</p>';
+            return;
+        }
+
+        const html = events.map(event => `
+            <div class="calendar-event-item">
+                <div class="calendar-event-header">
+                    <span class="calendar-event-title">${event.event_title}</span>
+                    <span class="calendar-event-status ${event.sync_status}">${event.sync_status}</span>
+                </div>
+                <div class="calendar-event-time">
+                    📅 ${new Date(event.date).toLocaleDateString()} 
+                    ⏰ ${new Date(event.event_start).toLocaleTimeString()} - ${new Date(event.event_end).toLocaleTimeString()}
+                </div>
+                <div class="calendar-event-description">
+                    ${event.session_description ? event.session_description.substring(0, 200) + (event.session_description.length > 200 ? '...' : '') : 'No description available'}
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
+    }
+
+    enableCalendarButtons() {
+        const buttons = ['sync-calendar', 'download-ics', 'view-calendar-events'];
+        buttons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.disabled = false;
+                button.classList.remove('hidden');
+            }
+        });
+    }
+
+    showCalendarProgress(message) {
+        const existingProgress = document.querySelector('.calendar-sync-progress');
+        if (existingProgress) {
+            existingProgress.remove();
+        }
+
+        const progressDiv = document.createElement('div');
+        progressDiv.className = 'calendar-sync-progress';
+        progressDiv.innerHTML = `
+            <div class="loading"></div>
+            ${message}
+        `;
+
+        const calendarSection = document.getElementById('calendar-section');
+        if (calendarSection) {
+            calendarSection.appendChild(progressDiv);
+        }
+    }
+
+    hideCalendarProgress() {
+        const progressDiv = document.querySelector('.calendar-sync-progress');
+        if (progressDiv) {
+            progressDiv.remove();
+        }
+    }
 }
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new TrainingPeaksApp();
+    const app = new TrainingPeaksApp();
+    
+    // Initialize Phase 2 calendar integration if we have training data
+    setTimeout(() => {
+        if (app.currentStatus && app.currentStatus.hasCredentials) {
+            app.initializeCalendarIntegration();
+        }
+    }, 1000);
 });

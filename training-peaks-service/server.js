@@ -67,6 +67,7 @@ function setupApp() {
 
     // API Routes
     app.use('/api', require('./routes/api'));
+    app.use('/api/calendar', require('./routes/calendar'));
 
     // Error handling middleware
     app.use((err, req, res, next) => {
