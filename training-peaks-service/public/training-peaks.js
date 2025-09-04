@@ -4,6 +4,7 @@ class TrainingPeaksApp {
         this.baseUrl = '/training/api';
         this.currentUser = null;
         this.currentStatus = null;
+        this.calendarListenersSetup = false; // Prevent duplicate event listeners
         this.init();
     }
 
@@ -480,11 +481,21 @@ class TrainingPeaksApp {
     setupCalendarEventListeners() {
         console.log('🔍 DEBUG: Setting up calendar event listeners');
         
+        // Prevent duplicate event listeners
+        if (this.calendarListenersSetup) {
+            console.log('🔍 DEBUG: Calendar listeners already setup, skipping');
+            return;
+        }
+        
         // Setup Calendar button
         const setupBtn = document.getElementById('setup-calendar');
         console.log('🔍 DEBUG: setup-calendar button:', setupBtn);
         if (setupBtn) {
-            setupBtn.addEventListener('click', () => {
+            // Remove existing listeners first
+            const newSetupBtn = setupBtn.cloneNode(true);
+            setupBtn.parentNode.replaceChild(newSetupBtn, setupBtn);
+            
+            newSetupBtn.addEventListener('click', () => {
                 console.log('🔍 DEBUG: Setup calendar button clicked');
                 this.setupCalendarIntegration();
             });
@@ -496,7 +507,11 @@ class TrainingPeaksApp {
         const settingsForm = document.getElementById('calendar-settings-form');
         console.log('🔍 DEBUG: calendar-settings-form:', settingsForm);
         if (settingsForm) {
-            settingsForm.addEventListener('submit', (e) => {
+            // Remove existing listeners first
+            const newSettingsForm = settingsForm.cloneNode(true);
+            settingsForm.parentNode.replaceChild(newSettingsForm, settingsForm);
+            
+            newSettingsForm.addEventListener('submit', (e) => {
                 console.log('🔍 DEBUG: Calendar form submitted');
                 this.saveCalendarSettings(e);
             });
@@ -507,20 +522,35 @@ class TrainingPeaksApp {
         // Sync calendar button
         const syncBtn = document.getElementById('sync-calendar');
         if (syncBtn) {
-            syncBtn.addEventListener('click', () => this.syncToCalendar());
+            // Remove existing listeners first
+            const newSyncBtn = syncBtn.cloneNode(true);
+            syncBtn.parentNode.replaceChild(newSyncBtn, syncBtn);
+            
+            newSyncBtn.addEventListener('click', () => this.syncToCalendar());
         }
 
         // Download ICS button
         const downloadBtn = document.getElementById('download-ics');
         if (downloadBtn) {
-            downloadBtn.addEventListener('click', () => this.downloadICSFile());
+            // Remove existing listeners first
+            const newDownloadBtn = downloadBtn.cloneNode(true);
+            downloadBtn.parentNode.replaceChild(newDownloadBtn, downloadBtn);
+            
+            newDownloadBtn.addEventListener('click', () => this.downloadICSFile());
         }
 
         // View calendar events button
         const viewBtn = document.getElementById('view-calendar-events');
         if (viewBtn) {
-            viewBtn.addEventListener('click', () => this.viewCalendarEvents());
+            // Remove existing listeners first
+            const newViewBtn = viewBtn.cloneNode(true);
+            viewBtn.parentNode.replaceChild(newViewBtn, viewBtn);
+            
+            newViewBtn.addEventListener('click', () => this.viewCalendarEvents());
         }
+        
+        // Mark listeners as setup
+        this.calendarListenersSetup = true;
     }
 
     showCalendarSection() {
@@ -659,6 +689,13 @@ class TrainingPeaksApp {
 
     async syncToCalendar() {
         try {
+            // Disable button to prevent double-clicks
+            const syncBtn = document.getElementById('sync-calendar');
+            if (syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing...';
+            }
+
             this.showCalendarProgress('Syncing training schedule to calendar...');
 
             const response = await fetch(`${this.baseUrl}/calendar/sync`, {
@@ -689,11 +726,26 @@ class TrainingPeaksApp {
             console.error('Failed to sync calendar:', error);
             this.hideCalendarProgress();
             this.showError('Failed to sync calendar: ' + error.message);
+        } finally {
+            // Re-enable button
+            const syncBtn = document.getElementById('sync-calendar');
+            if (syncBtn) {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync to Calendar';
+            }
         }
     }
 
     async downloadICSFile() {
         try {
+            console.log('🔍 DEBUG: downloadICSFile called');
+            // Disable button to prevent double-clicks
+            const downloadBtn = document.getElementById('download-ics');
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'Generating...';
+            }
+
             this.showCalendarProgress('Generating ICS file...');
 
             const response = await fetch(`${this.baseUrl}/calendar/download-ics?startDate=2025-09-01&endDate=2025-09-07`);
@@ -720,6 +772,13 @@ class TrainingPeaksApp {
             console.error('Failed to download ICS file:', error);
             this.hideCalendarProgress();
             this.showError('Failed to download ICS file: ' + error.message);
+        } finally {
+            // Re-enable button
+            const downloadBtn = document.getElementById('download-ics');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Download ICS File';
+            }
         }
     }
 

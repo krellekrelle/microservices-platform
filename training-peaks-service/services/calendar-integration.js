@@ -184,11 +184,24 @@ class CalendarIntegrationService {
     parseTrainingDuration(description, duration) {
         // Try duration field first
         if (duration) {
-            const durationMatch = duration.match(/(\d+)\s*(min|hour|hr)/i);
+            // Handle both string and number duration
+            const durationStr = duration.toString();
+            const durationMatch = durationStr.match(/(\d+)\s*(min|hour|hr)/i);
             if (durationMatch) {
                 const value = parseInt(durationMatch[1]);
                 const unit = durationMatch[2].toLowerCase();
                 return unit.startsWith('hour') || unit === 'hr' ? value * 60 : value;
+            }
+            
+            // If duration is just a number, treat large numbers as seconds (convert to minutes)
+            const numericDuration = parseInt(durationStr);
+            if (!isNaN(numericDuration)) {
+                // If duration is > 180, assume it's in seconds and convert to minutes
+                if (numericDuration > 180) {
+                    return Math.round(numericDuration / 60);
+                }
+                // Otherwise assume it's already in minutes
+                return numericDuration;
             }
         }
 
@@ -276,14 +289,44 @@ class CalendarIntegrationService {
     }
 
     /**
-     * Generate ICS file for direct calendar import
+     * Generate ICS file for direct calendar import (without storing sync records)
      * @param {Array} trainingSessions - Training sessions
      * @param {Object} userSettings - User settings
      * @returns {string} ICS file content
      */
     async generateICSFile(trainingSessions, userSettings = {}) {
-        const result = await this.createTrainingEvents(trainingSessions, userSettings);
-        return result.icsContent;
+        try {
+            console.log(`Generating ICS file for ${trainingSessions.length} training sessions`);
+            
+            const calendar = new ICalCalendar({
+                name: this.calendarName,
+                timezone: userSettings.timezone || 'Europe/Copenhagen',
+                description: 'Automated training schedule from TrainingPeaks'
+            });
+
+            let successfulEvents = 0;
+
+            for (const session of trainingSessions) {
+                try {
+                    const event = await this.createSingleEvent(calendar, session, userSettings);
+                    if (event) {
+                        successfulEvents++;
+                    }
+                } catch (error) {
+                    console.error(`Error creating event for session ${session.id}:`, error);
+                    // Continue with other sessions
+                }
+            }
+
+            console.log(`Generated ICS file with ${successfulEvents}/${trainingSessions.length} events`);
+            
+            // Generate ICS file content WITHOUT storing sync records
+            return calendar.toString();
+            
+        } catch (error) {
+            console.error('Error generating ICS file:', error);
+            throw error;
+        }
     }
 
     /**

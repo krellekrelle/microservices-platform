@@ -223,28 +223,50 @@ router.post('/sync', requireAuth, async (req, res) => {
         
         // Store event tracking records
         for (const event of calendarResult.events) {
-            await database.query(`
-                INSERT INTO calendar_events (
-                    user_id, session_id, event_id, calendar_provider,
-                    event_title, event_start, event_end, sync_status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (user_id, session_id) DO UPDATE SET
-                    event_id = EXCLUDED.event_id,
-                    event_title = EXCLUDED.event_title,
-                    event_start = EXCLUDED.event_start,
-                    event_end = EXCLUDED.event_end,
-                    sync_status = EXCLUDED.sync_status,
-                    last_synced = CURRENT_TIMESTAMP
-            `, [
-                userId,
-                event.sessionId,
-                event.id,
-                userSettings.calendar_provider,
-                event.title,
-                event.start,
-                event.end,
-                'created'
-            ]);
+            // Check if event already exists
+            const existingEvent = await database.query(`
+                SELECT id FROM calendar_events 
+                WHERE user_id = $1 AND session_id = $2
+            `, [userId, event.sessionId]);
+            
+            if (existingEvent.rows.length > 0) {
+                // Update existing record
+                await database.query(`
+                    UPDATE calendar_events SET
+                        event_id = $3,
+                        event_title = $4,
+                        event_start = $5,
+                        event_end = $6,
+                        sync_status = $7,
+                        last_synced = CURRENT_TIMESTAMP
+                    WHERE user_id = $1 AND session_id = $2
+                `, [
+                    userId,
+                    event.sessionId,
+                    event.id,
+                    event.title,
+                    event.start,
+                    event.end,
+                    'created'
+                ]);
+            } else {
+                // Insert new record
+                await database.query(`
+                    INSERT INTO calendar_events (
+                        user_id, session_id, event_id, calendar_provider,
+                        event_title, event_start, event_end, sync_status
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                `, [
+                    userId,
+                    event.sessionId,
+                    event.id,
+                    userSettings.calendar_provider || 'apple_calendar',
+                    event.title,
+                    event.start,
+                    event.end,
+                    'created'
+                ]);
+            }
         }
         
         res.json({
