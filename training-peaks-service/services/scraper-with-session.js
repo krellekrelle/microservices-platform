@@ -546,20 +546,20 @@ class TrainingPeaksScraper {
                 }
             }
             
-            // Extract description from .userPreferredFields .description or .printOnly.description
+            // Extract description from .printOnly.description (full content) or .userPreferredFields .description (truncated)
             let description = '';
             
-            // Try the visible description first (.userPreferredFields .description)
-            const visibleDescElement = await card.$('.userPreferredFields .description');
-            if (visibleDescElement) {
-                description = await this.page.evaluate(el => el.textContent?.trim(), visibleDescElement);
+            // Try the print-only description first (has full content)
+            const printDescElement = await card.$('.printOnly.description');
+            if (printDescElement) {
+                description = await this.page.evaluate(el => el.textContent?.trim(), printDescElement);
             }
             
-            // If no visible description, try the print-only description
+            // Only fallback to visible description if print-only is not available
             if (!description) {
-                const printDescElement = await card.$('.printOnly.description');
-                if (printDescElement) {
-                    description = await this.page.evaluate(el => el.textContent?.trim(), printDescElement);
+                const visibleDescElement = await card.$('.userPreferredFields .description');
+                if (visibleDescElement) {
+                    description = await this.page.evaluate(el => el.textContent?.trim(), visibleDescElement);
                 }
             }
             

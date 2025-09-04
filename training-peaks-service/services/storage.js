@@ -254,7 +254,7 @@ class StorageService {
       return 'tempo';
     }
     if (text.includes('tur') || text.includes('tour')) {
-      return 'endurance';
+      return 'running';
     }
     if (text.includes('stræk') || text.includes('stretch')) {
       return 'flexibility';
