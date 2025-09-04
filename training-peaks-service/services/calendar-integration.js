@@ -117,16 +117,20 @@ class CalendarIntegrationService {
      */
     createEventTitle(session) {
         const typeEmoji = {
-            'Running': '🏃‍♂️',
-            'Cycling': '🚴‍♂️',
-            'Swimming': '🏊‍♂️',
-            'Strength': '💪',
-            'Recovery': '🧘‍♂️',
-            'Other': '🏋️‍♂️'
+            'running': '🏃‍♂️',
+            'cycling': '🚴‍♂️',
+            'swimming': '🏊‍♂️',
+            'strength': '💪',
+            'recovery': '🧘‍♂️',
+            'other': '🏋️‍♂️'
         };
 
+        console.log('emoji session.type:', session.type);
+
         const emoji = typeEmoji[session.type] || typeEmoji.Other;
-        const baseTitle = session.title || `${session.type} Training`;
+        const baseTitle = session.title
+            ? session.title.charAt(0).toUpperCase() + session.title.slice(1)
+            : `${session.type.charAt(0).toUpperCase() + session.type.slice(1)} Training`;
         
         return `${emoji} ${baseTitle}`;
     }
@@ -137,22 +141,23 @@ class CalendarIntegrationService {
      * @returns {string} Formatted description
      */
     formatEventDescription(session) {
-        let description = `🎯 Training Details:\n\n`;
-        
+
+        let description = '';
         if (session.description && session.description.trim()) {
             description += `📋 Workout Description:\n${session.description}\n\n`;
         }
         
         if (session.duration) {
-            description += `⏱️ Duration: ${session.duration}\n`;
+            // description += `⏱️ Duration: ${session.duration}\n`;
+            description += `⏱️ Duration: not implemented yet\n`;
         }
         
-        if (session.type) {
-            description += `🏃 Type: ${session.type}\n`;
-        }
+        // if (session.type) {
+        //     description += `🏃 Type: ${session.type}\n`;
+        // }
         
         description += `\n📱 Synced from TrainingPeaks\n`;
-        description += `🕐 Created: ${new Date().toLocaleString()}`;
+        // description += `🕐 Created: ${new Date().toLocaleString()}`;
         
         return description;
     }
