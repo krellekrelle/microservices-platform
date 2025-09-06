@@ -127,6 +127,7 @@ services:
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_APP_PASSWORD=${EMAIL_APP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - ./training-peaks-service/data:/app/data
     depends_on:

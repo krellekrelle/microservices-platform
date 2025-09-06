@@ -361,6 +361,137 @@ router.get('/sync-status', async (req, res) => {
 });
 
 /**
+ * Create workout from training description using AI parsing
+ * POST /training/api/garmin/create-workout
+ */
+router.post('/create-workout', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { description, workoutName } = req.body;
+        
+        console.log(`🤖 [DEBUG] AI Workout Creation - User: ${userId}`);
+        console.log(`🤖 [DEBUG] AI Workout Creation - Description: "${description}"`);
+        console.log(`🤖 [DEBUG] AI Workout Creation - Workout Name: "${workoutName || 'Auto-generated'}"`);
+        
+        if (!description) {
+            console.log('❌ [DEBUG] AI Workout Creation - Missing description');
+            return res.status(400).json({
+                error: 'Training description is required'
+            });
+        }
+
+        // Get user's Garmin credentials
+        console.log(`🔍 [DEBUG] AI Workout Creation - Getting Garmin credentials for user ${userId}`);
+        const credentials = await storageService.getGarminCredentials(userId);
+        if (!credentials) {
+            console.log(`❌ [DEBUG] AI Workout Creation - No credentials found for user ${userId}`);
+            return res.status(400).json({
+                error: 'No Garmin credentials found. Please add your credentials first.'
+            });
+        }
+
+        console.log(`✅ [DEBUG] AI Workout Creation - Found credentials for user: ${credentials.username}`);
+
+        // Authenticate with Garmin (with session reuse)
+        console.log(`� [DEBUG] AI Workout Creation - Authenticating with Garmin Connect`);
+        const authSuccess = await garminService.authenticate(
+            credentials.username, 
+            credentials.decrypted_password,
+            userId
+        );
+
+        if (!authSuccess) {
+            console.log(`❌ [DEBUG] AI Workout Creation - Authentication failed`);
+            return res.status(400).json({
+                error: 'Failed to authenticate with Garmin Connect. Please check your credentials.'
+            });
+        }
+
+        console.log(`✅ [DEBUG] AI Workout Creation - Authentication successful`);
+
+        // Create workout using AI parsing
+        console.log(`🤖 [DEBUG] AI Workout Creation - Starting AI parsing and workout creation`);
+        const result = await garminService.createWorkoutFromDescription(
+            description,
+            workoutName
+        );
+
+        console.log(`🎉 [DEBUG] AI Workout Creation - Success! Workout ID: ${result.workoutId}`);
+        console.log(`📊 [DEBUG] AI Workout Creation - Result:`, JSON.stringify(result, null, 2));
+
+        // Log the sync attempt
+        await storageService.logGarminSync(
+            userId,
+            'manual',
+            'create_intelligent_workout',
+            result.success,
+            null,
+            { description, workoutName },
+            result
+        );
+
+        console.log(`✅ [DEBUG] AI Workout Creation - Sync logged successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Workout created successfully using AI parsing!',
+            workoutId: result.workoutId,
+            workoutName: result.workoutName,
+            originalDescription: result.originalDescription,
+            estimatedDistance: result.estimatedDistance,
+            estimatedDuration: result.estimatedDuration,
+            stepsCount: result.stepsCount,
+            details: result.parsedWorkout
+        });
+
+        // Cleanup connection
+        garminService.disconnect();
+
+    } catch (error) {
+        console.error('❌ [DEBUG] AI Workout Creation - Error:', error);
+        console.error('❌ [DEBUG] AI Workout Creation - Stack:', error.stack);
+        
+        res.status(500).json({
+            error: 'Failed to create workout from description',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * Test the AI workout parser with examples
+ * GET /training/api/garmin/test-parser
+ */
+router.get('/test-parser', async (req, res) => {
+    try {
+        console.log('🧪 AI Parser Test Started - Endpoint Hit');
+        console.log('⏰ Timestamp:', new Date().toISOString());
+        console.log('👤 User ID:', req.user?.id || 'Unknown');
+        
+        const garminService = new GarminConnectService();
+        
+        console.log('� Initializing AI workout parser test...');
+        await garminService.testWorkoutParser();
+        
+        console.log('✅ AI Parser Test Completed Successfully');
+        res.json({
+            success: true,
+            message: 'AI workout parser test completed successfully. Check server logs for detailed parsing examples.',
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ AI Parser Test Failed:', error);
+        console.error('📍 Error Stack:', error.stack);
+        res.status(500).json({
+            error: 'Failed to test AI workout parser',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+/**
  * Parse training session description into Garmin workout format
  * This is a simple parser for running workouts - can be expanded later
  */

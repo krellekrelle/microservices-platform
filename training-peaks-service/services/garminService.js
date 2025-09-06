@@ -3,12 +3,14 @@
 
 const { GarminConnect } = require('garmin-connect');
 const StorageService = require('./storage');
+const IntelligentWorkoutParser = require('./intelligentWorkoutParser');
 
 class GarminConnectService {
     constructor() {
         this.client = null;
         this.isAuthenticated = false;
         this.storage = new StorageService();
+        this.workoutParser = new IntelligentWorkoutParser();
     }
 
     /**
@@ -233,6 +235,62 @@ class GarminConnectService {
     }
 
     /**
+     * Create a structured workout from Danish training description using AI parsing
+     * @param {string} trainingDescription - Danish training description text
+     * @param {string} workoutName - Optional workout name
+     * @returns {Promise<Object>} - Workout creation result with ID
+     */
+    async createWorkoutFromDescription(trainingDescription, workoutName = null) {
+        if (!this.isAuthenticated) {
+            throw new Error('Must be authenticated with Garmin Connect first');
+        }
+
+        try {
+            console.log('🤖 Parsing training description with AI...');
+            console.log(`📝 Description: "${trainingDescription}"`);
+
+            // Use AI to convert Danish description to Garmin workout JSON
+            const workoutJson = await this.workoutParser.parseTrainingDescription(
+                trainingDescription, 
+                workoutName
+            );
+
+            console.log('✅ AI parsing complete, creating workout on Garmin Connect...');
+            console.log(`🏃 Workout: ${workoutJson.workoutName}`);
+            console.log(`📏 Estimated: ${Math.round(workoutJson.estimatedDistanceInMeters/1000)}km, ${Math.round(workoutJson.estimatedDurationInSecs/60)}min`);
+
+            // Create the workout on Garmin Connect
+            const workoutId = await this.client.createWorkout(workoutJson);
+
+            const result = {
+                success: true,
+                workoutId: workoutId,
+                workoutName: workoutJson.workoutName,
+                originalDescription: trainingDescription,
+                parsedWorkout: workoutJson,
+                estimatedDistance: Math.round(workoutJson.estimatedDistanceInMeters/1000),
+                estimatedDuration: Math.round(workoutJson.estimatedDurationInSecs/60),
+                stepsCount: workoutJson.workoutSegments[0]?.workoutSteps?.length || 0
+            };
+
+            console.log(`🎉 Successfully created Garmin workout ID: ${workoutId}`);
+            return result;
+
+        } catch (error) {
+            console.error('❌ Failed to create workout from description:', error);
+            throw new Error(`Workout creation failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Test the AI workout parser with example descriptions
+     */
+    async testWorkoutParser() {
+        console.log('🧪 Testing AI workout parser...');
+        return await this.workoutParser.testWithExamples();
+    }
+
+    /**
      * Cleanup session
      */
     disconnect() {
@@ -241,7 +299,5 @@ class GarminConnectService {
         console.log('📴 Disconnected from Garmin Connect');
     }
 }
-
-module.exports = GarminConnectService;
 
 module.exports = GarminConnectService;

@@ -185,6 +185,47 @@
         #garmin-actions .btn {
             min-width: 200px;
         }
+        
+        /* AI Parser Styles */
+        #ai-parser-section {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+        }
+        #ai-parser-section h4 {
+            color: #1976D2;
+        }
+        #training-description {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        #parsing-output {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        #creation-output {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1976D2;
+        }
         .session-time {
             font-weight: 600;
             color: #667eea;
@@ -343,7 +384,31 @@
                 <button id="setup-garmin" class="btn">Setup Garmin Integration</button>
                 <button id="test-garmin-credentials" class="btn hidden" disabled>Test Credentials</button>
                 <button id="create-test-workout" class="btn btn-success hidden" disabled>Create Test 5K Workout</button>
+                <button id="test-ai-parser" class="btn btn-primary hidden" disabled>🤖 Test AI Workout Parser</button>
+                <button id="create-ai-workout" class="btn btn-success hidden" disabled>🧠 Create AI Workout</button>
                 <button id="delete-garmin-credentials" class="btn btn-danger hidden">Delete Credentials</button>
+            </div>
+
+            <!-- AI Workout Creation Section -->
+            <div id="ai-workout-section" class="hidden">
+                <h3>🤖 AI Workout Creation</h3>
+                <p>Convert Danish training descriptions into structured Garmin workouts using AI parsing.</p>
+                
+                <div class="form-group">
+                    <label for="training-description">Danish Training Description:</label>
+                    <textarea id="training-description" rows="4" cols="50" 
+                              placeholder="Example: 3 km jog&#10;4 km 4.05- 4.15&#10;2 km jog"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="workout-name">Workout Name (optional):</label>
+                    <input type="text" id="workout-name" placeholder="My Training Session">
+                </div>
+                
+                <div id="ai-parsing-result" class="hidden">
+                    <h4>🔍 AI Parsing Result</h4>
+                    <div id="parsed-workout-info"></div>
+                </div>
             </div>
 
             <!-- Test Workout Info -->
@@ -642,8 +707,11 @@
             const setupBtn = document.getElementById('setup-garmin');
             const testBtn = document.getElementById('test-garmin-credentials');
             const createWorkoutBtn = document.getElementById('create-test-workout');
+            const testAiParserBtn = document.getElementById('test-ai-parser');
+            const createAiWorkoutBtn = document.getElementById('create-ai-workout');
             const deleteBtn = document.getElementById('delete-garmin-credentials');
             const testWorkoutInfo = document.getElementById('test-workout-info');
+            const aiWorkoutSection = document.getElementById('ai-workout-section');
 
             if (status.hasCredentials) {
                 statusDiv.innerHTML = `
@@ -658,8 +726,13 @@
                 testBtn.disabled = false;
                 createWorkoutBtn.classList.remove('hidden');
                 createWorkoutBtn.disabled = false;
+                testAiParserBtn.classList.remove('hidden');
+                testAiParserBtn.disabled = false;
+                createAiWorkoutBtn.classList.remove('hidden');
+                createAiWorkoutBtn.disabled = false;
                 deleteBtn.classList.remove('hidden');
                 testWorkoutInfo.classList.remove('hidden');
+                aiWorkoutSection.classList.remove('hidden');
             } else {
                 statusDiv.innerHTML = `
                     <div class="status info">
@@ -669,8 +742,11 @@
                 setupBtn.textContent = 'Setup Garmin Integration';
                 testBtn.classList.add('hidden');
                 createWorkoutBtn.classList.add('hidden');
+                testAiParserBtn.classList.add('hidden');
+                createAiWorkoutBtn.classList.add('hidden');
                 deleteBtn.classList.add('hidden');
                 testWorkoutInfo.classList.add('hidden');
+                aiWorkoutSection.classList.add('hidden');
             }
         }
 
@@ -806,7 +882,104 @@
                 }
             } catch (error) {
                 console.error('Error deleting Garmin credentials:', error);
-                showMessage('Failed to delete Garmin credentials: ' + error.message, 'error');
+            }
+        });
+
+        // ===== AI WORKOUT PARSING =====
+
+        // Test AI Parser with examples
+        document.getElementById('test-ai-parser').addEventListener('click', async function() {
+            this.disabled = true;
+            
+            try {
+                showMessage('🤖 Testing AI workout parser with training examples...', 'info');
+                console.log('DEBUG: Starting AI parser test...');
+                
+                const response = await fetch('/training/api/garmin/test-parser', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                console.log('DEBUG: AI parser test result:', result);
+
+                if (response.ok && result.success) {
+                    showMessage('✅ AI workout parser test completed successfully! Check browser console for details.', 'success');
+                } else {
+                    showMessage('❌ AI parser test failed: ' + (result.error || 'Unknown error'), 'error');
+                    console.error('AI parser test error:', result);
+                }
+            } catch (error) {
+                console.error('Error testing AI parser:', error);
+                showMessage('❌ Failed to test AI parser: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+            }
+        });
+
+        // Create AI Workout from description
+        document.getElementById('create-ai-workout').addEventListener('click', async function() {
+            const description = document.getElementById('training-description').value.trim();
+            const workoutName = document.getElementById('workout-name').value.trim();
+            
+            if (!description) {
+                showMessage('❌ Please enter a training description', 'error');
+                return;
+            }
+
+            this.disabled = true;
+            
+            try {
+                showMessage('🤖 Creating AI-parsed workout on Garmin Connect...', 'info');
+                console.log('DEBUG: Creating AI workout with description:', description);
+                console.log('DEBUG: Workout name:', workoutName || 'Auto-generated');
+                
+                const response = await fetch('/training/api/garmin/create-workout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description: description,
+                        workoutName: workoutName || null
+                    })
+                });
+
+                const result = await response.json();
+                console.log('DEBUG: AI workout creation result:', result);
+
+                if (response.ok && result.success) {
+                    showMessage(`🎉 AI workout created successfully! Workout ID: ${result.workoutId}`, 'success');
+                    
+                    // Display parsed workout details
+                    const parsedInfo = document.getElementById('parsed-workout-info');
+                    const aiParsingResult = document.getElementById('ai-parsing-result');
+                    
+                    parsedInfo.innerHTML = `
+                        <div class="status success">
+                            <strong>🏃 ${result.workoutName}</strong><br>
+                            <small>Distance: ~${result.estimatedDistance}km | Duration: ~${result.estimatedDuration}min | Steps: ${result.stepsCount}</small><br>
+                            <small>Workout ID: ${result.workoutId}</small>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Original Description:</strong><br>
+                            <code>${result.originalDescription}</code>
+                        </div>
+                    `;
+                    aiParsingResult.classList.remove('hidden');
+                    
+                    showMessage('✅ Check your Garmin Connect app or watch for the new AI-generated workout!', 'success');
+                } else {
+                    showMessage('❌ ' + (result.error || 'Failed to create AI workout'), 'error');
+                    console.error('AI workout creation error:', result);
+                }
+            } catch (error) {
+                console.error('Error creating AI workout:', error);
+                showMessage('❌ Failed to create AI workout: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
             }
         });
 
