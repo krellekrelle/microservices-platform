@@ -441,6 +441,7 @@ router.post('/create-workout', async (req, res) => {
             estimatedDistance: result.estimatedDistance,
             estimatedDuration: result.estimatedDuration,
             stepsCount: result.stepsCount,
+            generatedJson: result.parsedWorkout, // Include the LLM-generated JSON
             details: result.parsedWorkout
         });
 
@@ -453,6 +454,104 @@ router.post('/create-workout', async (req, res) => {
         
         res.status(500).json({
             error: 'Failed to create workout from description',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * Create workout from provided JSON data
+ * POST /training/api/garmin/create-from-json
+ */
+router.post('/create-from-json', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { workoutJson } = req.body;
+        
+        console.log(`📋 [DEBUG] JSON Workout Creation - User: ${userId}`);
+        console.log(`📋 [DEBUG] JSON Workout Creation - JSON provided:`, !!workoutJson);
+        
+        if (!workoutJson) {
+            console.log('❌ [DEBUG] JSON Workout Creation - Missing workout JSON');
+            return res.status(400).json({
+                error: 'Workout JSON is required'
+            });
+        }
+
+        // Validate JSON structure
+        if (!workoutJson.workoutName || !workoutJson.workoutSegments) {
+            console.log('❌ [DEBUG] JSON Workout Creation - Invalid JSON structure');
+            return res.status(400).json({
+                error: 'Invalid workout JSON structure. Must include workoutName and workoutSegments.'
+            });
+        }
+
+        // Get user's Garmin credentials
+        console.log(`🔍 [DEBUG] JSON Workout Creation - Getting Garmin credentials for user ${userId}`);
+        const credentials = await storageService.getGarminCredentials(userId);
+        if (!credentials) {
+            console.log(`❌ [DEBUG] JSON Workout Creation - No credentials found for user ${userId}`);
+            return res.status(400).json({
+                error: 'No Garmin credentials found. Please add your credentials first.'
+            });
+        }
+
+        console.log(`✅ [DEBUG] JSON Workout Creation - Found credentials for user: ${credentials.username}`);
+
+        // Authenticate with Garmin (with session reuse)
+        console.log(`🔑 [DEBUG] JSON Workout Creation - Authenticating with Garmin Connect`);
+        const authSuccess = await garminService.authenticate(
+            credentials.username, 
+            credentials.decrypted_password,
+            userId
+        );
+
+        if (!authSuccess) {
+            console.log(`❌ [DEBUG] JSON Workout Creation - Authentication failed`);
+            return res.status(400).json({
+                error: 'Failed to authenticate with Garmin Connect. Please check your credentials.'
+            });
+        }
+
+        console.log(`✅ [DEBUG] JSON Workout Creation - Authentication successful`);
+
+        // Create workout directly from JSON
+        console.log(`🚀 [DEBUG] JSON Workout Creation - Creating workout on Garmin Connect`);
+        console.log(`🏃 [DEBUG] JSON Workout Creation - Workout Name: "${workoutJson.workoutName}"`);
+        
+        const workoutId = await garminService.client.createWorkout(workoutJson);
+
+        console.log(`🎉 [DEBUG] JSON Workout Creation - Success! Workout ID: ${workoutId}`);
+
+        // Log the sync attempt
+        await storageService.logGarminSync(
+            userId,
+            'manual',
+            'create_from_json',
+            true,
+            null,
+            { workoutJson: workoutJson.workoutName },
+            { workoutId, workoutName: workoutJson.workoutName }
+        );
+
+        console.log(`✅ [DEBUG] JSON Workout Creation - Sync logged successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Workout created successfully from JSON!',
+            workoutId: workoutId,
+            workoutName: workoutJson.workoutName
+        });
+
+        // Cleanup connection
+        garminService.disconnect();
+
+    } catch (error) {
+        console.error('❌ [DEBUG] JSON Workout Creation - Error:', error);
+        console.error('❌ [DEBUG] JSON Workout Creation - Stack:', error.stack);
+        
+        res.status(500).json({
+            error: 'Failed to create workout from JSON',
             details: error.message
         });
     }

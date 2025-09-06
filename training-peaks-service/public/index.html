@@ -405,9 +405,31 @@
                     <input type="text" id="workout-name" placeholder="My Training Session">
                 </div>
                 
+                <!-- Always visible JSON field for inspection and editing -->
+                <div class="form-group">
+                    <label for="generated-json">Generated Workout JSON:</label>
+                    <textarea id="generated-json" rows="15" cols="80" 
+                              placeholder="LLM-generated JSON will appear here after AI parsing, or you can paste your own JSON..."
+                              style="font-family: monospace; font-size: 12px;"></textarea>
+                </div>
+                
+                <div style="margin-bottom: 10px;">
+                    <button id="create-from-json" class="btn btn-success" disabled>
+                        🚀 Create Garmin Workout from JSON
+                    </button>
+                    <button id="save-json-file" class="btn btn-primary" disabled style="margin-left: 10px;">
+                        💾 Save JSON to File
+                    </button>
+                </div>
+                
                 <div id="ai-parsing-result" class="hidden">
                     <h4>🔍 AI Parsing Result</h4>
                     <div id="parsed-workout-info"></div>
+                    
+                    <div id="json-creation-result" class="hidden" style="margin-top: 15px;">
+                        <h5>📋 Workout Creation Result</h5>
+                        <div id="json-creation-info"></div>
+                    </div>
                 </div>
             </div>
 
@@ -956,6 +978,8 @@
                     // Display parsed workout details
                     const parsedInfo = document.getElementById('parsed-workout-info');
                     const aiParsingResult = document.getElementById('ai-parsing-result');
+                    const generatedJsonField = document.getElementById('generated-json');
+                    const createFromJsonBtn = document.getElementById('create-from-json');
                     
                     parsedInfo.innerHTML = `
                         <div class="status success">
@@ -968,6 +992,27 @@
                             <code>${result.originalDescription}</code>
                         </div>
                     `;
+                    
+                    // Display the generated JSON if available
+                    console.log('DEBUG: result.generatedJson exists:', !!result.generatedJson);
+                    console.log('DEBUG: result object keys:', Object.keys(result));
+                    if (result.generatedJson) {
+                        console.log('DEBUG: Setting JSON field with:', result.generatedJson);
+                        generatedJsonField.value = JSON.stringify(result.generatedJson, null, 2);
+                        createFromJsonBtn.disabled = false;
+                        
+                        // Also save to local file
+                        saveJsonToFile(result.generatedJson, result.workoutName || 'workout');
+                    } else {
+                        console.log('DEBUG: No generatedJson in result, checking details field');
+                        if (result.details) {
+                            console.log('DEBUG: Using details field instead');
+                            generatedJsonField.value = JSON.stringify(result.details, null, 2);
+                            createFromJsonBtn.disabled = false;
+                            saveJsonToFile(result.details, result.workoutName || 'workout');
+                        }
+                    }
+                    
                     aiParsingResult.classList.remove('hidden');
                     
                     showMessage('✅ Check your Garmin Connect app or watch for the new AI-generated workout!', 'success');
@@ -980,6 +1025,140 @@
                 showMessage('❌ Failed to create AI workout: ' + error.message, 'error');
             } finally {
                 this.disabled = false;
+            }
+        });
+
+        // Create Garmin workout from JSON
+        document.getElementById('create-from-json').addEventListener('click', async function() {
+            const jsonText = document.getElementById('generated-json').value.trim();
+            
+            if (!jsonText) {
+                showMessage('❌ No JSON data to create workout from', 'error');
+                return;
+            }
+
+            let workoutJson;
+            try {
+                workoutJson = JSON.parse(jsonText);
+            } catch (e) {
+                showMessage('❌ Invalid JSON format. Please check the JSON syntax.', 'error');
+                return;
+            }
+
+            this.disabled = true;
+            
+            try {
+                showMessage('🚀 Creating Garmin workout from JSON...', 'info');
+                console.log('DEBUG: Creating workout from JSON:', workoutJson);
+                
+                const response = await fetch('/training/api/garmin/create-from-json', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        workoutJson: workoutJson
+                    })
+                });
+
+                const result = await response.json();
+                console.log('DEBUG: JSON workout creation result:', result);
+
+                if (response.ok && result.success) {
+                    showMessage(`🎉 Workout created from JSON! Workout ID: ${result.workoutId}`, 'success');
+                    
+                    // Display creation result
+                    const creationResult = document.getElementById('json-creation-result');
+                    const creationInfo = document.getElementById('json-creation-info');
+                    
+                    creationInfo.innerHTML = `
+                        <div class="status success">
+                            <strong>✅ Successfully created: ${result.workoutName || 'Unnamed Workout'}</strong><br>
+                            <small>Workout ID: ${result.workoutId}</small><br>
+                            <small>Created at: ${new Date().toLocaleString()}</small>
+                        </div>
+                    `;
+                    creationResult.classList.remove('hidden');
+                    
+                } else {
+                    showMessage('❌ ' + (result.error || 'Failed to create workout from JSON'), 'error');
+                    console.error('JSON workout creation error:', result);
+                }
+            } catch (error) {
+                console.error('Error creating workout from JSON:', error);
+                showMessage('❌ Failed to create workout from JSON: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+            }
+        });
+
+        // Function to save JSON to a downloadable file
+        function saveJsonToFile(jsonData, filename = 'workout') {
+            try {
+                const jsonString = JSON.stringify(jsonData, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${filename}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                console.log(`JSON saved to file: ${link.download}`);
+                showMessage(`💾 JSON saved to file: ${link.download}`, 'success');
+            } catch (error) {
+                console.error('Error saving JSON to file:', error);
+                showMessage('❌ Failed to save JSON to file', 'error');
+            }
+        }
+
+        // Enable/disable JSON button based on content
+        document.getElementById('generated-json').addEventListener('input', function() {
+            const jsonText = this.value.trim();
+            const createFromJsonBtn = document.getElementById('create-from-json');
+            const saveJsonBtn = document.getElementById('save-json-file');
+            
+            if (jsonText) {
+                try {
+                    const parsedJson = JSON.parse(jsonText);
+                    // Basic validation - check if it has workout structure
+                    if (parsedJson.workoutName || parsedJson.workoutSegments) {
+                        createFromJsonBtn.disabled = false;
+                        this.style.borderColor = '#4caf50'; // Green border for valid JSON
+                    } else {
+                        createFromJsonBtn.disabled = true;
+                        this.style.borderColor = '#ff9800'; // Orange border for invalid structure
+                    }
+                    saveJsonBtn.disabled = false; // Enable save for any valid JSON
+                } catch (e) {
+                    createFromJsonBtn.disabled = true;
+                    saveJsonBtn.disabled = true;
+                    this.style.borderColor = '#f44336'; // Red border for invalid JSON
+                }
+            } else {
+                createFromJsonBtn.disabled = true;
+                saveJsonBtn.disabled = true;
+                this.style.borderColor = '#ddd'; // Default border
+            }
+        });
+
+        // Save JSON to file button
+        document.getElementById('save-json-file').addEventListener('click', function() {
+            const jsonText = document.getElementById('generated-json').value.trim();
+            if (!jsonText) {
+                showMessage('❌ No JSON data to save', 'error');
+                return;
+            }
+            
+            try {
+                const parsedJson = JSON.parse(jsonText);
+                const workoutName = parsedJson.workoutName || 'workout';
+                saveJsonToFile(parsedJson, workoutName);
+            } catch (e) {
+                showMessage('❌ Invalid JSON format. Cannot save.', 'error');
             }
         });
 
