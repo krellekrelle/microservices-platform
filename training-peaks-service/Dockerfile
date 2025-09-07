@@ -27,12 +27,16 @@ RUN npm install
 # Copy application files
 COPY . .
 
-# Create data directory for session persistence
-RUN mkdir -p /app/data/browser-session && chown -R node:node /app/data
+# Create data directories for session persistence and AI test results
+RUN mkdir -p /app/data/browser-session && mkdir -p /app/data/ai-test-results && chown -R node:node /app/data
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
+
+# Change ownership of data directory to nodejs user
+RUN chown -R nodejs:nodejs /app/data
+
 USER nodejs
 
 EXPOSE 3005

@@ -14,72 +14,91 @@ class IntelligentWorkoutParser {
         this.contextPath = path.join(__dirname, '../llm-context');
         this.examples = null;
         this.types = null;
+        this.resultsPath = '/app/data'; // Use same pattern as calendar HTML saving
     }
 
     /**
-     * Load training examples and type definitions for few-shot learning
+     * Save AI response to data directory
+     */
+    async saveAIResponse(description, workoutDate, prompt, rawResponse, parsedWorkout, success = true, error = null) {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `/app/data/ai-response-${timestamp}.json`;
+            
+            const testResult = {
+                timestamp: new Date().toISOString(),
+                success: success,
+                input: {
+                    description: description,
+                    workoutDate: workoutDate,
+                    promptLength: prompt?.length || 0
+                },
+                response: {
+                    rawResponse: rawResponse,
+                    parsedWorkout: success ? parsedWorkout : null,
+                    error: error
+                },
+                metadata: {
+                    model: 'llama-3.1-8b-instant',
+                    promptType: 'danish-direct',
+                    responseLength: rawResponse?.length || 0
+                }
+            };
+            
+            await fs.writeFile(filename, JSON.stringify(testResult, null, 2), 'utf-8');
+            console.log(`💾 [DEBUG] AI Response saved to: ${filename}`);
+        } catch (saveError) {
+            console.error('❌ Failed to save AI response:', saveError);
+        }
+    }
+
+    /**
+     * Load context for LLM - only TypeScript definitions, no examples
      */
     async loadContext() {
-        if (this.examples && this.types) {
-            console.log('🔄 [DEBUG] loadContext - Already loaded, skipping');
-            return; // Already loaded
+        if (this.addWorkoutTypes) {
+            console.log('✅ Context already loaded');
+            return;
         }
 
-        console.log('📂 [DEBUG] loadContext - Loading context from:', this.contextPath);
+        console.log('� Loading LLM context...');
         
         try {
-            // Load all training examples
-            const examples = [];
-            for (let i = 1; i <= 4; i++) {
-                console.log(`📄 [DEBUG] loadContext - Loading example ${i}`);
-                const description = await fs.readFile(
-                    path.join(this.contextPath, `description${i}.txt`), 
-                    'utf-8'
-                );
-                const example = await fs.readFile(
-                    path.join(this.contextPath, `example${i}.json`), 
-                    'utf-8'
-                );
-                
-                examples.push({
-                    description: description.trim(),
-                    workout: JSON.parse(example)
-                });
-            }
-
-            // Load Garmin types
-            console.log('🏷️ [DEBUG] loadContext - Loading types.json');
-            const typesData = await fs.readFile(
-                path.join(this.contextPath, 'types.json'), 
+            // Load Garmin types - only addWorkoutTypes.ts needed for the new approach
+            console.log('🏷️ [DEBUG] loadContext - Loading addWorkoutTypes.ts');
+            this.addWorkoutTypes = await fs.readFile(
+                path.join(this.contextPath, 'addWorkoutTypes.ts'), 
                 'utf-8'
             );
-
-            this.examples = examples;
-            this.types = JSON.parse(typesData);
             
-            console.log(`✅ Loaded ${examples.length} training examples for LLM context`);
-            console.log('🔍 [DEBUG] loadContext - Types keys:', Object.keys(this.types));
+            console.log('✅ Loaded TypeScript type definitions for LLM context');
+            console.log('📋 [DEBUG] loadContext - addWorkoutTypes loaded:', !!this.addWorkoutTypes);
         } catch (error) {
             console.error('❌ Failed to load LLM context:', error);
             console.error('❌ Context path:', this.contextPath);
-            throw new Error('Unable to load training examples for workout parsing');
+            throw new Error('Unable to load TypeScript definitions for workout parsing');
         }
     }
 
     /**
      * Convert a Danish training description into Garmin workout JSON
      * @param {string} description - Danish training description
+     * @param {string} workoutDate - Date for the workout (YYYY-MM-DD)
      * @param {string} workoutName - Optional workout name
      * @returns {Object} Garmin workout JSON
      */
-    async parseTrainingDescription(description, workoutName = null) {
+    async parseTrainingDescription(description, workoutDate = null, workoutName = null) {
         console.log('🤖 [DEBUG] AI Parser - Starting parseTrainingDescription');
         console.log(`📝 [DEBUG] AI Parser - Description: "${description}"`);
+        console.log(`📅 [DEBUG] AI Parser - Date: "${workoutDate || 'Current date'}"`);
         console.log(`🏷️ [DEBUG] AI Parser - Workout Name: "${workoutName || 'Auto-generated'}"`);
         
         await this.loadContext();
 
-        const prompt = this.createFewShotPrompt(description, workoutName);
+        // Use provided date or current date
+        const dateToUse = workoutDate || new Date().toISOString().split('T')[0];
+
+        const prompt = this.createDanishPrompt(description, dateToUse, workoutName);
         console.log(`📋 [DEBUG] AI Parser - Prompt length: ${prompt.length} characters`);
         
         try {
@@ -107,11 +126,16 @@ class IntelligentWorkoutParser {
             console.log(`📄 [DEBUG] AI Parser - Raw response: ${result.substring(0, 200)}...`);
 
             const parsedWorkout = JSON.parse(result);
+
+            
             console.log('🔍 [DEBUG] AI Parser - JSON parsing successful');
             
             // Validate the parsed workout has required structure
             this.validateWorkoutStructure(parsedWorkout);
             console.log('✅ [DEBUG] AI Parser - Workout structure validation passed');
+            
+            // Save successful AI response
+            await this.saveAIResponse(description, dateToUse, prompt, result, parsedWorkout, true);
             
             console.log(`🎉 [DEBUG] AI Parser - Successfully parsed into workout: "${parsedWorkout.workoutName}"`);
             return parsedWorkout;
@@ -120,60 +144,76 @@ class IntelligentWorkoutParser {
             console.error('❌ [DEBUG] AI Parser - Parsing failed:', error.message);
             console.error('❌ [DEBUG] AI Parser - Full error:', error);
             
-            // Fallback to a simple workout structure
-            console.log('🔄 [DEBUG] AI Parser - Using fallback workout');
-            return this.createFallbackWorkout(description, workoutName);
+            // Save failed AI response
+            const errorResult = completion?.choices?.[0]?.message?.content || null;
+            await this.saveAIResponse(description, dateToUse, prompt, errorResult, null, false, error.message);
+            
+            // Determine the failure point for better error reporting
+            let failurePoint = 'Unknown error';
+            let detailedError = error.message;
+            
+            if (error.message.includes('Request too large')) {
+                failurePoint = 'Prompt too large for model token limit';
+                detailedError = `Prompt size exceeds model limits. Try reducing the number of examples or using a different model.`;
+            } else if (error.message.includes('No response from Groq API')) {
+                failurePoint = 'No response from LLM API';
+                detailedError = 'The LLM API did not return any response. Check API key and service status.';
+            } else if (error.message.includes('Unexpected token')) {
+                failurePoint = 'Invalid JSON response from LLM';
+                detailedError = 'The LLM returned malformed JSON. The model may need better prompting or different parameters.';
+            } else if (error.message.includes('Missing required fields')) {
+                failurePoint = 'LLM generated incomplete workout structure';
+                detailedError = `The LLM generated JSON but it's missing required fields: ${error.message}`;
+            } else if (error.message.includes('workout must have at least one workout step')) {
+                failurePoint = 'LLM generated workout without steps';
+                detailedError = 'The LLM generated a workout structure but with no workout steps.';
+            } else if (error.message.includes('rate limit')) {
+                failurePoint = 'API rate limit exceeded';
+                detailedError = 'Too many requests to the LLM API. Please wait before trying again.';
+            }
+            
+            // Create a detailed error for the user
+            const parsingError = new Error(`AI Parsing Failed: ${failurePoint}`);
+            parsingError.details = {
+                failurePoint,
+                originalError: error.message,
+                detailedError,
+                description,
+                workoutName,
+                timestamp: new Date().toISOString()
+            };
+            
+            throw parsingError;
         }
     }
 
     /**
      * Create an optimized few-shot learning prompt with minimal examples
      */
-    createFewShotPrompt(description, workoutName) {
-        // Debug logging
-        console.log('🔍 [DEBUG] createFewShotPrompt - this.examples:', !!this.examples);
-        console.log('🔍 [DEBUG] createFewShotPrompt - this.types:', !!this.types);
-        console.log('🔍 [DEBUG] createFewShotPrompt - this.types keys:', this.types ? Object.keys(this.types) : 'undefined');
-        
-        if (!this.types) {
-            throw new Error('Types not loaded - loadContext() may have failed');
-        }
-        
-        // Use only the most relevant examples (reduced from 4 to 2)
-        const selectedExamples = this.examples.slice(2, 4);
-        
-        const examplePrompts = selectedExamples.map((ex, index) => 
-            `EXAMPLE ${index + 1}:
-Danish: "${ex.description}"
-JSON: ${JSON.stringify(ex.workout)}`
-        ).join('\n\n');
+    createDanishPrompt(description, workoutDate, workoutName) {
+        // Include the full addWorkoutTypes TypeScript definitions for reference
+        const typeReference = this.addWorkoutTypes 
+            ? `\nTYPE DEFINITIONS:\n${this.addWorkoutTypes}\n`
+            : '';
 
-        // Minimal types - only the essential ones
-        const essentialTypes = {
-            stepTypes: this.types.stepTypes ? this.types.stepTypes.filter(t => ['warmup', 'cooldown', 'interval', 'recovery', 'rest'].includes(t.stepTypeName)) : [],
-            workoutTargetTypes: this.types.workoutTargetTypes ? this.types.workoutTargetTypes.filter(t => ['no.target', 'pace.zone', 'heart.rate.zone'].includes(t.workoutTargetTypeName)) : [],
-            conditionTypes: this.types.conditionTypes ? this.types.conditionTypes.filter(t => ['time', 'distance'].includes(t.conditionTypeName)) : []
-        };
+        return `Generér en Garmin workout i ren JSON (uden tekst, forklaring eller kodeblok-syntax) i formatet IWorkoutDetail.
 
-        return `Convert Danish running description to Garmin workout JSON.
+DATO: ${workoutDate}
+BESKRIVELSE: "${description}"
+${workoutName ? `NAVN: "${workoutName}"` : 'NAVN: Generér dansk navn baseret på beskrivelsen'}
 
-TYPES: ${JSON.stringify(essentialTypes)}
+${typeReference}
 
-EXAMPLES:
-${examplePrompts}
+Vigtige regler:
+1. Returner kun gyldig JSON uden yderligere tekst eller formatering
+2. Brug IWorkoutDetail strukturen med alle nødvendige felter
+3. Konverter danske tider som "4.05" til korrekte målværdier
+4. Brug dato: ${workoutDate} for både updateDate og createdDate
+5. Standard sportType for løb: {sportTypeId: 1, sportTypeKey: "running"}
+6. Inkludér workoutSegments med workoutSteps
+7. Beregn estimatedDurationInSecs og estimatedDistanceInMeters baseret på beskrivelsen
 
-RULES:
-1. Danish pace "4.05" = 4:05 min/km = 245 sec/km = convert to m/s for targetValue
-2. "jog" = no.target (workoutTargetTypeId: 1)
-3. Specific paces = pace.zone (workoutTargetTypeId: 6)
-4. Always sportType: running (sportTypeId: 1)
-5. stepOrder increments for each step
-6. Use distance (conditionTypeId: 3) or time (conditionTypeId: 2)
-
-TARGET: "${description}"
-${workoutName ? `NAME: "${workoutName}"` : 'NAME: Generate Danish name'}
-
-Return ONLY valid JSON, no formatting.`;
+Returner kun JSON uden yderligere tekst.`;
     }
 
     /**
@@ -193,87 +233,34 @@ Return ONLY valid JSON, no formatting.`;
     }
 
     /**
-     * Create a fallback workout if LLM parsing fails
+     * Test the parser with a simple Danish description
      */
-    createFallbackWorkout(description, workoutName) {
-        console.log('🔄 Creating fallback workout structure');
-        
-        return {
-            workoutName: workoutName || 'Træning fra TrainingPeaks',
-            description: description,
-            sportType: {
-                sportTypeId: 1,
-                sportTypeKey: 'running',
-                displayOrder: 1
-            },
-            estimatedDurationInSecs: 3600, // 1 hour default
-            estimatedDistanceInMeters: 10000, // 10km default
-            avgTrainingSpeed: 3.33, // ~5:00 min/km pace
-            estimateType: 'TIME_ESTIMATED',
-            workoutSegments: [{
-                segmentOrder: 1,
-                sportType: {
-                    sportTypeId: 1,
-                    sportTypeKey: 'running',
-                    displayOrder: 1
-                },
-                workoutSteps: [{
-                    type: 'ExecutableStepDTO',
-                    stepOrder: 1,
-                    stepType: {
-                        stepTypeId: 3,
-                        stepTypeKey: 'interval',
-                        displayOrder: 3
-                    },
-                    endCondition: {
-                        conditionTypeId: 3,
-                        conditionTypeKey: 'distance',
-                        displayOrder: 3,
-                        displayable: true
-                    },
-                    endConditionValue: 10000,
-                    targetType: {
-                        workoutTargetTypeId: 1,
-                        workoutTargetTypeKey: 'no.target',
-                        displayOrder: 1
-                    },
-                    targetValueOne: null,
-                    targetValueTwo: null,
-                    description: description
-                }]
-            }],
-            estimatedDistanceUnit: {
-                unitId: 2,
-                unitKey: 'kilometer',
-                factor: 100000.0
-            }
-        };
-    }
-
-    /**
-     * Test the parser with the provided examples
-     */
-    async testWithExamples() {
+    async testParser() {
         await this.loadContext();
         
-        console.log('🧪 Testing workout parser with provided examples...');
+        console.log('🧪 Testing workout parser with simple description...');
         
-        for (let i = 0; i < this.examples.length; i++) {
-            const example = this.examples[i];
-            console.log(`\n--- Testing Example ${i + 1} ---`);
-            console.log(`Description: "${example.description}"`);
+        const testDescription = "Løb 5 km i 4.05 tempo med 1 km opvarmning";
+        const testDate = "2025-09-07";
+        
+        try {
+            console.log(`\n--- Testing Description ---`);
+            console.log(`Description: "${testDescription}"`);
+            console.log(`Date: "${testDate}"`);
             
-            try {
-                const parsed = await this.parseTrainingDescription(
-                    example.description, 
-                    `Test Workout ${i + 1}`
-                );
-                console.log(`✅ Successfully parsed example ${i + 1}`);
-                console.log(`Generated workout: ${parsed.workoutName}`);
-                console.log(`Steps: ${parsed.workoutSegments[0].workoutSteps.length}`);
-            } catch (error) {
-                console.error(`❌ Failed to parse example ${i + 1}:`, error.message);
-            }
+            const parsed = await this.parseTrainingDescription(testDescription, testDate, "Test Løb");
+            console.log(`✅ Successfully parsed test description`);
+            console.log('📋 Result structure:', {
+                hasWorkoutName: !!parsed.workoutName,
+                hasSegments: !!parsed.workoutSegments,
+                segmentCount: parsed.workoutSegments?.length || 0,
+                firstSegmentSteps: parsed.workoutSegments?.[0]?.workoutSteps?.length || 0
+            });
+            
+            return { success: true, result: parsed };
+        } catch (error) {
+            console.error(`❌ Failed to parse test description:`, error.message);
+            return { success: false, error: error.message };
         }
     }
 }

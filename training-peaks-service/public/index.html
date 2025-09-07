@@ -246,6 +246,136 @@
         .hidden {
             display: none;
         }
+        
+        /* Training Session List Styles */
+        .training-session {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        .training-session:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .session-header {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .session-info {
+            flex: 1;
+        }
+        .session-date {
+            font-weight: 600;
+            color: #2196F3;
+            font-size: 16px;
+        }
+        .session-title {
+            color: #333;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .session-type {
+            color: #666;
+            font-size: 12px;
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .session-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-ai {
+            background: #FF9800;
+            color: white;
+        }
+        .btn-ai:hover {
+            background: #F57C00;
+        }
+        .btn-create {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-create:hover {
+            background: #45a049;
+        }
+        .btn-create:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .session-content {
+            padding: 15px;
+            background: #fafafa;
+            border-top: 1px solid #f0f0f0;
+            display: none;
+        }
+        .session-content.expanded {
+            display: block;
+        }
+        .session-description {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+        .ai-result {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #FF9800;
+            margin-bottom: 15px;
+        }
+        .ai-result h4 {
+            margin: 0 0 10px 0;
+            color: #FF9800;
+        }
+        .json-preview {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid #e0e0e0;
+        }
+        .sync-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .sync-status.synced {
+            background: #d4edda;
+            color: #155724;
+        }
+        .sync-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .sync-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -401,6 +531,12 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="workout-date">Workout Date:</label>
+                    <input type="date" id="workout-date" value="" placeholder="YYYY-MM-DD">
+                    <small style="color: #666;">Leave empty to use current date</small>
+                </div>
+                
+                <div class="form-group">
                     <label for="workout-name">Workout Name (optional):</label>
                     <input type="text" id="workout-name" placeholder="My Training Session">
                 </div>
@@ -455,14 +591,18 @@
             </div>
         </div>
 
-        <!-- Training Schedule Display -->
-        <div id="schedule-section" class="card hidden">
-            <h2>📅 Training Schedule</h2>
+        <!-- Garmin Workout Generation -->
+        <div id="schedule-section" class="card">
+            <h2>🤖 Garmin Workout Generation</h2>
+            <p>Generate structured Garmin workouts from your TrainingPeaks sessions using AI.</p>
+            
             <div id="week-info">
-                <strong>Week:</strong> September 1-7, 2025
+                <strong>Week:</strong> <span id="week-range">Loading...</span>
+                <button id="refresh-sessions" class="btn btn-small" style="margin-left: 15px;">🔄 Refresh</button>
             </div>
-            <div id="training-schedule" class="training-schedule">
-                <!-- Will be populated with training data -->
+            
+            <div id="training-sessions-list">
+                <div class="loading">Loading training sessions...</div>
             </div>
         </div>
     </div>
@@ -643,65 +783,243 @@
             }
         });
 
-        // Load training schedule
+        // Load training sessions for Garmin workflow
         async function loadTrainingSchedule() {
             try {
-                const response = await fetch('/training/api/schedule');
+                const response = await fetch('/training/api/sessions');
                 const data = await response.json();
 
                 if (response.ok) {
-                    displayTrainingSchedule(data.schedule);
+                    displayTrainingSessions(data.sessions, data.weekStart, data.weekEnd);
                     document.getElementById('schedule-section').classList.remove('hidden');
                 } else {
-                    console.error('Error loading schedule:', data.error);
+                    console.error('Error loading sessions:', data.error);
+                    document.getElementById('training-sessions-list').innerHTML = 
+                        '<div class="status error">Failed to load training sessions</div>';
                 }
             } catch (error) {
-                console.error('Error loading schedule:', error);
+                console.error('Error loading sessions:', error);
+                document.getElementById('training-sessions-list').innerHTML = 
+                    '<div class="status error">Error loading training sessions</div>';
             }
         }
 
-        // Display training schedule
-        function displayTrainingSchedule(schedule) {
-            const container = document.getElementById('training-schedule');
-            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        // Display training sessions as expandable list
+        function displayTrainingSessions(sessions, weekStart, weekEnd) {
+            const container = document.getElementById('training-sessions-list');
+            const weekInfo = document.getElementById('week-range');
+            
+            // Format week range
+            const startDate = new Date(weekStart).toLocaleDateString();
+            const endDate = new Date(weekEnd).toLocaleDateString();
+            weekInfo.textContent = `${startDate} - ${endDate}`;
             
             container.innerHTML = '';
 
-            days.forEach(day => {
-                const dayCard = document.createElement('div');
-                dayCard.className = 'day-card';
-                
-                const dayTitle = document.createElement('div');
-                dayTitle.className = 'day-title';
-                dayTitle.textContent = day;
-                dayCard.appendChild(dayTitle);
+            if (sessions.length === 0) {
+                container.innerHTML = '<div class="status info">No training sessions found for this week</div>';
+                return;
+            }
 
-                const daySessions = schedule[day] || [];
+            sessions.forEach((session, index) => {
+                const sessionDiv = document.createElement('div');
+                sessionDiv.className = 'training-session';
+                sessionDiv.setAttribute('data-session-id', session.id);
                 
-                if (daySessions.length === 0) {
-                    const noSession = document.createElement('div');
-                    noSession.textContent = 'No training scheduled';
-                    noSession.style.color = '#999';
-                    noSession.style.fontStyle = 'italic';
-                    dayCard.appendChild(noSession);
+                // Format date
+                const sessionDate = new Date(session.date).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+                
+                // Sync status
+                let syncStatus = '';
+                if (session.garminSynced) {
+                    syncStatus = '<span class="sync-status synced">✅ Synced</span>';
+                } else if (session.syncAttempted) {
+                    syncStatus = '<span class="sync-status failed">❌ Failed</span>';
                 } else {
-                    daySessions.forEach(session => {
-                        const sessionDiv = document.createElement('div');
-                        sessionDiv.className = 'session';
-                        
-                        sessionDiv.innerHTML = `
-                            <div class="session-time">${session.time || 'All day'}</div>
-                            <div class="session-title">${session.title}</div>
-                            ${session.description ? `<div class="session-description">${session.description}</div>` : ''}
-                        `;
-                        
-                        dayCard.appendChild(sessionDiv);
-                    });
+                    syncStatus = '<span class="sync-status pending">⏳ Pending</span>';
                 }
-
-                container.appendChild(dayCard);
+                
+                sessionDiv.innerHTML = `
+                    <div class="session-header" onclick="toggleSession(${index})">
+                        <div class="session-info">
+                            <div class="session-date">${sessionDate}</div>
+                            <div class="session-title">${session.title || session.type}</div>
+                            <span class="session-type">${session.type}</span>
+                            ${syncStatus}
+                        </div>
+                        <div class="session-actions">
+                            <button class="btn-small btn-ai" onclick="generateAIWorkout(event, ${session.id}, '${session.date}', \`${(session.description || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
+                                🤖 Generate AI
+                            </button>
+                            <button class="btn-small btn-create" id="create-btn-${session.id}" onclick="createGarminWorkout(event, ${session.id})" disabled>
+                                🚀 Create Workout
+                            </button>
+                            <span style="margin-left: 10px;">▼</span>
+                        </div>
+                    </div>
+                    <div class="session-content" id="content-${index}">
+                        <div class="session-description">
+                            <strong>Description:</strong><br>
+                            ${session.description || 'No description available'}
+                        </div>
+                        <div id="ai-result-${session.id}" class="ai-result" style="display: none;">
+                            <h4>🤖 AI Generated Workout</h4>
+                            <div id="ai-json-${session.id}" class="json-preview"></div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(sessionDiv);
             });
         }
+
+        // Toggle session content visibility
+        function toggleSession(index) {
+            const content = document.getElementById(`content-${index}`);
+            const isExpanded = content.classList.contains('expanded');
+            
+            // Close all other sessions
+            document.querySelectorAll('.session-content').forEach(c => c.classList.remove('expanded'));
+            
+            // Toggle current session
+            if (!isExpanded) {
+                content.classList.add('expanded');
+            }
+        }
+
+        // Generate AI workout for a specific session
+        async function generateAIWorkout(event, sessionId, sessionDate, description) {
+            event.stopPropagation();
+            
+            if (!description || description.trim() === '') {
+                showMessage('❌ No description available for AI processing', 'error');
+                return;
+            }
+            
+            const button = event.target;
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '🔄 Generating...';
+            
+            try {
+                console.log('Generating AI workout for session:', sessionId);
+                console.log('Date:', sessionDate);
+                console.log('Description:', description);
+                
+                const response = await fetch('/training/api/garmin/create-workout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description: description,
+                        workoutDate: sessionDate,
+                        workoutName: `Training ${sessionDate}`
+                    })
+                });
+
+                const result = await response.json();
+                console.log('AI generation result:', result);
+
+                const aiResultDiv = document.getElementById(`ai-result-${sessionId}`);
+                const aiJsonDiv = document.getElementById(`ai-json-${sessionId}`);
+                const createBtn = document.getElementById(`create-btn-${sessionId}`);
+
+                if (response.ok && result.success) {
+                    // Store the generated JSON for later use
+                    aiJsonDiv.setAttribute('data-workout-json', JSON.stringify(result.generatedJson));
+                    aiJsonDiv.textContent = JSON.stringify(result.generatedJson, null, 2);
+                    
+                    aiResultDiv.style.display = 'block';
+                    createBtn.disabled = false;
+                    
+                    showMessage(`✅ AI workout generated successfully for ${sessionDate}`, 'success');
+                } else {
+                    aiJsonDiv.textContent = `Error: ${result.error || 'Failed to generate workout'}`;
+                    aiResultDiv.style.display = 'block';
+                    showMessage(`❌ Failed to generate AI workout: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error generating AI workout:', error);
+                showMessage('❌ Error generating AI workout: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+
+        // Create Garmin workout from generated JSON
+        async function createGarminWorkout(event, sessionId) {
+            event.stopPropagation();
+            
+            const aiJsonDiv = document.getElementById(`ai-json-${sessionId}`);
+            const workoutJson = aiJsonDiv.getAttribute('data-workout-json');
+            
+            if (!workoutJson) {
+                showMessage('❌ No AI-generated workout found. Generate AI workout first.', 'error');
+                return;
+            }
+            
+            const button = event.target;
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '🔄 Creating...';
+            
+            try {
+                const response = await fetch('/training/api/garmin/create-from-json', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        workoutJson: JSON.parse(workoutJson)
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Garmin creation result:', result);
+
+                if (response.ok && result.success) {
+                    showMessage(`🎉 Garmin workout created successfully! ID: ${result.workoutId}`, 'success');
+                    
+                    // Update sync status
+                    const sessionDiv = document.querySelector(`[data-session-id="${sessionId}"]`);
+                    const syncStatus = sessionDiv.querySelector('.sync-status');
+                    syncStatus.className = 'sync-status synced';
+                    syncStatus.textContent = '✅ Synced';
+                    
+                    button.textContent = '✅ Created';
+                } else {
+                    showMessage(`❌ Failed to create Garmin workout: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error creating Garmin workout:', error);
+                showMessage('❌ Error creating Garmin workout: ' + error.message, 'error');
+            } finally {
+                if (button.textContent !== '✅ Created') {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            }
+        }
+
+        // Refresh training sessions
+        document.getElementById('refresh-sessions').addEventListener('click', function() {
+            this.disabled = true;
+            this.textContent = '🔄 Refreshing...';
+            
+            loadTrainingSchedule().finally(() => {
+                this.disabled = false;
+                this.textContent = '🔄 Refresh';
+            });
+        });
 
         // ===== GARMIN CONNECT INTEGRATION =====
 
@@ -709,6 +1027,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadCredentialsStatus();
             loadGarminStatus();
+            
+            // Set current date as default for workout date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('workout-date').value = today;
         });
 
         // Load Garmin credentials status
@@ -928,7 +1250,73 @@
                 console.log('DEBUG: AI parser test result:', result);
 
                 if (response.ok && result.success) {
-                    showMessage('✅ AI workout parser test completed successfully! Check browser console for details.', 'success');
+                    showMessage(`✅ AI parser test completed! ${result.summary.successful}/${result.summary.totalTests} examples parsed successfully.`, 'success');
+                    
+                    // Display test results and populate JSON field with the first successful result
+                    if (result.results && result.results.length > 0) {
+                        const firstSuccessful = result.results.find(r => r.success);
+                        if (firstSuccessful) {
+                            // Populate the JSON field with the generated workout
+                            const generatedJsonField = document.getElementById('generated-json');
+                            const createFromJsonBtn = document.getElementById('create-from-json');
+                            const saveJsonBtn = document.getElementById('save-json-file');
+                            
+                            generatedJsonField.value = JSON.stringify(firstSuccessful.generatedWorkout, null, 2);
+                            createFromJsonBtn.disabled = false;
+                            saveJsonBtn.disabled = false;
+                            
+                            // Also save the JSON to file automatically
+                            saveJsonToFile(firstSuccessful.generatedWorkout, firstSuccessful.workoutName || 'test-workout');
+                            
+                            // Show parsing result section
+                            const aiParsingResult = document.getElementById('ai-parsing-result');
+                            const parsedInfo = document.getElementById('parsed-workout-info');
+                            
+                            parsedInfo.innerHTML = `
+                                <div class="status success">
+                                    <strong>🧪 Test Results: ${result.summary.successful}/${result.summary.totalTests} successful</strong><br>
+                                    <small>Showing: ${firstSuccessful.workoutName} (Example ${firstSuccessful.exampleNumber})</small><br>
+                                    <small>Steps: ${firstSuccessful.stepsCount} | Description: "${firstSuccessful.description.substring(0, 60)}..."</small>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <strong>Test Description:</strong><br>
+                                    <code>${firstSuccessful.description}</code>
+                                </div>
+                            `;
+                            aiParsingResult.classList.remove('hidden');
+                            
+                            showMessage('💾 JSON data populated and saved to file for inspection!', 'success');
+                        } else {
+                            // All tests failed - show detailed error information
+                            const firstFailed = result.results.find(r => !r.success);
+                            const aiParsingResult = document.getElementById('ai-parsing-result');
+                            const parsedInfo = document.getElementById('parsed-workout-info');
+                            
+                            parsedInfo.innerHTML = `
+                                <div class="status error">
+                                    <strong>❌ All test examples failed to parse</strong><br>
+                                    <small>Failed: ${result.summary.failed}/${result.summary.totalTests} examples</small>
+                                </div>
+                                ${firstFailed ? `
+                                <div style="margin-top: 10px;">
+                                    <strong>First Failure (Example ${firstFailed.exampleNumber}):</strong><br>
+                                    <small><strong>Failure Point:</strong> ${firstFailed.failurePoint || 'Unknown'}</small><br>
+                                    <small><strong>Details:</strong> ${firstFailed.detailedError || firstFailed.error}</small><br>
+                                    <small><strong>Description:</strong> "${firstFailed.description.substring(0, 100)}..."</small>
+                                </div>
+                                ` : ''}
+                                <div style="margin-top: 10px; font-size: 12px;">
+                                    <strong>Check console for detailed results of all ${result.summary.totalTests} tests</strong>
+                                </div>
+                            `;
+                            aiParsingResult.classList.remove('hidden');
+                            
+                            showMessage(`❌ All ${result.summary.totalTests} test examples failed to parse`, 'error');
+                        }
+                        
+                        // Log detailed results for debugging
+                        console.log('DEBUG: Detailed test results:', result.results);
+                    }
                 } else {
                     showMessage('❌ AI parser test failed: ' + (result.error || 'Unknown error'), 'error');
                     console.error('AI parser test error:', result);
@@ -945,6 +1333,7 @@
         document.getElementById('create-ai-workout').addEventListener('click', async function() {
             const description = document.getElementById('training-description').value.trim();
             const workoutName = document.getElementById('workout-name').value.trim();
+            const workoutDate = document.getElementById('workout-date').value;
             
             if (!description) {
                 showMessage('❌ Please enter a training description', 'error');
@@ -957,6 +1346,7 @@
                 showMessage('🤖 Creating AI-parsed workout on Garmin Connect...', 'info');
                 console.log('DEBUG: Creating AI workout with description:', description);
                 console.log('DEBUG: Workout name:', workoutName || 'Auto-generated');
+                console.log('DEBUG: Workout date:', workoutDate || 'Current date');
                 
                 const response = await fetch('/training/api/garmin/create-workout', {
                     method: 'POST',
@@ -965,7 +1355,8 @@
                     },
                     body: JSON.stringify({
                         description: description,
-                        workoutName: workoutName || null
+                        workoutName: workoutName || null,
+                        workoutDate: workoutDate || null
                     })
                 });
 
@@ -1017,8 +1408,37 @@
                     
                     showMessage('✅ Check your Garmin Connect app or watch for the new AI-generated workout!', 'success');
                 } else {
-                    showMessage('❌ ' + (result.error || 'Failed to create AI workout'), 'error');
-                    console.error('AI workout creation error:', result);
+                    // Check if this is an AI parsing error with detailed information
+                    if (result.failurePoint) {
+                        console.error('AI parsing error details:', result);
+                        
+                        // Display detailed parsing error information
+                        const parsedInfo = document.getElementById('parsed-workout-info');
+                        const aiParsingResult = document.getElementById('ai-parsing-result');
+                        
+                        parsedInfo.innerHTML = `
+                            <div class="status error">
+                                <strong>❌ AI Parsing Failed</strong><br>
+                                <small><strong>Failure Point:</strong> ${result.failurePoint}</small><br>
+                                <small><strong>Details:</strong> ${result.detailedError}</small>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <strong>Original Description:</strong><br>
+                                <code>${result.description || description}</code>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 12px;">
+                                <strong>Technical Error:</strong><br>
+                                <code style="color: #666;">${result.originalError}</code>
+                            </div>
+                        `;
+                        aiParsingResult.classList.remove('hidden');
+                        
+                        showMessage(`❌ AI Parsing Failed: ${result.failurePoint}`, 'error');
+                    } else {
+                        // Generic error
+                        showMessage('❌ ' + (result.error || 'Failed to create AI workout'), 'error');
+                        console.error('AI workout creation error:', result);
+                    }
                 }
             } catch (error) {
                 console.error('Error creating AI workout:', error);

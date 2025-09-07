@@ -147,7 +147,7 @@ class StorageService {
                         userId,
                         date: session.date,
                         type: session.type,
-                        description: session.description?.substring(0, 100) + '...',
+                        description: session.description,
                         duration: session.duration,
                         distance: session.distance,
                         workoutId: session.workoutId,

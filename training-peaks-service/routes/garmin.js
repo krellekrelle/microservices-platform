@@ -367,11 +367,12 @@ router.get('/sync-status', async (req, res) => {
 router.post('/create-workout', async (req, res) => {
     try {
         const userId = req.user.id;
-        const { description, workoutName } = req.body;
+        const { description, workoutName, workoutDate } = req.body;
         
         console.log(`🤖 [DEBUG] AI Workout Creation - User: ${userId}`);
         console.log(`🤖 [DEBUG] AI Workout Creation - Description: "${description}"`);
         console.log(`🤖 [DEBUG] AI Workout Creation - Workout Name: "${workoutName || 'Auto-generated'}"`);
+        console.log(`🤖 [DEBUG] AI Workout Creation - Date: "${workoutDate || 'Current date'}"`);
         
         if (!description) {
             console.log('❌ [DEBUG] AI Workout Creation - Missing description');
@@ -413,37 +414,50 @@ router.post('/create-workout', async (req, res) => {
         console.log(`🤖 [DEBUG] AI Workout Creation - Starting AI parsing and workout creation`);
         const result = await garminService.createWorkoutFromDescription(
             description,
+            workoutDate,
             workoutName
         );
 
-        console.log(`🎉 [DEBUG] AI Workout Creation - Success! Workout ID: ${result.workoutId}`);
+        console.log(`🎉 [DEBUG] AI Workout Creation - Received result:`, result.success ? 'SUCCESS' : 'FAILED');
         console.log(`📊 [DEBUG] AI Workout Creation - Result:`, JSON.stringify(result, null, 2));
 
-        // Log the sync attempt
+        // Log the sync attempt (both success and failure)
         await storageService.logGarminSync(
             userId,
             'manual',
             'create_intelligent_workout',
             result.success,
-            null,
-            { description, workoutName },
+            result.error || null,
+            { description, workoutName, workoutDate },
             result
         );
 
         console.log(`✅ [DEBUG] AI Workout Creation - Sync logged successfully`);
         
-        res.json({
-            success: true,
-            message: 'Workout created successfully using AI parsing!',
-            workoutId: result.workoutId,
-            workoutName: result.workoutName,
-            originalDescription: result.originalDescription,
-            estimatedDistance: result.estimatedDistance,
-            estimatedDuration: result.estimatedDuration,
-            stepsCount: result.stepsCount,
-            generatedJson: result.parsedWorkout, // Include the LLM-generated JSON
-            details: result.parsedWorkout
-        });
+        if (result.success) {
+            res.json({
+                success: true,
+                message: 'Workout created successfully using AI parsing!',
+                workoutId: result.workoutId,
+                workoutName: result.workoutName,
+                originalDescription: result.originalDescription,
+                estimatedDistance: result.estimatedDistance,
+                estimatedDuration: result.estimatedDuration,
+                stepsCount: result.stepsCount,
+                generatedJson: result.parsedWorkout, // Include the LLM-generated JSON
+                details: result.parsedWorkout
+            });
+        } else {
+            // Return failure without throwing error - allows frontend to handle gracefully
+            res.status(400).json({
+                success: false,
+                error: 'AI workout creation failed',
+                message: `Failed to create workout: ${result.error}`,
+                originalDescription: result.originalDescription,
+                failurePoint: result.failurePoint,
+                details: result.details
+            });
+        }
 
         // Cleanup connection
         garminService.disconnect();
@@ -452,10 +466,25 @@ router.post('/create-workout', async (req, res) => {
         console.error('❌ [DEBUG] AI Workout Creation - Error:', error);
         console.error('❌ [DEBUG] AI Workout Creation - Stack:', error.stack);
         
-        res.status(500).json({
-            error: 'Failed to create workout from description',
-            details: error.message
-        });
+        // Check if this is a parsing error with detailed information
+        if (error.details && error.details.failurePoint) {
+            res.status(400).json({
+                error: 'AI Parsing Failed',
+                message: error.message,
+                failurePoint: error.details.failurePoint,
+                detailedError: error.details.detailedError,
+                originalError: error.details.originalError,
+                description: error.details.description,
+                workoutName: error.details.workoutName,
+                timestamp: error.details.timestamp
+            });
+        } else {
+            // Generic error
+            res.status(500).json({
+                error: 'Failed to create workout from description',
+                details: error.message
+            });
+        }
     }
 });
 
@@ -515,23 +544,23 @@ router.post('/create-from-json', async (req, res) => {
 
         console.log(`✅ [DEBUG] JSON Workout Creation - Authentication successful`);
 
-        // Create workout directly from JSON
+        // Create workout from JSON using the service method
         console.log(`🚀 [DEBUG] JSON Workout Creation - Creating workout on Garmin Connect`);
         console.log(`🏃 [DEBUG] JSON Workout Creation - Workout Name: "${workoutJson.workoutName}"`);
         
-        const workoutId = await garminService.client.createWorkout(workoutJson);
+        const result = await garminService.createWorkoutFromJson(workoutJson);
 
-        console.log(`🎉 [DEBUG] JSON Workout Creation - Success! Workout ID: ${workoutId}`);
+        console.log(`🎉 [DEBUG] JSON Workout Creation - Success! Workout ID: ${result.workoutId}`);
 
         // Log the sync attempt
         await storageService.logGarminSync(
             userId,
             'manual',
             'create_from_json',
-            true,
+            result.success,
             null,
             { workoutJson: workoutJson.workoutName },
-            { workoutId, workoutName: workoutJson.workoutName }
+            result
         );
 
         console.log(`✅ [DEBUG] JSON Workout Creation - Sync logged successfully`);
@@ -539,8 +568,12 @@ router.post('/create-from-json', async (req, res) => {
         res.json({
             success: true,
             message: 'Workout created successfully from JSON!',
-            workoutId: workoutId,
-            workoutName: workoutJson.workoutName
+            workoutId: result.workoutId,
+            workoutName: result.workoutName,
+            estimatedDistance: result.estimatedDistance,
+            estimatedDuration: result.estimatedDuration,
+            stepsCount: result.stepsCount,
+            cleanedJson: result.cleanedJson
         });
 
         // Cleanup connection
@@ -569,14 +602,51 @@ router.get('/test-parser', async (req, res) => {
         
         const garminService = new GarminConnectService();
         
-        console.log('� Initializing AI workout parser test...');
-        await garminService.testWorkoutParser();
+        console.log('🤖 Initializing AI workout parser test...');
+        const testResults = await garminService.testWorkoutParser();
         
         console.log('✅ AI Parser Test Completed Successfully');
+        console.log(`📊 Results: ${testResults.filter(r => r.success).length}/${testResults.length} examples parsed successfully`);
+        
+        // Save the JSON results to files for manual inspection
+        const fs = require('fs').promises;
+        const path = require('path');
+        const outputDir = path.join(__dirname, '../data/ai-test-results');
+        
+        try {
+            // Create output directory if it doesn't exist
+            await fs.mkdir(outputDir, { recursive: true });
+            
+            // Save each successful result to a separate file
+            let savedCount = 0;
+            for (let i = 0; i < testResults.length; i++) {
+                const result = testResults[i];
+                if (result.success && result.parsedWorkout) {
+                    const filename = `test-example-${i + 1}-${Date.now()}.json`;
+                    const filepath = path.join(outputDir, filename);
+                    
+                    await fs.writeFile(filepath, JSON.stringify(result.parsedWorkout, null, 2), 'utf8');
+                    console.log(`💾 Saved AI result ${i + 1} to: ${filename}`);
+                    savedCount++;
+                }
+            }
+            
+            console.log(`📁 ${savedCount} AI test results saved to: ${outputDir}`);
+        } catch (saveError) {
+            console.error('❌ Failed to save AI test results to files:', saveError);
+        }
+        
         res.json({
             success: true,
-            message: 'AI workout parser test completed successfully. Check server logs for detailed parsing examples.',
-            timestamp: new Date().toISOString()
+            message: 'AI workout parser test completed successfully',
+            timestamp: new Date().toISOString(),
+            results: testResults,
+            summary: {
+                totalTests: testResults.length,
+                successful: testResults.filter(r => r.success).length,
+                failed: testResults.filter(r => !r.success).length
+            },
+            savedToFiles: `Results saved to data/ai-test-results/ directory`
         });
 
     } catch (error) {

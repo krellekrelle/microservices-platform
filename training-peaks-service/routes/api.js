@@ -121,6 +121,45 @@ router.get('/schedule', async (req, res) => {
     }
 });
 
+// Get training sessions as a list for Garmin workflow
+router.get('/sessions', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Get date range (Monday to Sunday of current week)
+        const weekStart = storageService.getCurrentWeekStart();
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const sessions = await storageService.getUserTrainingSessions(
+            userId,
+            weekStart,
+            weekEnd.toISOString().split('T')[0]
+        );
+        
+        // Format sessions for Garmin workflow
+        const formattedSessions = sessions.map(session => ({
+            id: session.id,
+            date: session.date,
+            title: session.title || session.type,
+            description: session.description,
+            type: session.type,
+            duration: session.duration,
+            garminSynced: session.garmin_synced || false,
+            syncAttempted: session.garmin_sync_attempted
+        }));
+        
+        res.json({
+            weekStart,
+            weekEnd: weekEnd.toISOString().split('T')[0],
+            sessions: formattedSessions
+        });
+    } catch (error) {
+        console.error('Error getting training sessions:', error);
+        res.status(500).json({ error: 'Failed to get training sessions' });
+    }
+});
+
 // Manually trigger scraping for current user
 router.post('/scrape', async (req, res) => {
     try {

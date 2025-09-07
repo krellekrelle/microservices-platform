@@ -235,12 +235,52 @@ class GarminConnectService {
     }
 
     /**
+     * Create a workout from provided JSON data
+     * @param {Object} workoutJson - Workout JSON data
+     * @returns {Promise<Object>} - Workout creation result with ID
+     */
+    async createWorkoutFromJson(workoutJson) {
+        if (!this.isAuthenticated) {
+            throw new Error('Must be authenticated with Garmin Connect first');
+        }
+
+        try {
+            console.log('📋 Creating workout from provided JSON...');
+            console.log(`🏃 Workout: ${workoutJson.workoutName}`);
+
+            // Use the JSON directly since LLM now generates correct creation format
+            console.log('✅ Using LLM-generated creation format directly');
+
+            // Create the workout on Garmin Connect using the correct method
+            const workoutId = await this.client.addWorkout(workoutJson);
+
+            const result = {
+                success: true,
+                workoutId: workoutId,
+                workoutName: workoutJson.workoutName,
+                originalJson: workoutJson,
+                estimatedDistance: Math.round((workoutJson.estimatedDistanceInMeters || 0)/1000),
+                estimatedDuration: Math.round((workoutJson.estimatedDurationInSecs || 0)/60),
+                stepsCount: workoutJson.workoutSegments?.[0]?.workoutSteps?.length || 0
+            };
+
+            console.log(`🎉 Successfully created Garmin workout from JSON. ID: ${workoutId}`);
+            return result;
+
+        } catch (error) {
+            console.error('❌ Failed to create workout from JSON:', error);
+            throw new Error(`Workout creation from JSON failed: ${error.message}`);
+        }
+    }
+
+    /**
      * Create a structured workout from Danish training description using AI parsing
      * @param {string} trainingDescription - Danish training description text
+     * @param {string} workoutDate - Date for the workout (YYYY-MM-DD)
      * @param {string} workoutName - Optional workout name
      * @returns {Promise<Object>} - Workout creation result with ID
      */
-    async createWorkoutFromDescription(trainingDescription, workoutName = null) {
+    async createWorkoutFromDescription(trainingDescription, workoutDate = null, workoutName = null) {
         if (!this.isAuthenticated) {
             throw new Error('Must be authenticated with Garmin Connect first');
         }
@@ -248,10 +288,12 @@ class GarminConnectService {
         try {
             console.log('🤖 Parsing training description with AI...');
             console.log(`📝 Description: "${trainingDescription}"`);
+            console.log(`📅 Date: "${workoutDate || 'Current date'}"`);
 
             // Use AI to convert Danish description to Garmin workout JSON
             const workoutJson = await this.workoutParser.parseTrainingDescription(
                 trainingDescription, 
+                workoutDate,
                 workoutName
             );
 
@@ -259,8 +301,8 @@ class GarminConnectService {
             console.log(`🏃 Workout: ${workoutJson.workoutName}`);
             console.log(`📏 Estimated: ${Math.round(workoutJson.estimatedDistanceInMeters/1000)}km, ${Math.round(workoutJson.estimatedDurationInSecs/60)}min`);
 
-            // Create the workout on Garmin Connect
-            const workoutId = await this.client.createWorkout(workoutJson);
+            // Create the workout on Garmin Connect using the correct method
+            const workoutId = await this.client.addWorkout(workoutJson);
 
             const result = {
                 success: true,
@@ -278,16 +320,29 @@ class GarminConnectService {
 
         } catch (error) {
             console.error('❌ Failed to create workout from description:', error);
-            throw new Error(`Workout creation failed: ${error.message}`);
+            
+            // Return structured failure result instead of throwing
+            // This allows the sync process to mark as failed and continue
+            return {
+                success: false,
+                error: error.message,
+                workoutName: workoutName || 'Failed Workout',
+                originalDescription: trainingDescription,
+                failurePoint: 'workout_creation',
+                details: {
+                    errorType: error.constructor.name,
+                    timestamp: new Date().toISOString()
+                }
+            };
         }
     }
 
     /**
-     * Test the AI workout parser with example descriptions
+     * Test the AI workout parser with a simple description
      */
     async testWorkoutParser() {
         console.log('🧪 Testing AI workout parser...');
-        return await this.workoutParser.testWithExamples();
+        return await this.workoutParser.testParser();
     }
 
     /**
