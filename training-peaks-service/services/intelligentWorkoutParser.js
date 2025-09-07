@@ -244,45 +244,40 @@ class IntelligentWorkoutParser {
      * Create an optimized few-shot learning prompt with minimal examples
      */
     createDanishPrompt(description, workoutDate, workoutName) {
-        // Include the full addWorkoutTypes TypeScript definitions for reference
+        // Include the simplified TypeScript definitions for reference
         const typeReference = this.addWorkoutTypes 
-            ? `\nTYPE DEFINITIONS:\n${this.addWorkoutTypes}\n`
+            ? `\nSTRUKTUR REFERENCE:\n${this.addWorkoutTypes}\n`
             : '';
 
         // Convert workoutDate (YYYY-MM-DD) to dd/mm format
-        const dateObj = new Date(workoutDate + 'T00:00:00Z');
-        const ddmm = `${dateObj.getUTCDate().toString().padStart(2, '0')}/${(dateObj.getUTCMonth() + 1).toString().padStart(2, '0')}`;
+        const dateObj = new Date(workoutDate);
+        const ddmm = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
 
-        return `Generér en Garmin workout i ren JSON (uden tekst, forklaring eller kodeblok-syntax) til addWorkout() funktionen.
+        return `Analysér beskrivelsen og generér en Garmin workout i ren JSON til addWorkout().
 
-DATO: ${workoutDate}
+TRÆNINGSDATO: ${workoutDate}
 BESKRIVELSE: "${description}"
-${workoutName ? `NAVN: "${workoutName}"` : 'NAVN: Generér dansk navn baseret på beskrivelsen'}
+${workoutName ? `NAVN: "${workoutName}"` : `NAVN: Generer dansk navn - ${ddmm}`}
 
 ${typeReference}
 
-VIGTIGE REGLER FOR addWorkout() JSON:
-1. Inkludér IKKE: workoutId, ownerId, stepId (disse er response-felter)
-2. Inkludér KUN creation-felter: workoutName, description, updateDate, createdDate, sportType, estimatedDurationInSecs, estimatedDistanceInMeters, workoutSegments
-3. Brug ALTID nuværende dato for updateDate og createdDate (ikke workoutDate)
-4. workoutName skal ENDE med ${ddmm}, f.eks. "Løb 5km - ${ddmm}"
-5. Standard sportType: {sportTypeId: 1, sportTypeKey: "running"}
-6. For "jog": brug workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target"
-7. For endCondition tid: conditionTypeId: 2, conditionTypeKey: "time"
-8. For endCondition distance: conditionTypeId: 3, conditionTypeKey: "distance"  
-9. For stepType: brug stepTypeId: 1, stepTypeKey: "interval" for almindelig træning
-10. Stroke/Equipment: brug strokeTypeId: 0, equipmentTypeId: 0
-11. Konverter danske tider som "4.05" til sekunder per km og derefter m/s
+VIGTIG: STRUKTUR skal være template-baseret, INDHOLD skal være beskrivelse-baseret
 
-EKSEMPEL STRUKTUR (kun creation felter):
+ANALYSE BESKRIVELSEN:
+- Tid: Find varighed (min/timer) eller beregn fra distance og tempo
+- Distance: Find kilometer/meter eller beregn fra tid og tempo  
+- Tempo: Find specifikke tider som "4.05" (= 4:05 min/km) eller brug "jog"
+- Type: Bestem om det er jog (no target) eller struktureret træning
+
+TEMPLATE STRUKTUR:
 {
-  "workoutName": "Dansk navn - ${ddmm}",
-  "description": "Beskrivelse",
-  "updateDate": "${new Date().toISOString()}",
-  "createdDate": "${new Date().toISOString()}",
+  "workoutName": "[Navn baseret på beskrivelse] - ${ddmm}",
+  "description": "${description}",
+  "updateDate": "[NUVÆRENDE DATO/TID]",
+  "createdDate": "[NUVÆRENDE DATO/TID]", 
   "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
-  "estimatedDurationInSecs": 3600,
-  "estimatedDistanceInMeters": 5000,
+  "estimatedDurationInSecs": [BEREGNET FRA BESKRIVELSE],
+  "estimatedDistanceInMeters": [BEREGNET FRA BESKRIVELSE],
   "workoutSegments": [{
     "segmentOrder": 1,
     "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
@@ -290,16 +285,23 @@ EKSEMPEL STRUKTUR (kun creation felter):
       "type": "ExecutableStepDTO",
       "stepOrder": 1,
       "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
-      "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
-      "endConditionValue": 3600,
-      "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
+      "endCondition": {"conditionTypeId": [2=tid, 3=distance], "conditionTypeKey": "[time/distance]"},
+      "endConditionValue": [VÆRDI FRA BESKRIVELSE],
+      "targetType": {"workoutTargetTypeId": [1=no.target for jog], "workoutTargetTypeKey": "[no.target/pace.zone]"},
       "strokeType": {"strokeTypeId": 0},
       "equipmentType": {"equipmentTypeId": 0}
     }]
   }]
 }
 
-Returner kun JSON uden yderligere tekst.`;
+EKSEMPLER PÅ ANALYSE:
+- "60 min jog" → 3600 sek, ~8000m (6 min/km pace), no.target
+- "5 km i 4.05" → ~1200 sek, 5000m, pace target
+- "3x1km i 4.00" → 3 steps, hver 1000m, pace target
+
+KOPIER IKKE eksempel-værdier! Analysér kun den givne beskrivelse.
+
+Returner kun JSON.`;
     }
 
     /**
