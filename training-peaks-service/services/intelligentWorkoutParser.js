@@ -258,19 +258,20 @@ class IntelligentWorkoutParser {
 
 TRÆNINGSDATO: ${workoutDate}
 BESKRIVELSE: "${description}"
-${workoutName ? `NAVN: "${workoutName}"` : `NAVN: Generer dansk navn - ${ddmm}`}
+${workoutName ? `NAVN: "${workoutName}"` : `NAVN: "[Dansk navn baseret på beskrivelse] - ${ddmm}"`}
 
 ${typeReference}
 
 VIGTIG: STRUKTUR skal være template-baseret, INDHOLD skal være beskrivelse-baseret
 
 ANALYSE DANSKE TRÆNINGSKOMPONENTER:
-- "X km opvarmning" = X km løb uden target (no.target)
-- "X x 100m flowløb" = X stykker af 100 meter løb uden target (no.target)
+- "X km opvarmning" = X km distance-based løb uden target (no.target)
+- "X km jog" = time-based løb (beregn tid: X km * 6 min/km), ingen target (no.target)
+- "X x 100m flowløb" = X gentagelser af (100m no.target + 40 sek pause)
 - "X x Y km Z.ZZ" = X intervaller af Y km ved Z:ZZ min/km tempo (pace.zone target)
-- "Ym jog imellem" = Y meter løb uden target mellem intervaller (no.target)
+- "Ym jog imellem" = Y meter distance-based løb uden target mellem intervaller
 - "X min pause" = X minutters pause/hvile (time-based recovery step)
-- "X km nedløb" = X km løb uden target (no.target)
+- "X km nedløb" = X km distance-based løb uden target (no.target)
 
 PACE KONVERTERING:
 - "4.05-4.15" = pace range: targetValueOne = 3.92 m/s (4:15), targetValueTwo = 4.08 m/s (4:05)
@@ -280,19 +281,34 @@ PACE KONVERTERING:
 
 REPEAT GROUPS - BRUG RepeatGroupDTO FOR GENTAGELSER:
 - "3x 1km" = 1 RepeatGroupDTO med numberOfIterations: 3, steps: [1km interval, recovery]
-- "4x 100m flowløb" = 1 RepeatGroupDTO med numberOfIterations: 4, steps: [100m step]
+- "4x 100m flowløb" = 1 RepeatGroupDTO med numberOfIterations: 4, steps: [100m step, 40 sek rest]
+- "1x" eller enkelt aktivitet = ExecutableStepDTO (IKKE RepeatGroupDTO)
 - "jog imellem" = recovery step INDEN I repeat group
 - "pause imellem" = rest step INDEN I repeat group
 
-BEREGN VARIGHED:
-- 1 km uden target = ~360 sekunder (6 min/km standard tempo)
-- 1 km ved 4:05 = 245 sekunder
-- 100m flowløb = ~30 sekunder (standard tempo)
-- 200m jog = ~72 sekunder (6 min/km)
+HVORNÅR BRUGE RepeatGroupDTO vs ExecutableStepDTO:
+- RepeatGroupDTO: KUN når numberOfIterations > 1 (2x, 3x, 4x etc.)
+- ExecutableStepDTO: Alle enkelt aktiviteter og "jog" beskrivelser
+
+STEP TYPES - BRUG KORREKTE ID'ER:
+- Running/Intervals: stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
+- Rest/Pause: stepType: {"stepTypeId": 5, "stepTypeKey": "rest"}
+- ALDRIG brug stepTypeId: 1 (det er warmup)
+
+HVORNÅR SKAL FORSKELLIGE STEP TYPES BRUGES:
+- stepTypeId: 3 ("interval") = alle løb (opvarmning, intervals, nedløb, jog)
+- stepTypeId: 5 ("rest") = kun pauser og hvile (40 sek pause, 3 min pause)
+
+BEREGN VARIGHED OG END CONDITION:
+- "X km jog" = endCondition: time (2), endConditionValue: X * 360 sekunder (6 min/km)
+- "X km opvarmning/nedløb" = endCondition: distance (3), endConditionValue: X * 1000 meter
+- "X km i Y.ZZ" = endCondition: distance (3), endConditionValue: X * 1000 meter
+- "X min pause" = endCondition: time (2), endConditionValue: X * 60 sekunder
+- "100m flowløb" = endCondition: distance (3), endConditionValue: 100 meter
 
 TEMPLATE STRUKTUR:
 {
-  "workoutName": "[Dansk navn baseret på beskrivelse] - ${ddmm}",
+  "workoutName": "[Kort dansk navn] - ${ddmm}",
   "description": "${description}",
   "updateDate": "[NUVÆRENDE DATO/TID]",
   "createdDate": "[NUVÆRENDE DATO/TID]", 
@@ -312,9 +328,11 @@ TEMPLATE STRUKTUR:
 }
 
 STEP/REPEAT TYPER:
-- Enkelt løb: ExecutableStepDTO, endCondition=distance, targetType=no.target
-- Interval gentagelser: RepeatGroupDTO med numberOfIterations og nested steps
-- Pauser mellem sets: ExecutableStepDTO, endCondition=time, targetType=no.target
+- Opvarmning/nedløb: ExecutableStepDTO, endCondition=distance, targetType=no.target
+- Jog (X km): ExecutableStepDTO, endCondition=time, targetType=no.target
+- Enkelt interval: ExecutableStepDTO, endCondition=distance, targetType=pace.zone
+- Gentagne intervaller (2x+): RepeatGroupDTO med numberOfIterations og nested steps
+- Pauser: ExecutableStepDTO, endCondition=time, targetType=no.target
 
 REPEAT GROUP STRUKTUR:
 {
@@ -327,7 +345,7 @@ REPEAT GROUP STRUKTUR:
     {
       "type": "ExecutableStepDTO",
       "stepOrder": 1,
-      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
+      "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
       "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
       "endConditionValue": [DISTANCE I METER],
       "targetType": {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"},
@@ -338,7 +356,7 @@ REPEAT GROUP STRUKTUR:
     {
       "type": "ExecutableStepDTO",
       "stepOrder": 2,
-      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
+      "stepType": {"stepTypeId": 5, "stepTypeKey": "rest"},
       "endCondition": {"conditionTypeId": [3=distance, 2=time], "conditionTypeKey": "[distance/time]"},
       "endConditionValue": [VÆRDI],
       "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
@@ -346,6 +364,11 @@ REPEAT GROUP STRUKTUR:
     }
   ]
 }
+
+VIGTIGE RepeatGroupDTO REGLER:
+- smartRepeat: ALTID false
+- childStepId: ALTID 1
+- Nested steps skal have stepOrder 1, 2, 3... inden i repeat group
   "targetValueOne": [LANGSOM M/S for pace.zone],
   "targetValueTwo": [HURTIG M/S for pace.zone], 
   "strokeType": {"strokeTypeId": 0},
@@ -353,28 +376,35 @@ REPEAT GROUP STRUKTUR:
 }
 
 DETALJERET EKSEMPEL ANALYSE:
-Input: "4 km opvarmning, 4x 100m flowløb, 3x 1 km 4.05-4.15, 200m jog imellem, 4 km nedløb"
+Input: "5 km jog, 3x 1 km 4.05-4.15, 200m jog imellem, 5 km jog"
 
-STEP 1: ExecutableStepDTO - 4 km opvarmning
+STEP 1: ExecutableStepDTO - 5 km jog (TIME-BASED)
 - type: "ExecutableStepDTO", stepOrder: 1
-- endCondition: distance (3), endConditionValue: 4000
-- targetType: no.target (1)
+- stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
+- endCondition: {"conditionTypeId": 2, "conditionTypeKey": "time"}
+- endConditionValue: 1800 (5 km * 6 min/km = 30 min = 1800 sek)
+- targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
 
-STEP 2: RepeatGroupDTO - 4x 100m flowløb
-- type: "RepeatGroupDTO", stepOrder: 2, numberOfIterations: 4
-- workoutSteps: [{ 100m ExecutableStepDTO, no.target }]
-
-STEP 3: RepeatGroupDTO - 3x (1km + 200m recovery)
-- type: "RepeatGroupDTO", stepOrder: 3, numberOfIterations: 3
+STEP 2: RepeatGroupDTO - 3x (1km + 200m recovery)
+- type: "RepeatGroupDTO", stepOrder: 2, numberOfIterations: 3
+- smartRepeat: false, childStepId: 1
 - workoutSteps: [
-  { 1000m ExecutableStepDTO, pace.zone, targetValueOne: 3.92, targetValueTwo: 4.08 },
-  { 200m ExecutableStepDTO, no.target }
+  { 1000m ExecutableStepDTO, pace.zone, targetValueOne: 3.92, targetValueTwo: 4.08, stepType: "interval", endCondition: distance },
+  { 200m ExecutableStepDTO, no.target, stepType: "interval", endCondition: distance }
 ]
 
-STEP 4: ExecutableStepDTO - 4 km nedløb
-- type: "ExecutableStepDTO", stepOrder: 4
-- endCondition: distance (3), endConditionValue: 4000
-- targetType: no.target (1)
+STEP 3: ExecutableStepDTO - 5 km jog (TIME-BASED)
+- type: "ExecutableStepDTO", stepOrder: 3
+- stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
+- endCondition: {"conditionTypeId": 2, "conditionTypeKey": "time"}
+- endConditionValue: 1800 (5 km * 6 min/km = 30 min = 1800 sek)
+- targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
+
+VIGTIGE REGLER:
+- "X km jog" = ALTID time-based (endCondition: time)
+- "X km opvarmning/nedløb" = ALTID distance-based (endCondition: distance)
+- Enkelt aktivitet (1x) = ExecutableStepDTO
+- Gentaget aktivitet (2x+) = RepeatGroupDTO
 
 PACE RANGE EKSEMPEL "4.05-4.15":
 - Langsom: 4:15 = 255 sek/km = 1000/255 = 3.92 m/s (targetValueOne)
