@@ -40,7 +40,8 @@ class IntelligentWorkoutParser {
                     error: error
                 },
                 metadata: {
-                    model: 'llama-3.1-8b-instant',
+                    // model: 'llama-3.1-8b-instant',
+                    model: 'llama-3.3-70b-versatile', // Updated model
                     promptType: 'danish-direct',
                     responseLength: rawResponse?.length || 0
                 }
@@ -117,9 +118,9 @@ class IntelligentWorkoutParser {
                     role: 'user', 
                     content: prompt 
                 }],
-                model: 'llama-3.1-8b-instant', // Using the working model with 8K token limit
+                model: 'llama-3.3-70b-versatile', // Updated to better model for complex reasoning
                 temperature: 0.1, // Low temperature for consistent parsing
-                max_tokens: 2000, // Reduced tokens for faster response
+                max_tokens: 4000, // Increased for more complex workouts with repeats
                 response_format: { type: 'json_object' }
             });
             
@@ -263,43 +264,123 @@ ${typeReference}
 
 VIGTIG: STRUKTUR skal være template-baseret, INDHOLD skal være beskrivelse-baseret
 
-ANALYSE BESKRIVELSEN:
-- Tid: Find varighed (min/timer) eller beregn fra distance og tempo
-- Distance: Find kilometer/meter eller beregn fra tid og tempo  
-- Tempo: Find specifikke tider som "4.05" (= 4:05 min/km) eller brug "jog"
-- Type: Bestem om det er jog (no target) eller struktureret træning
+ANALYSE DANSKE TRÆNINGSKOMPONENTER:
+- "X km opvarmning" = X km løb uden target (no.target)
+- "X x 100m flowløb" = X stykker af 100 meter løb uden target (no.target)
+- "X x Y km Z.ZZ" = X intervaller af Y km ved Z:ZZ min/km tempo (pace.zone target)
+- "Ym jog imellem" = Y meter løb uden target mellem intervaller (no.target)
+- "X min pause" = X minutters pause/hvile (time-based recovery step)
+- "X km nedløb" = X km løb uden target (no.target)
+
+PACE KONVERTERING:
+- "4.05-4.15" = pace range: targetValueOne = 3.92 m/s (4:15), targetValueTwo = 4.08 m/s (4:05)
+- "4.05" = single pace: targetValueOne = 4.08 m/s, targetValueTwo = 4.08 m/s
+- Beregning: "X.YZ" min/km → (X*60 + YZ) sekunder/km → 1000/(sek/km) = m/s
+- "jog" eller "let" = ingen target (no.target)
+
+REPEAT GROUPS - BRUG RepeatGroupDTO FOR GENTAGELSER:
+- "3x 1km" = 1 RepeatGroupDTO med numberOfIterations: 3, steps: [1km interval, recovery]
+- "4x 100m flowløb" = 1 RepeatGroupDTO med numberOfIterations: 4, steps: [100m step]
+- "jog imellem" = recovery step INDEN I repeat group
+- "pause imellem" = rest step INDEN I repeat group
+
+BEREGN VARIGHED:
+- 1 km uden target = ~360 sekunder (6 min/km standard tempo)
+- 1 km ved 4:05 = 245 sekunder
+- 100m flowløb = ~30 sekunder (standard tempo)
+- 200m jog = ~72 sekunder (6 min/km)
 
 TEMPLATE STRUKTUR:
 {
-  "workoutName": "[Navn baseret på beskrivelse] - ${ddmm}",
+  "workoutName": "[Dansk navn baseret på beskrivelse] - ${ddmm}",
   "description": "${description}",
   "updateDate": "[NUVÆRENDE DATO/TID]",
   "createdDate": "[NUVÆRENDE DATO/TID]", 
   "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
-  "estimatedDurationInSecs": [BEREGNET FRA BESKRIVELSE],
-  "estimatedDistanceInMeters": [BEREGNET FRA BESKRIVELSE],
+  "estimatedDurationInSecs": [TOTAL BEREGNET TID],
+  "estimatedDistanceInMeters": [TOTAL BEREGNET DISTANCE],
   "workoutSegments": [{
     "segmentOrder": 1,
     "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
-    "workoutSteps": [{
-      "type": "ExecutableStepDTO",
-      "stepOrder": 1,
-      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
-      "endCondition": {"conditionTypeId": [2=tid, 3=distance], "conditionTypeKey": "[time/distance]"},
-      "endConditionValue": [VÆRDI FRA BESKRIVELSE],
-      "targetType": {"workoutTargetTypeId": [1=no.target for jog], "workoutTargetTypeKey": "[no.target/pace.zone]"},
-      "strokeType": {"strokeTypeId": 0},
-      "equipmentType": {"equipmentTypeId": 0}
-    }]
+    "workoutSteps": [
+      // MIX af ExecutableStepDTO og RepeatGroupDTO
+      // Opvarmning: ExecutableStepDTO med distance
+      // Gentagelser: RepeatGroupDTO for "3x 1km", "4x 100m" etc.
+      // Nedløb: ExecutableStepDTO med distance
+    ]
   }]
 }
 
-EKSEMPLER PÅ ANALYSE:
-- "60 min jog" → 3600 sek, ~8000m (6 min/km pace), no.target
-- "5 km i 4.05" → ~1200 sek, 5000m, pace target
-- "3x1km i 4.00" → 3 steps, hver 1000m, pace target
+STEP/REPEAT TYPER:
+- Enkelt løb: ExecutableStepDTO, endCondition=distance, targetType=no.target
+- Interval gentagelser: RepeatGroupDTO med numberOfIterations og nested steps
+- Pauser mellem sets: ExecutableStepDTO, endCondition=time, targetType=no.target
 
-KOPIER IKKE eksempel-værdier! Analysér kun den givne beskrivelse.
+REPEAT GROUP STRUKTUR:
+{
+  "type": "RepeatGroupDTO",
+  "stepOrder": [NUMMER],
+  "numberOfIterations": [ANTAL GENTAGELSER],
+  "smartRepeat": false,
+  "childStepId": 1,
+  "workoutSteps": [
+    {
+      "type": "ExecutableStepDTO",
+      "stepOrder": 1,
+      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
+      "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
+      "endConditionValue": [DISTANCE I METER],
+      "targetType": {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"},
+      "targetValueOne": [LANGSOM M/S], "targetValueTwo": [HURTIG M/S],
+      "strokeType": {"strokeTypeId": 0}, "equipmentType": {"equipmentTypeId": 0}
+    },
+    // Hvis "jog imellem" eller "pause imellem" - tilføj recovery step:
+    {
+      "type": "ExecutableStepDTO",
+      "stepOrder": 2,
+      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
+      "endCondition": {"conditionTypeId": [3=distance, 2=time], "conditionTypeKey": "[distance/time]"},
+      "endConditionValue": [VÆRDI],
+      "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
+      "strokeType": {"strokeTypeId": 0}, "equipmentType": {"equipmentTypeId": 0}
+    }
+  ]
+}
+  "targetValueOne": [LANGSOM M/S for pace.zone],
+  "targetValueTwo": [HURTIG M/S for pace.zone], 
+  "strokeType": {"strokeTypeId": 0},
+  "equipmentType": {"equipmentTypeId": 0}
+}
+
+DETALJERET EKSEMPEL ANALYSE:
+Input: "4 km opvarmning, 4x 100m flowløb, 3x 1 km 4.05-4.15, 200m jog imellem, 4 km nedløb"
+
+STEP 1: ExecutableStepDTO - 4 km opvarmning
+- type: "ExecutableStepDTO", stepOrder: 1
+- endCondition: distance (3), endConditionValue: 4000
+- targetType: no.target (1)
+
+STEP 2: RepeatGroupDTO - 4x 100m flowløb
+- type: "RepeatGroupDTO", stepOrder: 2, numberOfIterations: 4
+- workoutSteps: [{ 100m ExecutableStepDTO, no.target }]
+
+STEP 3: RepeatGroupDTO - 3x (1km + 200m recovery)
+- type: "RepeatGroupDTO", stepOrder: 3, numberOfIterations: 3
+- workoutSteps: [
+  { 1000m ExecutableStepDTO, pace.zone, targetValueOne: 3.92, targetValueTwo: 4.08 },
+  { 200m ExecutableStepDTO, no.target }
+]
+
+STEP 4: ExecutableStepDTO - 4 km nedløb
+- type: "ExecutableStepDTO", stepOrder: 4
+- endCondition: distance (3), endConditionValue: 4000
+- targetType: no.target (1)
+
+PACE RANGE EKSEMPEL "4.05-4.15":
+- Langsom: 4:15 = 255 sek/km = 1000/255 = 3.92 m/s (targetValueOne)
+- Hurtig: 4:05 = 245 sek/km = 1000/245 = 4.08 m/s (targetValueTwo)
+
+KOPIER IKKE disse eksempel-værdier! Analysér den faktiske beskrivelse.
 
 Returner kun JSON.`;
     }
