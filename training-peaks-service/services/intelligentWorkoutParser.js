@@ -24,6 +24,7 @@ class IntelligentWorkoutParser {
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `/app/data/ai-response-${timestamp}.json`;
+            const promptFilename = `/app/data/ai-prompt-${timestamp}.txt`;
             
             const testResult = {
                 timestamp: new Date().toISOString(),
@@ -45,8 +46,15 @@ class IntelligentWorkoutParser {
                 }
             };
             
+            // Save the response JSON
             await fs.writeFile(filename, JSON.stringify(testResult, null, 2), 'utf-8');
             console.log(`💾 [DEBUG] AI Response saved to: ${filename}`);
+            
+            // Save the prompt text
+            if (prompt) {
+                await fs.writeFile(promptFilename, prompt, 'utf-8');
+                console.log(`📝 [DEBUG] AI Prompt saved to: ${promptFilename}`);
+            }
         } catch (saveError) {
             console.error('❌ Failed to save AI response:', saveError);
         }
@@ -130,15 +138,19 @@ class IntelligentWorkoutParser {
             
             console.log('🔍 [DEBUG] AI Parser - JSON parsing successful');
             
+            // Clean the parsed workout - remove response-only fields
+            const cleanedWorkout = this.cleanWorkoutForCreation(parsedWorkout);
+            console.log('🧹 [DEBUG] AI Parser - Cleaned workout for addWorkout()');
+            
             // Validate the parsed workout has required structure
-            this.validateWorkoutStructure(parsedWorkout);
+            this.validateWorkoutStructure(cleanedWorkout);
             console.log('✅ [DEBUG] AI Parser - Workout structure validation passed');
             
             // Save successful AI response
-            await this.saveAIResponse(description, dateToUse, prompt, result, parsedWorkout, true);
+            await this.saveAIResponse(description, dateToUse, prompt, result, cleanedWorkout, true);
             
-            console.log(`🎉 [DEBUG] AI Parser - Successfully parsed into workout: "${parsedWorkout.workoutName}"`);
-            return parsedWorkout;
+            console.log(`🎉 [DEBUG] AI Parser - Successfully parsed into workout: "${cleanedWorkout.workoutName}"`);
+            return cleanedWorkout;
             
         } catch (error) {
             console.error('❌ [DEBUG] AI Parser - Parsing failed:', error.message);
@@ -188,6 +200,47 @@ class IntelligentWorkoutParser {
     }
 
     /**
+     * Clean workout JSON to remove response-only fields for addWorkout()
+     */
+    cleanWorkoutForCreation(workout) {
+        // Fields that should NOT be included in addWorkout() calls
+        const responseOnlyFields = [
+            'workoutId', 'ownerId', 'stepId', 'trainingPlanId', 'author', 
+            'estimateType', 'estimatedDistanceUnit', 'poolLength', 'poolLengthUnit',
+            'workoutProvider', 'workoutSourceId', 'consumer', 'atpPlanId',
+            'workoutNameI18nKey', 'descriptionI18nKey', 'shared', 'estimated'
+        ];
+        
+        const cleaned = { ...workout };
+        
+        // Remove response-only fields from root level
+        responseOnlyFields.forEach(field => {
+            delete cleaned[field];
+        });
+        
+        // Ensure dates are always current date (not future dates)
+        const currentDate = new Date().toISOString();
+        cleaned.updateDate = currentDate;
+        cleaned.createdDate = currentDate;
+        
+        // Clean workout steps - remove stepId and other response fields
+        if (cleaned.workoutSegments) {
+            cleaned.workoutSegments = cleaned.workoutSegments.map(segment => ({
+                ...segment,
+                workoutSteps: segment.workoutSteps?.map(step => {
+                    const cleanedStep = { ...step };
+                    delete cleanedStep.stepId;
+                    return cleanedStep;
+                }) || []
+            }));
+        }
+        
+        console.log('🧹 [DEBUG] Removed response-only fields:', responseOnlyFields.filter(field => workout[field] !== undefined));
+        console.log('📅 [DEBUG] Set dates to current time:', currentDate);
+        return cleaned;
+    }
+
+    /**
      * Create an optimized few-shot learning prompt with minimal examples
      */
     createDanishPrompt(description, workoutDate, workoutName) {
@@ -196,7 +249,11 @@ class IntelligentWorkoutParser {
             ? `\nTYPE DEFINITIONS:\n${this.addWorkoutTypes}\n`
             : '';
 
-        return `Generér en Garmin workout i ren JSON (uden tekst, forklaring eller kodeblok-syntax) i formatet IWorkoutDetail.
+        // Convert workoutDate (YYYY-MM-DD) to dd/mm format
+        const dateObj = new Date(workoutDate + 'T00:00:00Z');
+        const ddmm = `${dateObj.getUTCDate().toString().padStart(2, '0')}/${(dateObj.getUTCMonth() + 1).toString().padStart(2, '0')}`;
+
+        return `Generér en Garmin workout i ren JSON (uden tekst, forklaring eller kodeblok-syntax) til addWorkout() funktionen.
 
 DATO: ${workoutDate}
 BESKRIVELSE: "${description}"
@@ -204,14 +261,43 @@ ${workoutName ? `NAVN: "${workoutName}"` : 'NAVN: Generér dansk navn baseret p�
 
 ${typeReference}
 
-Vigtige regler:
-1. Returner kun gyldig JSON uden yderligere tekst eller formatering
-2. Brug IWorkoutDetail strukturen med alle nødvendige felter
-3. Konverter danske tider som "4.05" til korrekte målværdier
-4. Brug dato: ${workoutDate} for både updateDate og createdDate
-5. Standard sportType for løb: {sportTypeId: 1, sportTypeKey: "running"}
-6. Inkludér workoutSegments med workoutSteps
-7. Beregn estimatedDurationInSecs og estimatedDistanceInMeters baseret på beskrivelsen
+VIGTIGE REGLER FOR addWorkout() JSON:
+1. Inkludér IKKE: workoutId, ownerId, stepId (disse er response-felter)
+2. Inkludér KUN creation-felter: workoutName, description, updateDate, createdDate, sportType, estimatedDurationInSecs, estimatedDistanceInMeters, workoutSegments
+3. Brug ALTID nuværende dato for updateDate og createdDate (ikke workoutDate)
+4. workoutName skal ENDE med ${ddmm}, f.eks. "Løb 5km - ${ddmm}"
+5. Standard sportType: {sportTypeId: 1, sportTypeKey: "running"}
+6. For "jog": brug workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target"
+7. For endCondition tid: conditionTypeId: 2, conditionTypeKey: "time"
+8. For endCondition distance: conditionTypeId: 3, conditionTypeKey: "distance"  
+9. For stepType: brug stepTypeId: 1, stepTypeKey: "interval" for almindelig træning
+10. Stroke/Equipment: brug strokeTypeId: 0, equipmentTypeId: 0
+11. Konverter danske tider som "4.05" til sekunder per km og derefter m/s
+
+EKSEMPEL STRUKTUR (kun creation felter):
+{
+  "workoutName": "Dansk navn - ${ddmm}",
+  "description": "Beskrivelse",
+  "updateDate": "${new Date().toISOString()}",
+  "createdDate": "${new Date().toISOString()}",
+  "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+  "estimatedDurationInSecs": 3600,
+  "estimatedDistanceInMeters": 5000,
+  "workoutSegments": [{
+    "segmentOrder": 1,
+    "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+    "workoutSteps": [{
+      "type": "ExecutableStepDTO",
+      "stepOrder": 1,
+      "stepType": {"stepTypeId": 1, "stepTypeKey": "interval"},
+      "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
+      "endConditionValue": 3600,
+      "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
+      "strokeType": {"strokeTypeId": 0},
+      "equipmentType": {"equipmentTypeId": 0}
+    }]
+  }]
+}
 
 Returner kun JSON uden yderligere tekst.`;
     }
