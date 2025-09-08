@@ -471,94 +471,9 @@
             </form>
         </div>
 
-        <!-- Test Section -->
-        <div class="card">
-            <h2>🧪 Test TrainingPeaks Integration</h2>
-            <p>Test fetching training data for the week of September 1-7, 2025 (Sunday to Saturday).</p>
-            <button id="test-fetch" class="btn" disabled>Test Fetch Training Data</button>
-            <div id="test-results" class="hidden">
-                <h3>Test Results:</h3>
-                <div id="test-output"></div>
-            </div>
-        </div>
-
-        <!-- Device Management Section -->
-        <div id="device-section" class="card">
-            <h2>⌚ Garmin Device Management</h2>
-            <p>Manage your connected Garmin devices and configure automatic workout sync.</p>
-            
-            <div class="device-controls">
-                <button id="sync-devices-btn" class="btn">🔄 Sync Devices</button>
-                <button id="test-push-btn" class="btn" style="background-color: #28a745; margin-left: 10px;">🧪 Test 5K Push</button>
-                <div id="device-sync-status" class="status-message"></div>
-            </div>
-            
-            <div id="devices-list">
-                <div class="loading">Loading your devices...</div>
-            </div>
-        </div>
-
-        <!-- Phase 2: Calendar Integration -->
-        <div id="calendar-section" class="card">
-            <h2>📱 Phase 2: Apple Calendar Integration</h2>
-            <p>Sync your training schedule directly to Apple Calendar with automatic event creation and reminders.</p>
-            
-            <!-- Calendar Settings -->
-            <div id="calendar-settings" class="hidden">
-                <h3>Calendar Settings</h3>
-                <form id="calendar-settings-form">
-                    <div class="form-group">
-                        <label for="default-time">Default Training Time:</label>
-                        <input type="time" id="default-time" value="07:00">
-                    </div>
-                    <div class="form-group">
-                        <label for="default-location">Default Location:</label>
-                        <input type="text" id="default-location" placeholder="e.g. Home, Gym, Park">
-                    </div>
-                    <div class="form-group">
-                        <label for="timezone">Timezone:</label>
-                        <select id="timezone">
-                            <option value="Europe/Copenhagen">Europe/Copenhagen</option>
-                            <option value="Europe/London">Europe/London</option>
-                            <option value="Europe/Berlin">Europe/Berlin</option>
-                            <option value="America/New_York">America/New_York</option>
-                            <option value="America/Los_Angeles">America/Los_Angeles</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="auto-sync"> 
-                            Enable automatic synchronization
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-success">Save Calendar Settings</button>
-                </form>
-            </div>
-
-            <!-- Calendar Actions -->
-            <div id="calendar-actions">
-                <button id="setup-calendar" class="btn">Setup Calendar Integration</button>
-                <button id="sync-calendar" class="btn btn-success hidden" disabled>Sync to Calendar</button>
-                <button id="download-ics" class="btn hidden" disabled>Download ICS File</button>
-                <button id="view-calendar-events" class="btn hidden" disabled>View Calendar Events</button>
-            </div>
-
-            <!-- Calendar Status -->
-            <div id="calendar-status" class="hidden">
-                <h3>📊 Calendar Sync Status</h3>
-                <div id="calendar-stats"></div>
-            </div>
-
-            <!-- Calendar Events Display -->
-            <div id="calendar-events-section" class="hidden">
-                <h3>📅 Synced Calendar Events</h3>
-                <div id="calendar-events-list"></div>
-            </div>
-        </div>
-
-        <!-- Phase 3: Garmin Connect Integration -->
+        <!-- Garmin Connect Integration -->
         <div id="garmin-section" class="card">
-            <h2>⌚ Phase 3: Garmin Connect Integration</h2>
+            <h2>⌚ Garmin Connect Integration</h2>
             <p>Automatically create and sync structured workouts to your Garmin watch.</p>
             
             <!-- Garmin Credentials -->
@@ -618,7 +533,94 @@
                 <div class="loading">Loading training sessions...</div>
             </div>
         </div>
+
+        <!-- Device Management Section -->
+        <div id="device-section" class="card">
+            <h2>⌚ Garmin Device Management</h2>
+            <p>Manage your connected Garmin devices and configure automatic workout sync.</p>
+            
+            <div class="device-controls">
+                <button id="sync-devices-btn" class="btn">🔄 Sync Devices</button>
+                <button id="test-push-btn" class="btn" style="background-color: #28a745; margin-left: 10px;">🧪 Test 5K Push</button>
+                <div id="device-sync-status" class="status-message"></div>
+            </div>
+            
+            <div id="devices-list">
+                <div class="loading">Loading your devices...</div>
+            </div>
+        </div>
+        <!-- Test Section -->
+        <div class="card">
+            <h2>🧪 Test TrainingPeaks Integration</h2>
+            <p>Test fetching training data for the week of September 1-7, 2025 (Sunday to Saturday).</p>
+            <button id="test-fetch" class="btn" disabled>Test Fetch Training Data</button>
+            <div id="test-results" class="hidden">
+                <h3>Test Results:</h3>
+                <div id="test-output"></div>
+            </div>
+        </div>
+
+                <!-- PCalendar Integration -->
+        <div id="calendar-section" class="card">
+            <h2>📱 Apple Calendar Integration</h2>
+            <p>Sync your training schedule directly to Apple Calendar with automatic event creation and reminders.</p>
+            
+            <!-- Calendar Settings -->
+            <div id="calendar-settings" class="hidden">
+                <h3>Calendar Settings</h3>
+                <form id="calendar-settings-form">
+                    <div class="form-group">
+                        <label for="default-time">Default Training Time:</label>
+                        <input type="time" id="default-time" value="07:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="default-location">Default Location:</label>
+                        <input type="text" id="default-location" placeholder="e.g. Home, Gym, Park">
+                    </div>
+                    <div class="form-group">
+                        <label for="timezone">Timezone:</label>
+                        <select id="timezone">
+                            <option value="Europe/Copenhagen">Europe/Copenhagen</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Europe/Berlin">Europe/Berlin</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="auto-sync"> 
+                            Enable automatic synchronization
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-success">Save Calendar Settings</button>
+                </form>
+            </div>
+
+            <!-- Calendar Actions -->
+            <div id="calendar-actions">
+                <button id="setup-calendar" class="btn">Setup Calendar Integration</button>
+                <button id="sync-calendar" class="btn btn-success hidden" disabled>Sync to Calendar</button>
+                <button id="download-ics" class="btn hidden" disabled>Download ICS File</button>
+                <button id="view-calendar-events" class="btn hidden" disabled>View Calendar Events</button>
+            </div>
+
+            <!-- Calendar Status -->
+            <div id="calendar-status" class="hidden">
+                <h3>📊 Calendar Sync Status</h3>
+                <div id="calendar-stats"></div>
+            </div>
+
+            <!-- Calendar Events Display -->
+            <div id="calendar-events-section" class="hidden">
+                <h3>📅 Synced Calendar Events</h3>
+                <div id="calendar-events-list"></div>
+            </div>
+        </div>
+
     </div>
+
+
 
     <script>
         let hasCredentials = false;

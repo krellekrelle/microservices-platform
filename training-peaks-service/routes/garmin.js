@@ -460,31 +460,26 @@ router.post('/create-workout', async (req, res) => {
                 }
                 
                 console.log(`🔄 Auto-pushing workout ${actualWorkoutId} to enabled devices for user ${userId}`);
+                
+                // get devices
+                const enabledDevices = await garminService.getEnabledDevicesForUser(userId);
+
+                console.log('enabledDevices:', enabledDevices);
 
                 const client = garminService.client;
 
+                for (const device of enabledDevices) {
+                    console.log(`🔄 Auto-pushing workout ${actualWorkoutId} to device ${device.device_name}`);
+                    const syncResult = await client.pushWorkoutToDevice(
+                        { workoutId: actualWorkoutId.toString() },
+                        device.device_id,
+                    );
+                    console.log('syncResult:', syncResult);
+                    console.log(`✅ Auto-pushed workout ${actualWorkoutId} to device ${device.device_name}`);
 
-                const syncResult = await client.pushWorkoutToDevice(
-                    { workoutId: actualWorkoutId.toString() },
-                    device.device_id,
-                );
-
-                console.log('syncResult:', syncResult);
-
-                console.log(`✅ Auto-pushed workout ${actualWorkoutId} to device ${device.device_name}`);
-                // const deviceSyncService = require('../services/deviceSyncService');
-                // const pushResults = await deviceSyncService.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
-                
-                // const successCount = pushResults.filter(r => r.success).length;
-                // const totalCount = pushResults.length;
-                
-                // if (totalCount > 0) {
-                //     console.log(`✅ Auto-pushed workout to ${successCount}/${totalCount} enabled devices`);
-                // } else {
-                //     console.log(`ℹ️ No enabled devices found for auto-push`);
-                // }
+                }
             } catch (deviceError) {
-                console.error(`⚠️ Device auto-push failed for workout ${result.workoutId}:`, deviceError);
+                console.error(`⚠️ Device auto-push failed:`, deviceError);
                 // Don't fail the workout creation if device push fails
             }
             

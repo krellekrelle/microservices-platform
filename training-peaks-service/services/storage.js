@@ -328,6 +328,18 @@ class StorageService {
         }
     }
 
+    /**
+     * Get Enabled devices for user
+     */
+    async getEnabledDevicesForUser(userId) {
+        const query = `
+            SELECT device_id, device_name FROM user_devices 
+            WHERE user_id = $1 AND workout_push_enabled = true AND sync_capable = true
+        `;
+        const result = await db.query(query, [userId]);
+        return result.rows;
+    }
+
     // Get users without recent training data
     async getUsersWithoutRecentTraining() {
         try {
