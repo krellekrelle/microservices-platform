@@ -186,23 +186,6 @@
             min-width: 200px;
         }
         
-        /* AI Parser Styles */
-        #ai-parser-section {
-            background: #e3f2fd;
-            border-left: 4px solid #2196F3;
-        }
-        #ai-parser-section h4 {
-            color: #1976D2;
-        }
-        #training-description {
-            width: 100%;
-            min-height: 80px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-family: monospace;
-            resize: vertical;
-        }
         #parsing-output {
             background: #f5f5f5;
             border: 1px solid #ddd;
@@ -305,13 +288,6 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        .btn-ai {
-            background: #FF9800;
-            color: white;
-        }
-        .btn-ai:hover {
-            background: #F57C00;
-        }
         .btn-create {
             background: #4CAF50;
             color: white;
@@ -339,17 +315,6 @@
             border-left: 4px solid #2196F3;
             margin-bottom: 15px;
             white-space: pre-wrap;
-        }
-        .ai-result {
-            background: white;
-            padding: 15px;
-            border-radius: 4px;
-            border-left: 4px solid #FF9800;
-            margin-bottom: 15px;
-        }
-        .ai-result h4 {
-            margin: 0 0 10px 0;
-            color: #FF9800;
         }
         .json-preview {
             background: #f8f9fa;
@@ -623,69 +588,7 @@
             <div id="garmin-actions">
                 <button id="setup-garmin" class="btn">Setup Garmin Integration</button>
                 <button id="test-garmin-credentials" class="btn hidden" disabled>Test Credentials</button>
-                <button id="create-test-workout" class="btn btn-success hidden" disabled>Create Test 5K Workout</button>
-                <button id="test-ai-parser" class="btn btn-primary hidden" disabled>🤖 Test AI Workout Parser</button>
-                <button id="create-ai-workout" class="btn btn-success hidden" disabled>🧠 Create AI Workout</button>
                 <button id="delete-garmin-credentials" class="btn btn-danger hidden">Delete Credentials</button>
-            </div>
-
-            <!-- AI Workout Creation Section -->
-            <div id="ai-workout-section" class="hidden">
-                <h3>🤖 AI Workout Creation</h3>
-                <p>Convert Danish training descriptions into structured Garmin workouts using AI parsing.</p>
-                
-                <div class="form-group">
-                    <label for="training-description">Danish Training Description:</label>
-                    <textarea id="training-description" rows="4" cols="50" 
-                              placeholder="Example: 3 km jog&#10;4 km 4.05- 4.15&#10;2 km jog"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label for="workout-date">Workout Date:</label>
-                    <input type="date" id="workout-date" value="" placeholder="YYYY-MM-DD">
-                    <small style="color: #666;">Leave empty to use current date</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="workout-name">Workout Name (optional):</label>
-                    <input type="text" id="workout-name" placeholder="My Training Session">
-                </div>
-                
-                <!-- Always visible JSON field for inspection and editing -->
-                <div class="form-group">
-                    <label for="generated-json">Generated Workout JSON:</label>
-                    <textarea id="generated-json" rows="15" cols="80" 
-                              placeholder="LLM-generated JSON will appear here after AI parsing, or you can paste your own JSON..."
-                              style="font-family: monospace; font-size: 12px;"></textarea>
-                </div>
-                
-                <div style="margin-bottom: 10px;">
-                    <button id="create-from-json" class="btn btn-success" disabled>
-                        🚀 Create Garmin Workout from JSON
-                    </button>
-                    <button id="save-json-file" class="btn btn-primary" disabled style="margin-left: 10px;">
-                        💾 Save JSON to File
-                    </button>
-                </div>
-                
-                <div id="ai-parsing-result" class="hidden">
-                    <h4>🔍 AI Parsing Result</h4>
-                    <div id="parsed-workout-info"></div>
-                    
-                    <div id="json-creation-result" class="hidden" style="margin-top: 15px;">
-                        <h5>📋 Workout Creation Result</h5>
-                        <div id="json-creation-info"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Test Workout Info -->
-            <div id="test-workout-info" class="info-box hidden">
-                <h4>🏃 Test Workout Details</h4>
-                <p><strong>Distance:</strong> 5,000 meters (5K)</p>
-                <p><strong>Pace:</strong> 5:00 - 5:10 per kilometer</p>
-                <p><strong>Type:</strong> Structured running workout</p>
-                <p>This test workout will be created in your Garmin Connect account and synced to your connected devices.</p>
             </div>
 
             <!-- Garmin Status -->
@@ -1424,12 +1327,7 @@
             const statusDiv = document.getElementById('garmin-status');
             const setupBtn = document.getElementById('setup-garmin');
             const testBtn = document.getElementById('test-garmin-credentials');
-            const createWorkoutBtn = document.getElementById('create-test-workout');
-            const testAiParserBtn = document.getElementById('test-ai-parser');
-            const createAiWorkoutBtn = document.getElementById('create-ai-workout');
             const deleteBtn = document.getElementById('delete-garmin-credentials');
-            const testWorkoutInfo = document.getElementById('test-workout-info');
-            const aiWorkoutSection = document.getElementById('ai-workout-section');
 
             if (status.hasCredentials) {
                 statusDiv.innerHTML = `
@@ -1442,15 +1340,7 @@
                 setupBtn.textContent = 'Update Garmin Credentials';
                 testBtn.classList.remove('hidden');
                 testBtn.disabled = false;
-                createWorkoutBtn.classList.remove('hidden');
-                createWorkoutBtn.disabled = false;
-                testAiParserBtn.classList.remove('hidden');
-                testAiParserBtn.disabled = false;
-                createAiWorkoutBtn.classList.remove('hidden');
-                createAiWorkoutBtn.disabled = false;
                 deleteBtn.classList.remove('hidden');
-                testWorkoutInfo.classList.remove('hidden');
-                aiWorkoutSection.classList.remove('hidden');
             } else {
                 statusDiv.innerHTML = `
                     <div class="status info">
@@ -1459,12 +1349,7 @@
                 `;
                 setupBtn.textContent = 'Setup Garmin Integration';
                 testBtn.classList.add('hidden');
-                createWorkoutBtn.classList.add('hidden');
-                testAiParserBtn.classList.add('hidden');
-                createAiWorkoutBtn.classList.add('hidden');
                 deleteBtn.classList.add('hidden');
-                testWorkoutInfo.classList.add('hidden');
-                aiWorkoutSection.classList.add('hidden');
             }
         }
 
@@ -1546,39 +1431,6 @@
             }
         });
 
-        // Create test workout
-        document.getElementById('create-test-workout').addEventListener('click', async function() {
-            if (!confirm('This will create a test 5K workout in your Garmin Connect account. Continue?')) {
-                return;
-            }
-
-            try {
-                showMessage('Creating test workout in Garmin Connect...', 'info');
-                this.disabled = true;
-                
-                const response = await fetch('/training/api/garmin/test-workout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    showMessage(`Test workout created successfully! Workout ID: ${result.workoutId} 🏃`, 'success');
-                    showMessage('Check your Garmin Connect app or watch for the new workout!', 'success');
-                } else {
-                    showMessage(result.error || 'Failed to create test workout', 'error');
-                }
-            } catch (error) {
-                console.error('Error creating test workout:', error);
-                showMessage('Failed to create test workout: ' + error.message, 'error');
-            } finally {
-                this.disabled = false;
-            }
-        });
-
         // Delete Garmin credentials
         document.getElementById('delete-garmin-credentials').addEventListener('click', async function() {
             if (!confirm('Are you sure you want to delete your Garmin Connect credentials? This will stop all workout syncing.')) {
@@ -1600,359 +1452,6 @@
                 }
             } catch (error) {
                 console.error('Error deleting Garmin credentials:', error);
-            }
-        });
-
-        // ===== AI WORKOUT PARSING =====
-
-        // Test AI Parser with examples
-        document.getElementById('test-ai-parser').addEventListener('click', async function() {
-            this.disabled = true;
-            
-            try {
-                showMessage('🤖 Testing AI workout parser with training examples...', 'info');
-                console.log('DEBUG: Starting AI parser test...');
-                
-                const response = await fetch('/training/api/garmin/test-parser', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const result = await response.json();
-                console.log('DEBUG: AI parser test result:', result);
-
-                if (response.ok && result.success) {
-                    showMessage(`✅ AI parser test completed! ${result.summary.successful}/${result.summary.totalTests} examples parsed successfully.`, 'success');
-                    
-                    // Display test results and populate JSON field with the first successful result
-                    if (result.results && result.results.length > 0) {
-                        const firstSuccessful = result.results.find(r => r.success);
-                        if (firstSuccessful) {
-                            // Populate the JSON field with the generated workout
-                            const generatedJsonField = document.getElementById('generated-json');
-                            const createFromJsonBtn = document.getElementById('create-from-json');
-                            const saveJsonBtn = document.getElementById('save-json-file');
-                            
-                            generatedJsonField.value = JSON.stringify(firstSuccessful.generatedWorkout, null, 2);
-                            createFromJsonBtn.disabled = false;
-                            saveJsonBtn.disabled = false;
-                            
-                            // Also save the JSON to file automatically
-                            saveJsonToFile(firstSuccessful.generatedWorkout, firstSuccessful.workoutName || 'test-workout');
-                            
-                            // Show parsing result section
-                            const aiParsingResult = document.getElementById('ai-parsing-result');
-                            const parsedInfo = document.getElementById('parsed-workout-info');
-                            
-                            parsedInfo.innerHTML = `
-                                <div class="status success">
-                                    <strong>🧪 Test Results: ${result.summary.successful}/${result.summary.totalTests} successful</strong><br>
-                                    <small>Showing: ${firstSuccessful.workoutName} (Example ${firstSuccessful.exampleNumber})</small><br>
-                                    <small>Steps: ${firstSuccessful.stepsCount} | Description: "${firstSuccessful.description.substring(0, 60)}..."</small>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <strong>Test Description:</strong><br>
-                                    <code>${firstSuccessful.description}</code>
-                                </div>
-                            `;
-                            aiParsingResult.classList.remove('hidden');
-                            
-                            showMessage('💾 JSON data populated and saved to file for inspection!', 'success');
-                        } else {
-                            // All tests failed - show detailed error information
-                            const firstFailed = result.results.find(r => !r.success);
-                            const aiParsingResult = document.getElementById('ai-parsing-result');
-                            const parsedInfo = document.getElementById('parsed-workout-info');
-                            
-                            parsedInfo.innerHTML = `
-                                <div class="status error">
-                                    <strong>❌ All test examples failed to parse</strong><br>
-                                    <small>Failed: ${result.summary.failed}/${result.summary.totalTests} examples</small>
-                                </div>
-                                ${firstFailed ? `
-                                <div style="margin-top: 10px;">
-                                    <strong>First Failure (Example ${firstFailed.exampleNumber}):</strong><br>
-                                    <small><strong>Failure Point:</strong> ${firstFailed.failurePoint || 'Unknown'}</small><br>
-                                    <small><strong>Details:</strong> ${firstFailed.detailedError || firstFailed.error}</small><br>
-                                    <small><strong>Description:</strong> "${firstFailed.description.substring(0, 100)}..."</small>
-                                </div>
-                                ` : ''}
-                                <div style="margin-top: 10px; font-size: 12px;">
-                                    <strong>Check console for detailed results of all ${result.summary.totalTests} tests</strong>
-                                </div>
-                            `;
-                            aiParsingResult.classList.remove('hidden');
-                            
-                            showMessage(`❌ All ${result.summary.totalTests} test examples failed to parse`, 'error');
-                        }
-                        
-                        // Log detailed results for debugging
-                        console.log('DEBUG: Detailed test results:', result.results);
-                    }
-                } else {
-                    showMessage('❌ AI parser test failed: ' + (result.error || 'Unknown error'), 'error');
-                    console.error('AI parser test error:', result);
-                }
-            } catch (error) {
-                console.error('Error testing AI parser:', error);
-                showMessage('❌ Failed to test AI parser: ' + error.message, 'error');
-            } finally {
-                this.disabled = false;
-            }
-        });
-
-        // Create AI Workout from description
-        document.getElementById('create-ai-workout').addEventListener('click', async function() {
-            const description = document.getElementById('training-description').value.trim();
-            const workoutName = document.getElementById('workout-name').value.trim();
-            const workoutDate = document.getElementById('workout-date').value;
-            
-            if (!description) {
-                showMessage('❌ Please enter a training description', 'error');
-                return;
-            }
-
-            this.disabled = true;
-            
-            try {
-                showMessage('🤖 Creating AI-parsed workout on Garmin Connect...', 'info');
-                console.log('DEBUG: Creating AI workout with description:', description);
-                console.log('DEBUG: Workout name:', workoutName || 'Auto-generated');
-                console.log('DEBUG: Workout date:', workoutDate || 'Current date');
-                
-                const response = await fetch('/training/api/garmin/create-workout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        description: description,
-                        workoutName: workoutName || null,
-                        workoutDate: workoutDate || null
-                    })
-                });
-
-                const result = await response.json();
-                console.log('DEBUG: AI workout creation result:', result);
-
-                if (response.ok && result.success) {
-                    showMessage(`🎉 AI workout created successfully! Workout ID: ${result.workoutId}`, 'success');
-                    
-                    // Display parsed workout details
-                    const parsedInfo = document.getElementById('parsed-workout-info');
-                    const aiParsingResult = document.getElementById('ai-parsing-result');
-                    const generatedJsonField = document.getElementById('generated-json');
-                    const createFromJsonBtn = document.getElementById('create-from-json');
-                    
-                    parsedInfo.innerHTML = `
-                        <div class="status success">
-                            <strong>🏃 ${result.workoutName}</strong><br>
-                            <small>Distance: ~${result.estimatedDistance}km | Duration: ~${result.estimatedDuration}min | Steps: ${result.stepsCount}</small><br>
-                            <small>Workout ID: ${result.workoutId}</small>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <strong>Original Description:</strong><br>
-                            <code>${result.originalDescription}</code>
-                        </div>
-                    `;
-                    
-                    // Display the generated JSON if available
-                    console.log('DEBUG: result.generatedJson exists:', !!result.generatedJson);
-                    console.log('DEBUG: result object keys:', Object.keys(result));
-                    if (result.generatedJson) {
-                        console.log('DEBUG: Setting JSON field with:', result.generatedJson);
-                        generatedJsonField.value = JSON.stringify(result.generatedJson, null, 2);
-                        createFromJsonBtn.disabled = false;
-                        
-                        // Also save to local file
-                        saveJsonToFile(result.generatedJson, result.workoutName || 'workout');
-                    } else {
-                        console.log('DEBUG: No generatedJson in result, checking details field');
-                        if (result.details) {
-                            console.log('DEBUG: Using details field instead');
-                            generatedJsonField.value = JSON.stringify(result.details, null, 2);
-                            createFromJsonBtn.disabled = false;
-                            saveJsonToFile(result.details, result.workoutName || 'workout');
-                        }
-                    }
-                    
-                    aiParsingResult.classList.remove('hidden');
-                    
-                    showMessage('✅ Check your Garmin Connect app or watch for the new AI-generated workout!', 'success');
-                } else {
-                    // Check if this is an AI parsing error with detailed information
-                    if (result.failurePoint) {
-                        console.error('AI parsing error details:', result);
-                        
-                        // Display detailed parsing error information
-                        const parsedInfo = document.getElementById('parsed-workout-info');
-                        const aiParsingResult = document.getElementById('ai-parsing-result');
-                        
-                        parsedInfo.innerHTML = `
-                            <div class="status error">
-                                <strong>❌ AI Parsing Failed</strong><br>
-                                <small><strong>Failure Point:</strong> ${result.failurePoint}</small><br>
-                                <small><strong>Details:</strong> ${result.detailedError}</small>
-                            </div>
-                            <div style="margin-top: 10px;">
-                                <strong>Original Description:</strong><br>
-                                <code>${result.description || description}</code>
-                            </div>
-                            <div style="margin-top: 10px; font-size: 12px;">
-                                <strong>Technical Error:</strong><br>
-                                <code style="color: #666;">${result.originalError}</code>
-                            </div>
-                        `;
-                        aiParsingResult.classList.remove('hidden');
-                        
-                        showMessage(`❌ AI Parsing Failed: ${result.failurePoint}`, 'error');
-                    } else {
-                        // Generic error
-                        showMessage('❌ ' + (result.error || 'Failed to create AI workout'), 'error');
-                        console.error('AI workout creation error:', result);
-                    }
-                }
-            } catch (error) {
-                console.error('Error creating AI workout:', error);
-                showMessage('❌ Failed to create AI workout: ' + error.message, 'error');
-            } finally {
-                this.disabled = false;
-            }
-        });
-
-        // Create Garmin workout from JSON
-        document.getElementById('create-from-json').addEventListener('click', async function() {
-            const jsonText = document.getElementById('generated-json').value.trim();
-            
-            if (!jsonText) {
-                showMessage('❌ No JSON data to create workout from', 'error');
-                return;
-            }
-
-            let workoutJson;
-            try {
-                workoutJson = JSON.parse(jsonText);
-            } catch (e) {
-                showMessage('❌ Invalid JSON format. Please check the JSON syntax.', 'error');
-                return;
-            }
-
-            this.disabled = true;
-            
-            try {
-                showMessage('🚀 Creating Garmin workout from JSON...', 'info');
-                console.log('DEBUG: Creating workout from JSON:', workoutJson);
-                
-                const response = await fetch('/training/api/garmin/create-from-json', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        workoutJson: workoutJson
-                    })
-                });
-
-                const result = await response.json();
-                console.log('DEBUG: JSON workout creation result:', result);
-
-                if (response.ok && result.success) {
-                    showMessage(`🎉 Workout created from JSON! Workout ID: ${result.workoutId}`, 'success');
-                    
-                    // Display creation result
-                    const creationResult = document.getElementById('json-creation-result');
-                    const creationInfo = document.getElementById('json-creation-info');
-                    
-                    creationInfo.innerHTML = `
-                        <div class="status success">
-                            <strong>✅ Successfully created: ${result.workoutName || 'Unnamed Workout'}</strong><br>
-                            <small>Workout ID: ${result.workoutId}</small><br>
-                            <small>Created at: ${new Date().toLocaleString()}</small>
-                        </div>
-                    `;
-                    creationResult.classList.remove('hidden');
-                    
-                } else {
-                    showMessage('❌ ' + (result.error || 'Failed to create workout from JSON'), 'error');
-                    console.error('JSON workout creation error:', result);
-                }
-            } catch (error) {
-                console.error('Error creating workout from JSON:', error);
-                showMessage('❌ Failed to create workout from JSON: ' + error.message, 'error');
-            } finally {
-                this.disabled = false;
-            }
-        });
-
-        // Function to save JSON to a downloadable file
-        function saveJsonToFile(jsonData, filename = 'workout') {
-            try {
-                const jsonString = JSON.stringify(jsonData, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `${filename}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                
-                console.log(`JSON saved to file: ${link.download}`);
-                showMessage(`💾 JSON saved to file: ${link.download}`, 'success');
-            } catch (error) {
-                console.error('Error saving JSON to file:', error);
-                showMessage('❌ Failed to save JSON to file', 'error');
-            }
-        }
-
-        // Enable/disable JSON button based on content
-        document.getElementById('generated-json').addEventListener('input', function() {
-            const jsonText = this.value.trim();
-            const createFromJsonBtn = document.getElementById('create-from-json');
-            const saveJsonBtn = document.getElementById('save-json-file');
-            
-            if (jsonText) {
-                try {
-                    const parsedJson = JSON.parse(jsonText);
-                    // Basic validation - check if it has workout structure
-                    if (parsedJson.workoutName || parsedJson.workoutSegments) {
-                        createFromJsonBtn.disabled = false;
-                        this.style.borderColor = '#4caf50'; // Green border for valid JSON
-                    } else {
-                        createFromJsonBtn.disabled = true;
-                        this.style.borderColor = '#ff9800'; // Orange border for invalid structure
-                    }
-                    saveJsonBtn.disabled = false; // Enable save for any valid JSON
-                } catch (e) {
-                    createFromJsonBtn.disabled = true;
-                    saveJsonBtn.disabled = true;
-                    this.style.borderColor = '#f44336'; // Red border for invalid JSON
-                }
-            } else {
-                createFromJsonBtn.disabled = true;
-                saveJsonBtn.disabled = true;
-                this.style.borderColor = '#ddd'; // Default border
-            }
-        });
-
-        // Save JSON to file button
-        document.getElementById('save-json-file').addEventListener('click', function() {
-            const jsonText = document.getElementById('generated-json').value.trim();
-            if (!jsonText) {
-                showMessage('❌ No JSON data to save', 'error');
-                return;
-            }
-            
-            try {
-                const parsedJson = JSON.parse(jsonText);
-                const workoutName = parsedJson.workoutName || 'workout';
-                saveJsonToFile(parsedJson, workoutName);
-            } catch (e) {
-                showMessage('❌ Invalid JSON format. Cannot save.', 'error');
             }
         });
 

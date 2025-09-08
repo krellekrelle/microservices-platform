@@ -468,6 +468,10 @@ router.post('/create-workout', async (req, res) => {
                     { workoutId: actualWorkoutId.toString() },
                     device.device_id,
                 );
+
+                console.log('syncResult:', syncResult);
+
+                console.log(`✅ Auto-pushed workout ${actualWorkoutId} to device ${device.device_name}`);
                 // const deviceSyncService = require('../services/deviceSyncService');
                 // const pushResults = await deviceSyncService.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
                 
