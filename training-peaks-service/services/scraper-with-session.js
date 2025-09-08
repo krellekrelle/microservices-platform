@@ -338,7 +338,7 @@ class TrainingPeaksScraper {
             await this.loginToTrainingPeaks(username, password);
             
             // Then scrape the weekly schedule
-            const weekData = await this.scrapeWeeklySchedule('2025-09-01');
+            const weekData = await this.scrapeWeeklySchedule('2025-09-08');
             
             return weekData;
             
@@ -362,7 +362,7 @@ class TrainingPeaksScraper {
             console.log('⏳ Waiting 5 seconds for calendar to fully load...');
             await this.page.waitForTimeout(5000);
             
-            // Get September 1-7, 2025 week data
+            // Get September 8-15, 2025 week data
             const weekData = await this.extractWeekData();
             
             return weekData;
@@ -387,11 +387,11 @@ class TrainingPeaksScraper {
             
             const weekData = [];
             
-            // Look for the specific week container for September 1-7, 2025
-            const weekContainer = await this.page.$('div.calendarWeekContainer[data-date="2025-09-01"]');
+            // Look for the specific week container for September 8-15, 2025
+            const weekContainer = await this.page.$('div.calendarWeekContainer[data-date="2025-09-08"]');
             
             if (!weekContainer) {
-                console.log('❌ Could not find week container for September 1-7, 2025');
+                console.log('❌ Could not find week container for September 8-15, 2025');
                 // Try to find any week container to debug
                 const anyWeekContainer = await this.page.$('div.calendarWeekContainer');
                 if (anyWeekContainer) {

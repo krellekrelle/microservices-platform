@@ -49,6 +49,14 @@ function setupApp() {
     // Public assets (before auth)
     app.use('/favicon.svg', express.static(path.join(__dirname, 'public/favicon.svg')));
 
+    // Public health check endpoint
+    app.get('/health', (req, res) => {
+        res.json({ 
+            status: 'healthy', 
+            service: 'training-peaks-service'
+        });
+    });
+
     // Protected routes
     app.use(jwtMiddleware.authenticate, jwtMiddleware.requireApproved);
     app.use(express.static(path.join(__dirname, 'public')));
@@ -56,13 +64,6 @@ function setupApp() {
     // Routes
     app.get('/', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'index.html'));
-    });
-
-    app.get('/health', (req, res) => {
-        res.json({ 
-            status: 'healthy', 
-            service: 'training-peaks-service'
-        });
     });
 
     // API Routes

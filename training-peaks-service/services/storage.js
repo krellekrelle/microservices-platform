@@ -291,6 +291,24 @@ class StorageService {
         }
     }
 
+    // Get all user's training sessions (no date filtering)
+    async getAllUserTrainingSessions(userId) {
+        try {
+            const query = `
+                SELECT date, type, description, duration, distance, workout_id
+                FROM training_sessions 
+                WHERE user_id = $1
+                ORDER BY date DESC
+            `;
+            
+            const result = await db.query(query, [userId]);
+            return result.rows;
+        } catch (error) {
+            console.error('❌ Error getting all user training sessions:', error);
+            throw error;
+        }
+    }
+
     // Log scraping attempts
     async logScrapingAttempt(userId, scrapeType, status, message, sessionsFound = 0, weekStartDate = null) {
         try {

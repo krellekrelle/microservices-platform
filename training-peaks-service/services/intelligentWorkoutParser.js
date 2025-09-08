@@ -90,6 +90,116 @@ class IntelligentWorkoutParser {
     }
 
     /**
+     * Extract pace ranges from Danish text and calculate correct m/s values
+     * @param {string} text - Text to search for pace patterns
+     * @returns {Array} Array of {pattern, targetValueOne, targetValueTwo} objects
+     */
+    extractPaceRanges(text) {
+        const paceRanges = [];
+        
+        // Pattern for pace ranges like "4.05-4.15" or "4.05- 4.15"
+        const paceRangeRegex = /(\d)\.(\d{2})\s*-\s*(\d)\.(\d{2})/g;
+        let match;
+        
+        while ((match = paceRangeRegex.exec(text)) !== null) {
+            const [fullMatch, min1, sec1, min2, sec2] = match;
+            
+            // Convert to total seconds per km
+            const pace1Seconds = parseInt(min1) * 60 + parseInt(sec1);
+            const pace2Seconds = parseInt(min2) * 60 + parseInt(sec2);
+            
+            // Convert to m/s (1000 meters / seconds per km)
+            const pace1Ms = 1000 / pace1Seconds;
+            const pace2Ms = 1000 / pace2Seconds;
+            
+            // targetValueOne should be slower (higher min/km, lower m/s)
+            // targetValueTwo should be faster (lower min/km, higher m/s)
+            const targetValueOne = Math.min(pace1Ms, pace2Ms);
+            const targetValueTwo = Math.max(pace1Ms, pace2Ms);
+            
+            paceRanges.push({
+                pattern: fullMatch,
+                targetValueOne: Math.round(targetValueOne * 100) / 100, // Round to 2 decimals
+                targetValueTwo: Math.round(targetValueTwo * 100) / 100
+            });
+            
+            console.log(`🎯 [DEBUG] Pace calc - "${fullMatch}" → ${targetValueOne} m/s to ${targetValueTwo} m/s`);
+        }
+        
+        // Pattern for single pace like "4.05"
+        const singlePaceRegex = /(\d)\.(\d{2})(?!\s*-)/g;
+        while ((match = singlePaceRegex.exec(text)) !== null) {
+            const [fullMatch, min1, sec1] = match;
+            
+            // Skip if this pace is part of a range we already found
+            const isPartOfRange = paceRanges.some(range => range.pattern.includes(fullMatch));
+            if (isPartOfRange) continue;
+            
+            const paceSeconds = parseInt(min1) * 60 + parseInt(sec1);
+            const paceMs = Math.round((1000 / paceSeconds) * 100) / 100;
+            
+            paceRanges.push({
+                pattern: fullMatch,
+                targetValueOne: paceMs,
+                targetValueTwo: paceMs
+            });
+            
+            console.log(`🎯 [DEBUG] Pace calc - "${fullMatch}" → ${paceMs} m/s (single pace)`);
+        }
+        
+        return paceRanges;
+    }
+
+    /**
+     * Fix pace values in workout steps using programmatic calculation
+     * @param {Object} workout - Parsed workout object
+     * @param {string} description - Original description to extract paces from
+     */
+    fixPaceValues(workout, description) {
+        const paceRanges = this.extractPaceRanges(description);
+        if (paceRanges.length === 0) {
+            console.log('📊 [DEBUG] No pace ranges found in description');
+            return workout;
+        }
+        
+        console.log(`📊 [DEBUG] Found ${paceRanges.length} pace ranges to fix`);
+        
+        let paceIndex = 0;
+        
+        // Recursive function to fix paces in workout steps
+        const fixSteps = (steps) => {
+            for (const step of steps) {
+                if (step.targetType?.workoutTargetTypeKey === 'pace.zone') {
+                    if (paceIndex < paceRanges.length) {
+                        const pace = paceRanges[paceIndex];
+                        console.log(`🔧 [DEBUG] Fixing step ${step.stepOrder}: ${step.targetValueOne}-${step.targetValueTwo} → ${pace.targetValueOne}-${pace.targetValueTwo}`);
+                        step.targetValueOne = pace.targetValueOne;
+                        step.targetValueTwo = pace.targetValueTwo;
+                        paceIndex++;
+                    }
+                }
+                
+                // Handle RepeatGroupDTO nested steps
+                if (step.type === 'RepeatGroupDTO' && step.workoutSteps) {
+                    fixSteps(step.workoutSteps);
+                }
+            }
+        };
+        
+        // Fix paces in all segments
+        if (workout.workoutSegments) {
+            for (const segment of workout.workoutSegments) {
+                if (segment.workoutSteps) {
+                    fixSteps(segment.workoutSteps);
+                }
+            }
+        }
+        
+        console.log(`✅ [DEBUG] Fixed ${paceIndex} pace zones with correct calculations`);
+        return workout;
+    }
+
+    /**
      * Convert a Danish training description into Garmin workout JSON
      * @param {string} description - Danish training description
      * @param {string} workoutDate - Date for the workout (YYYY-MM-DD)
@@ -143,15 +253,19 @@ class IntelligentWorkoutParser {
             const cleanedWorkout = this.cleanWorkoutForCreation(parsedWorkout);
             console.log('🧹 [DEBUG] AI Parser - Cleaned workout for addWorkout()');
             
+            // Fix pace values using programmatic calculation
+            const fixedWorkout = this.fixPaceValues(cleanedWorkout, description);
+            console.log('🎯 [DEBUG] AI Parser - Applied programmatic pace fixes');
+            
             // Validate the parsed workout has required structure
-            this.validateWorkoutStructure(cleanedWorkout);
+            this.validateWorkoutStructure(fixedWorkout);
             console.log('✅ [DEBUG] AI Parser - Workout structure validation passed');
             
             // Save successful AI response
-            await this.saveAIResponse(description, dateToUse, prompt, result, cleanedWorkout, true);
+            await this.saveAIResponse(description, dateToUse, prompt, result, fixedWorkout, true);
             
-            console.log(`🎉 [DEBUG] AI Parser - Successfully parsed into workout: "${cleanedWorkout.workoutName}"`);
-            return cleanedWorkout;
+            console.log(`🎉 [DEBUG] AI Parser - Successfully parsed into workout: "${fixedWorkout.workoutName}"`);
+            return fixedWorkout;
             
         } catch (error) {
             console.error('❌ [DEBUG] AI Parser - Parsing failed:', error.message);
@@ -250,34 +364,46 @@ class IntelligentWorkoutParser {
             ? `\nSTRUKTUR REFERENCE:\n${this.addWorkoutTypes}\n`
             : '';
 
-        // Convert workoutDate (YYYY-MM-DD) to dd/mm format
+        // Convert workoutDate to proper format and get day name
         const dateObj = new Date(workoutDate);
         const ddmm = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
+        const dayNames = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+        const dayName = dayNames[dateObj.getDay()];
+        
+        // Format date as YYYY-MM-DD for the prompt
+        const cleanDate = dateObj.toISOString().split('T')[0];
 
         return `Analysér beskrivelsen og generér en Garmin workout i ren JSON til addWorkout().
 
-TRÆNINGSDATO: ${workoutDate}
+TRÆNINGSDATO: ${cleanDate} (${dayName})
 BESKRIVELSE: "${description}"
-${workoutName ? `NAVN: "${workoutName}"` : `NAVN: "[Dansk navn baseret på beskrivelse] - ${ddmm}"`}
+${workoutName ? `NAVN: "${workoutName}"` : `NAVN: "[treningstype] ${dayName} ${ddmm}"`}
 
 ${typeReference}
 
 VIGTIG: STRUKTUR skal være template-baseret, INDHOLD skal være beskrivelse-baseret
 
+NAVN EKSEMPLER:
+- "60 min jog" → "jog ${dayName} ${ddmm}"
+- "3x 1km 4.05" → "intervaller ${dayName} ${ddmm}" 
+- "5km opvarmning + 4x 100m flowløb" → "flowløb ${dayName} ${ddmm}"
+- "10km marathon pace" → "marathon pace ${dayName} ${ddmm}"
+- "tempo løb 3x 2km" → "tempo ${dayName} ${ddmm}"
+
 ANALYSE DANSKE TRÆNINGSKOMPONENTER:
 - "X km opvarmning" = X km distance-based løb uden target (no.target)
-- "X km jog" = time-based løb (beregn tid: X km * 6 min/km), ingen target (no.target)
+- "X km jog" = X km distance-based løb uden target (no.target) - ALTID distance, ALDRIG time
 - "X x 100m flowløb" = X gentagelser af (100m no.target + 40 sek pause)
 - "X x Y km Z.ZZ" = X intervaller af Y km ved Z:ZZ min/km tempo (pace.zone target)
 - "Ym jog imellem" = Y meter distance-based løb uden target mellem intervaller
 - "X min pause" = X minutters pause/hvile (time-based recovery step)
 - "X km nedløb" = X km distance-based løb uden target (no.target)
 
-PACE KONVERTERING:
-- "4.05-4.15" = pace range: targetValueOne = 3.92 m/s (4:15), targetValueTwo = 4.08 m/s (4:05)
-- "4.05" = single pace: targetValueOne = 4.08 m/s, targetValueTwo = 4.08 m/s
-- Beregning: "X.YZ" min/km → (X*60 + YZ) sekunder/km → 1000/(sek/km) = m/s
-- "jog" eller "let" = ingen target (no.target)
+PACE HÅNDTERING:
+- Pace ranges ("4.05-4.15") = targetType: "pace.zone"
+- Enkelt pace ("4.05") = targetType: "pace.zone"
+- "jog" eller "let" = targetType: "no.target" (ingen pace target)
+- Sæt targetValueOne og targetValueTwo til 0.0 (de fixes programmatisk)
 
 REPEAT GROUPS - BRUG RepeatGroupDTO FOR GENTAGELSER:
 - "3x 1km" = 1 RepeatGroupDTO med numberOfIterations: 3, steps: [1km interval, recovery]
@@ -287,8 +413,22 @@ REPEAT GROUPS - BRUG RepeatGroupDTO FOR GENTAGELSER:
 - "pause imellem" = rest step INDEN I repeat group
 
 HVORNÅR BRUGE RepeatGroupDTO vs ExecutableStepDTO:
-- RepeatGroupDTO: KUN når numberOfIterations > 1 (2x, 3x, 4x etc.)
-- ExecutableStepDTO: Alle enkelt aktiviteter og "jog" beskrivelser
+- RepeatGroupDTO: KUN når beskrivelsen har "2x", "3x", "4x" etc. (numberOfIterations > 1)
+- ExecutableStepDTO: ALLE andre aktiviteter inklusiv:
+  * "5 km jog" (enkelt jog)
+  * "5 km 4.05-4.15" (enkelt interval med pace)
+  * "1 km opvarmning" (enkelt opvarmning)
+  * "200m jog imellem" (enkelt recovery)
+
+EKSEMPLER PÅ HVORNÅR BRUGE RepeatGroupDTO:
+- "3x 1 km 4.05" ✅ RepeatGroupDTO (numberOfIterations: 3)
+- "4x 100m flowløb" ✅ RepeatGroupDTO (numberOfIterations: 4)
+- "2x 2 km 4.10" ✅ RepeatGroupDTO (numberOfIterations: 2)
+
+EKSEMPLER PÅ HVORNÅR BRUGE ExecutableStepDTO:
+- "5 km jog" ✅ ExecutableStepDTO (ingen gentagelser)
+- "5 km 4.05-4.15" ✅ ExecutableStepDTO (enkelt interval)
+- "1 km opvarmning" ✅ ExecutableStepDTO (enkelt aktivitet)
 
 STEP TYPES - BRUG KORREKTE ID'ER:
 - Running/Intervals: stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
@@ -299,6 +439,13 @@ HVORNÅR SKAL FORSKELLIGE STEP TYPES BRUGES:
 - stepTypeId: 3 ("interval") = alle løb (opvarmning, intervals, nedløb, jog)
 - stepTypeId: 5 ("rest") = kun pauser og hvile (40 sek pause, 3 min pause)
 
+TARGET TYPE REGLER:
+- Ingen pace nævnt ("10 km", "5 km løb") = targetType: "no.target"
+- Pace range ("4.05-4.15") = targetType: "pace.zone" + targetValueOne: 0.0, targetValueTwo: 0.0
+- Enkelt pace ("4.05") = targetType: "pace.zone" + targetValueOne: 0.0, targetValueTwo: 0.0
+- "jog", "let", "opvarmning", "nedløb" = targetType: "no.target"
+- "tempo", "threshold" uden pace = targetType: "no.target" (medmindre pace er specificeret)
+
 BEREGN VARIGHED OG END CONDITION:
 - "X km jog" = endCondition: time (2), endConditionValue: X * 360 sekunder (6 min/km)
 - "X km opvarmning/nedløb" = endCondition: distance (3), endConditionValue: X * 1000 meter
@@ -308,7 +455,7 @@ BEREGN VARIGHED OG END CONDITION:
 
 TEMPLATE STRUKTUR:
 {
-  "workoutName": "[Kort dansk navn] - ${ddmm}",
+  "workoutName": "[treningstype] ${dayName} ${ddmm}",
   "description": "${description}",
   "updateDate": "[NUVÆRENDE DATO/TID]",
   "createdDate": "[NUVÆRENDE DATO/TID]", 
@@ -330,9 +477,14 @@ TEMPLATE STRUKTUR:
 STEP/REPEAT TYPER:
 - Opvarmning/nedløb: ExecutableStepDTO, endCondition=distance, targetType=no.target
 - Jog (X km): ExecutableStepDTO, endCondition=time, targetType=no.target
-- Enkelt interval: ExecutableStepDTO, endCondition=distance, targetType=pace.zone
+- Enkelt interval (X km Y.ZZ): ExecutableStepDTO, endCondition=distance, targetType=pace.zone
 - Gentagne intervaller (2x+): RepeatGroupDTO med numberOfIterations og nested steps
 - Pauser: ExecutableStepDTO, endCondition=time, targetType=no.target
+
+VIGTIGT: ALDRIG RepeatGroupDTO for enkelt aktiviteter!
+- "5 km 4.05-4.15" = ExecutableStepDTO (ikke RepeatGroupDTO med numberOfIterations: 1)
+- "1 km opvarmning" = ExecutableStepDTO (ikke RepeatGroupDTO)
+- "3 min pause" = ExecutableStepDTO (ikke RepeatGroupDTO)
 
 REPEAT GROUP STRUKTUR:
 {
@@ -369,14 +521,14 @@ VIGTIGE RepeatGroupDTO REGLER:
 - smartRepeat: ALTID false
 - childStepId: ALTID 1
 - Nested steps skal have stepOrder 1, 2, 3... inden i repeat group
-  "targetValueOne": [LANGSOM M/S for pace.zone],
-  "targetValueTwo": [HURTIG M/S for pace.zone], 
+  "targetValueOne": 0.0,
+  "targetValueTwo": 0.0, 
   "strokeType": {"strokeTypeId": 0},
   "equipmentType": {"equipmentTypeId": 0}
 }
 
 DETALJERET EKSEMPEL ANALYSE:
-Input: "5 km jog, 3x 1 km 4.05-4.15, 200m jog imellem, 5 km jog"
+Input: "5 km jog, 5 km 4.05-4.15, 5 km jog"
 
 STEP 1: ExecutableStepDTO - 5 km jog (TIME-BASED)
 - type: "ExecutableStepDTO", stepOrder: 1
@@ -385,30 +537,31 @@ STEP 1: ExecutableStepDTO - 5 km jog (TIME-BASED)
 - endConditionValue: 1800 (5 km * 6 min/km = 30 min = 1800 sek)
 - targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
 
-STEP 2: RepeatGroupDTO - 3x (1km + 200m recovery)
-- type: "RepeatGroupDTO", stepOrder: 2, numberOfIterations: 3
-- smartRepeat: false, childStepId: 1
-- workoutSteps: [
-  { 1000m ExecutableStepDTO, pace.zone, targetValueOne: 3.92, targetValueTwo: 4.08, stepType: "interval", endCondition: distance },
-  { 200m ExecutableStepDTO, no.target, stepType: "interval", endCondition: distance }
-]
+STEP 2: ExecutableStepDTO - 5 km 4.05-4.15 (DISTANCE-BASED, ENKELT INTERVAL)
+- type: "ExecutableStepDTO", stepOrder: 2
+- stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
+- endCondition: {"conditionTypeId": 3, "conditionTypeKey": "distance"}
+- endConditionValue: 5000
+- targetType: {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"}
+- targetValueOne: 0.0, targetValueTwo: 0.0 (fixes programmatisk)
 
 STEP 3: ExecutableStepDTO - 5 km jog (TIME-BASED)
 - type: "ExecutableStepDTO", stepOrder: 3
 - stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
 - endCondition: {"conditionTypeId": 2, "conditionTypeKey": "time"}
-- endConditionValue: 1800 (5 km * 6 min/km = 30 min = 1800 sek)
+- endConditionValue: 1800
 - targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
 
 VIGTIGE REGLER:
 - "X km jog" = ALTID time-based (endCondition: time)
+- "X km Y.ZZ-Y.ZZ" = ALTID distance-based (endCondition: distance) + ExecutableStepDTO
 - "X km opvarmning/nedløb" = ALTID distance-based (endCondition: distance)
-- Enkelt aktivitet (1x) = ExecutableStepDTO
-- Gentaget aktivitet (2x+) = RepeatGroupDTO
+- Enkelt aktivitet (ingen "Xx") = ExecutableStepDTO
+- Gentaget aktivitet ("2x", "3x" etc.) = RepeatGroupDTO
 
 PACE RANGE EKSEMPEL "4.05-4.15":
-- Langsom: 4:15 = 255 sek/km = 1000/255 = 3.92 m/s (targetValueOne)
-- Hurtig: 4:05 = 245 sek/km = 1000/245 = 4.08 m/s (targetValueTwo)
+- targetType: "pace.zone"
+- targetValueOne: 0.0, targetValueTwo: 0.0 (beregnes programmatisk)
 
 KOPIER IKKE disse eksempel-værdier! Analysér den faktiske beskrivelse.
 

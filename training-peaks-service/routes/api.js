@@ -72,91 +72,88 @@ router.post('/credentials', async (req, res) => {
     }
 });
 
-// Get current week's training schedule
+// Get training schedule (all trainings or current week based on query parameter)
 router.get('/schedule', async (req, res) => {
     try {
         const userId = req.user.id;
+        const { all } = req.query; // Add query parameter to get all trainings
         
-        // Get date range (Monday to Sunday of current week)
-        const weekStart = storageService.getCurrentWeekStart();
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
+        let sessions;
+        let weekStart, weekEnd;
         
-        const sessions = await storageService.getUserTrainingSessions(
-            userId,
-            weekStart,
-            weekEnd.toISOString().split('T')[0]
-        );
-        
-        // Group by day
-        const schedule = {};
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        
-        days.forEach(day => {
-            schedule[day] = [];
-        });
-        
-        sessions.forEach(session => {
-            const sessionDate = new Date(session.date);
-            const dayIndex = (sessionDate.getDay() + 6) % 7; // Convert to Monday = 0
-            const dayName = days[dayIndex];
+        if (all === 'true') {
+            // Get all training sessions from database
+            sessions = await storageService.getAllUserTrainingSessions(userId);
+            weekStart = null;
+            weekEnd = null;
+        } else {
+            // Get date range (Monday to Sunday of current week)
+            weekStart = storageService.getCurrentWeekStart();
+            weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
             
-            schedule[dayName].push({
-                time: session.time,
-                title: session.title,
-                description: session.description,
-                type: session.training_type,
-                duration: session.duration_minutes
+            sessions = await storageService.getUserTrainingSessions(
+                userId,
+                weekStart,
+                weekEnd.toISOString().split('T')[0]
+            );
+        }
+        
+        // Group by day (for current week) or by date (for all trainings)
+        let schedule;
+        
+        if (all === 'true') {
+            // Group all trainings by date
+            schedule = {};
+            sessions.forEach(session => {
+                const sessionDate = session.date;
+                if (!schedule[sessionDate]) {
+                    schedule[sessionDate] = [];
+                }
+                
+                schedule[sessionDate].push({
+                    type: session.type,
+                    description: session.description,
+                    duration: session.duration,
+                    distance: session.distance,
+                    workout_id: session.workout_id,
+                    date: session.date
+                });
             });
-        });
+        } else {
+            // Group by day for current week
+            schedule = {};
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            
+            days.forEach(day => {
+                schedule[day] = [];
+            });
+            
+            sessions.forEach(session => {
+                const sessionDate = new Date(session.date);
+                const dayIndex = (sessionDate.getDay() + 6) % 7; // Convert to Monday = 0
+                const dayName = days[dayIndex];
+                
+                schedule[dayName].push({
+                    type: session.type,
+                    description: session.description,
+                    duration: session.duration,
+                    distance: session.distance,
+                    workout_id: session.workout_id
+                });
+            });
+        }
         
         res.json({
             weekStart,
-            weekEnd: weekEnd.toISOString().split('T')[0],
-            schedule
+            weekEnd: weekEnd ? weekEnd.toISOString().split('T')[0] : null,
+            schedule,
+            totalSessions: sessions.length,
+            showingAll: all === 'true'
         });
     } catch (error) {
         console.error('Error getting schedule:', error);
         res.status(500).json({ error: 'Failed to get schedule' });
-    }
-});
-
-// Get training sessions as a list for Garmin workflow
-router.get('/sessions', async (req, res) => {
-    try {
-        const userId = req.user.id;
-        
-        // Get date range (Monday to Sunday of current week)
-        const weekStart = storageService.getCurrentWeekStart();
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        
-        const sessions = await storageService.getUserTrainingSessions(
-            userId,
-            weekStart,
-            weekEnd.toISOString().split('T')[0]
-        );
-        
-        // Format sessions for Garmin workflow
-        const formattedSessions = sessions.map(session => ({
-            id: session.id,
-            date: session.date,
-            title: session.title || session.type,
-            description: session.description,
-            type: session.type,
-            duration: session.duration,
-            garminSynced: session.garmin_synced || false,
-            syncAttempted: session.garmin_sync_attempted
-        }));
-        
-        res.json({
-            weekStart,
-            weekEnd: weekEnd.toISOString().split('T')[0],
-            sessions: formattedSessions
-        });
-    } catch (error) {
-        console.error('Error getting training sessions:', error);
-        res.status(500).json({ error: 'Failed to get training sessions' });
     }
 });
 

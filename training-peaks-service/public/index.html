@@ -786,19 +786,69 @@
         // Load training sessions for Garmin workflow
         async function loadTrainingSchedule() {
             try {
-                const response = await fetch('/training/api/sessions');
+                const response = await fetch('/training/api/schedule?all=true');
                 const data = await response.json();
 
                 if (response.ok) {
-                    displayTrainingSessions(data.sessions, data.weekStart, data.weekEnd);
+                    // Convert the new format to the expected format
+                    const sessions = [];
+                    if (data.schedule) {
+                        // If showing all trainings, schedule is grouped by date
+                        if (data.showingAll) {
+                            Object.keys(data.schedule).forEach(date => {
+                                data.schedule[date].forEach(session => {
+                                    sessions.push({
+                                        id: `${date}-${session.type}`, // Create a unique ID
+                                        date: date,
+                                        type: session.type,
+                                        description: session.description,
+                                        duration: session.duration,
+                                        distance: session.distance,
+                                        workout_id: session.workout_id,
+                                        title: session.type, // Use type as title
+                                        garminSynced: false, // TODO: Add sync status from database
+                                        syncAttempted: false
+                                    });
+                                });
+                            });
+                        } else {
+                            // If showing current week, schedule is grouped by day name
+                            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                            days.forEach((day, index) => {
+                                if (data.schedule[day]) {
+                                    data.schedule[day].forEach(session => {
+                                        // Calculate the actual date for this day
+                                        const weekStart = new Date(data.weekStart);
+                                        const sessionDate = new Date(weekStart);
+                                        sessionDate.setDate(weekStart.getDate() + index);
+                                        
+                                        sessions.push({
+                                            id: `${sessionDate.toISOString().split('T')[0]}-${session.type}`,
+                                            date: sessionDate.toISOString().split('T')[0],
+                                            type: session.type,
+                                            description: session.description,
+                                            duration: session.duration,
+                                            distance: session.distance,
+                                            workout_id: session.workout_id,
+                                            title: session.type,
+                                            garminSynced: false,
+                                            syncAttempted: false
+                                        });
+                                    });
+                                }
+                            });
+                        }
+                    }
+                    
+                    displayTrainingSessions(sessions, data.weekStart, data.weekEnd);
                     document.getElementById('schedule-section').classList.remove('hidden');
                 } else {
-                    console.error('Error loading sessions:', data.error);
+                    console.error('Error loading schedule:', data.error);
                     document.getElementById('training-sessions-list').innerHTML = 
                         '<div class="status error">Failed to load training sessions</div>';
                 }
             } catch (error) {
-                console.error('Error loading sessions:', error);
+                console.error('Error loading schedule:', error);
                 document.getElementById('training-sessions-list').innerHTML = 
                     '<div class="status error">Error loading training sessions</div>';
             }
@@ -809,17 +859,24 @@
             const container = document.getElementById('training-sessions-list');
             const weekInfo = document.getElementById('week-range');
             
-            // Format week range
-            const startDate = new Date(weekStart).toLocaleDateString();
-            const endDate = new Date(weekEnd).toLocaleDateString();
-            weekInfo.textContent = `${startDate} - ${endDate}`;
+            // Format week range - handle both current week and all trainings
+            if (weekStart && weekEnd) {
+                const startDate = new Date(weekStart).toLocaleDateString();
+                const endDate = new Date(weekEnd).toLocaleDateString();
+                weekInfo.textContent = `${startDate} - ${endDate}`;
+            } else {
+                weekInfo.textContent = `All Training Sessions (${sessions.length} total)`;
+            }
             
             container.innerHTML = '';
 
             if (sessions.length === 0) {
-                container.innerHTML = '<div class="status info">No training sessions found for this week</div>';
+                container.innerHTML = '<div class="status info">No training sessions found</div>';
                 return;
             }
+
+            // Sort sessions by date (newest first for all trainings view)
+            sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             sessions.forEach((session, index) => {
                 const sessionDiv = document.createElement('div');
@@ -850,13 +907,15 @@
                             <div class="session-date">${sessionDate}</div>
                             <div class="session-title">${session.title || session.type}</div>
                             <span class="session-type">${session.type}</span>
+                            ${session.duration ? `<span class="session-duration">${session.duration}min</span>` : ''}
+                            ${session.distance ? `<span class="session-distance">${session.distance}</span>` : ''}
                             ${syncStatus}
                         </div>
                         <div class="session-actions">
-                            <button class="btn-small btn-ai" onclick="generateAIWorkout(event, ${session.id}, '${session.date}', \`${(session.description || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
+                            <button class="btn-small btn-ai" onclick="generateAIWorkout(event, '${session.id}', '${session.date}', \`${(session.description || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
                                 🤖 Generate AI
                             </button>
-                            <button class="btn-small btn-create" id="create-btn-${session.id}" onclick="createGarminWorkout(event, ${session.id})" disabled>
+                            <button class="btn-small btn-create" id="create-btn-${session.id}" onclick="createGarminWorkout(event, '${session.id}')" disabled>
                                 🚀 Create Workout
                             </button>
                             <span style="margin-left: 10px;">▼</span>
