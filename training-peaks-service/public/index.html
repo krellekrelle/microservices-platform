@@ -917,7 +917,7 @@
                             ${syncStatus}
                         </div>
                         <div class="session-actions">
-                            <button class="btn-small btn-ai" onclick="generateAIWorkout(event, '${session.id}', '${session.date}', \`${(session.description || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
+                            <button class="btn-small btn-ai" onclick="generateAIWorkout(event, '${session.id}', '${session.date}', \`${(session.description || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`, \`${(session.workout_name || '').replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
                                 🤖 Generate AI
                             </button>
                             <button class="btn-small btn-create" id="create-btn-${session.id}" onclick="createGarminWorkout(event, '${session.id}')" disabled>
@@ -958,7 +958,7 @@
         }
 
         // Generate AI workout for a specific session
-        async function generateAIWorkout(event, sessionId, sessionDate, description) {
+        async function generateAIWorkout(event, sessionId, sessionDate, description, workoutName = '') {
             event.stopPropagation();
             
             if (!description || description.trim() === '') {
@@ -975,6 +975,10 @@
                 console.log('Generating AI workout for session:', sessionId);
                 console.log('Date:', sessionDate);
                 console.log('Description:', description);
+                console.log('Workout Name:', workoutName);
+                
+                // Use the workout name if available, otherwise generate a generic one
+                const finalWorkoutName = workoutName && workoutName.trim() ? workoutName : `Training ${sessionDate}`;
                 
                 const response = await fetch('/training/api/garmin/create-workout', {
                     method: 'POST',
@@ -984,7 +988,7 @@
                     body: JSON.stringify({
                         description: description,
                         workoutDate: sessionDate,
-                        workoutName: `Training ${sessionDate}`
+                        workoutName: finalWorkoutName
                     })
                 });
 

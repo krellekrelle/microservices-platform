@@ -350,7 +350,7 @@ class TrainingPeaksScraper {
 
     async scrapeWeeklySchedule(startDate) {
         try {
-            console.log(`📅 Scraping training schedule for September 1-7, 2025`);
+            console.log(`📅 Scraping training schedule for September 8-15, 2025`);
             
             // Navigate to calendar
             await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
@@ -373,9 +373,9 @@ class TrainingPeaksScraper {
         }
     }
 
-        // Extract workout data for September 1-7, 2025
+        // Extract workout data for September 8-15, 2025
     async extractWeekData() {
-        console.log('📅 Extracting September 1-7, 2025 workout data...');
+        console.log('📅 Extracting September 8-15, 2025 workout data...');
         
         try {
             // Wait an additional moment for any lazy-loaded content
@@ -403,10 +403,10 @@ class TrainingPeaksScraper {
                 return weekData;
             }
             
-            console.log('✅ Found week container for September 1-7, 2025');
+            console.log('✅ Found week container for September 8-15, 2025');
             
             // Extract workouts for each day in the week
-            const targetDates = ['2025-09-01', '2025-09-02', '2025-09-03', '2025-09-04', '2025-09-05', '2025-09-06', '2025-09-07'];
+            const targetDates = ['2025-09-08', '2025-09-09', '2025-09-10', '2025-09-11', '2025-09-12', '2025-09-13', '2025-09-14'];
             
             for (const date of targetDates) {
                 console.log(`🗓️ Processing ${date}...`);

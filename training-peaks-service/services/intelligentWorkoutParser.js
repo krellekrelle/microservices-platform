@@ -377,11 +377,22 @@ class IntelligentWorkoutParser {
 
 TRÆNINGSDATO: ${cleanDate} (${dayName})
 BESKRIVELSE: "${description}"
-${workoutName ? `NAVN: "${workoutName}"` : `NAVN: "[treningstype] ${dayName} ${ddmm}"`}
+${workoutName ? `ØNSKET NAVN: "${workoutName}" (brug som inspiration for treningstype)` : `NAVN: "[treningstype] ${dayName} ${ddmm}"`}
 
 ${typeReference}
 
 VIGTIG: STRUKTUR skal være template-baseret, INDHOLD skal være beskrivelse-baseret
+
+NAVN REGLER:
+${workoutName ? `- ØNSKET NAVN er givet: "${workoutName}" - brug denne som guide for treningstype` : ''}
+- Slutresultat skal ALTID være: "[treningstype] ${dayName} ${ddmm}"
+- Treningstype skal afspejle beskrivelsen og det ønskede navn
+- Eksempler på treningstype baseret på ønsket navn:
+  * "Morning Run" → "jog ${dayName} ${ddmm}"
+  * "Speed Work" → "intervaller ${dayName} ${ddmm}"
+  * "Long Run" → "løb ${dayName} ${ddmm}"
+  * "Tempo Run" → "tempo ${dayName} ${ddmm}"
+  * "Recovery Run" → "restitution ${dayName} ${ddmm}"
 
 NAVN EKSEMPLER:
 - "60 min jog" → "jog ${dayName} ${ddmm}"
@@ -455,7 +466,7 @@ BEREGN VARIGHED OG END CONDITION:
 
 TEMPLATE STRUKTUR:
 {
-  "workoutName": "[treningstype] ${dayName} ${ddmm}",
+  "workoutName": "${workoutName ? `"[treningstype baseret på '${workoutName}'] ${dayName} ${ddmm}"` : `"[treningstype] ${dayName} ${ddmm}"`}",
   "description": "${description}",
   "updateDate": "[NUVÆRENDE DATO/TID]",
   "createdDate": "[NUVÆRENDE DATO/TID]", 
