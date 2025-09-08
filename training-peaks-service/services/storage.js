@@ -119,7 +119,8 @@ class StorageService {
                 userId: userId,
                 date: day.date,
                 type: this.detectTrainingTypeFromData(workout),
-                description: workout.description || workout.title || '',
+                workoutName: workout.title || null, // Extract workout name from title
+                description: workout.description || '',
                 duration: this.convertDurationToSeconds(workout.duration),
                 distance: workout.distance || null,
                 workoutId: workout.workoutId || null,
@@ -132,14 +133,14 @@ class StorageService {
                 for (const session of sessions) {
                     const query = `
                         INSERT INTO training_sessions (
-                            user_id, date, type, description, 
+                            user_id, date, type, workout_name, description, 
                             duration, distance, workout_id, week_start_date, scraped_at
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-                        ON CONFLICT (user_id, date, type, description) 
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                        ON CONFLICT (user_id, date, type, workout_name, description) 
                         DO UPDATE SET 
-                            duration = $5,
-                            distance = $6,
-                            workout_id = $7,
+                            duration = $6,
+                            distance = $7,
+                            workout_id = $8,
                             scraped_at = NOW()
                     `;
                     
@@ -147,6 +148,7 @@ class StorageService {
                         userId,
                         date: session.date,
                         type: session.type,
+                        workoutName: session.workoutName,
                         description: session.description,
                         duration: session.duration,
                         distance: session.distance,
@@ -158,6 +160,7 @@ class StorageService {
                         userId,
                         session.date,
                         session.type,
+                        session.workoutName,
                         session.description,
                         session.duration,
                         session.distance,

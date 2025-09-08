@@ -447,7 +447,7 @@ TARGET TYPE REGLER:
 - "tempo", "threshold" uden pace = targetType: "no.target" (medmindre pace er specificeret)
 
 BEREGN VARIGHED OG END CONDITION:
-- "X km jog" = endCondition: time (2), endConditionValue: X * 360 sekunder (6 min/km)
+- "X km jog" = endCondition: distance (3), endConditionValue: X * 1000 meter
 - "X km opvarmning/nedløb" = endCondition: distance (3), endConditionValue: X * 1000 meter
 - "X km i Y.ZZ" = endCondition: distance (3), endConditionValue: X * 1000 meter
 - "X min pause" = endCondition: time (2), endConditionValue: X * 60 sekunder
@@ -530,11 +530,11 @@ VIGTIGE RepeatGroupDTO REGLER:
 DETALJERET EKSEMPEL ANALYSE:
 Input: "5 km jog, 5 km 4.05-4.15, 5 km jog"
 
-STEP 1: ExecutableStepDTO - 5 km jog (TIME-BASED)
+STEP 1: ExecutableStepDTO - 5 km jog (DISTANCE-BASED)
 - type: "ExecutableStepDTO", stepOrder: 1
 - stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
-- endCondition: {"conditionTypeId": 2, "conditionTypeKey": "time"}
-- endConditionValue: 1800 (5 km * 6 min/km = 30 min = 1800 sek)
+- endCondition: {"conditionTypeId": 3, "conditionTypeKey": "distance"}
+- endConditionValue: 5000 (5 km = 5000 meter)
 - targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
 
 STEP 2: ExecutableStepDTO - 5 km 4.05-4.15 (DISTANCE-BASED, ENKELT INTERVAL)
@@ -545,17 +545,18 @@ STEP 2: ExecutableStepDTO - 5 km 4.05-4.15 (DISTANCE-BASED, ENKELT INTERVAL)
 - targetType: {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"}
 - targetValueOne: 0.0, targetValueTwo: 0.0 (fixes programmatisk)
 
-STEP 3: ExecutableStepDTO - 5 km jog (TIME-BASED)
+STEP 3: ExecutableStepDTO - 5 km jog (DISTANCE-BASED)
 - type: "ExecutableStepDTO", stepOrder: 3
 - stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
-- endCondition: {"conditionTypeId": 2, "conditionTypeKey": "time"}
-- endConditionValue: 1800
+- endCondition: {"conditionTypeId": 3, "conditionTypeKey": "distance"}
+- endConditionValue: 5000 (5 km = 5000 meter)
 - targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
 
 VIGTIGE REGLER:
-- "X km jog" = ALTID time-based (endCondition: time)
+- "X km jog" = ALTID distance-based (endCondition: distance)
 - "X km Y.ZZ-Y.ZZ" = ALTID distance-based (endCondition: distance) + ExecutableStepDTO
 - "X km opvarmning/nedløb" = ALTID distance-based (endCondition: distance)
+- "X min pause" = ALTID time-based (endCondition: time)
 - Enkelt aktivitet (ingen "Xx") = ExecutableStepDTO
 - Gentaget aktivitet ("2x", "3x" etc.) = RepeatGroupDTO
 

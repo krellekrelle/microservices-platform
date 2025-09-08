@@ -238,6 +238,11 @@
             color: #666;
             font-size: 14px;
         }
+        .workout-name {
+            color: #4CAF50;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
         .loading {
             text-align: center;
             padding: 20px;
@@ -905,7 +910,7 @@
                     <div class="session-header" onclick="toggleSession(${index})">
                         <div class="session-info">
                             <div class="session-date">${sessionDate}</div>
-                            <div class="session-title">${session.title || session.type}</div>
+                            <div class="session-title">${session.workout_name || session.title || session.type}</div>
                             <span class="session-type">${session.type}</span>
                             ${session.duration ? `<span class="session-duration">${session.duration}min</span>` : ''}
                             ${session.distance ? `<span class="session-distance">${session.distance}</span>` : ''}
@@ -922,6 +927,7 @@
                         </div>
                     </div>
                     <div class="session-content" id="content-${index}">
+                        ${session.workout_name ? `<div class="workout-name"><strong>Workout Name:</strong> ${session.workout_name}</div>` : ''}
                         <div class="session-description">
                             <strong>Description:</strong><br>
                             ${session.description || 'No description available'}

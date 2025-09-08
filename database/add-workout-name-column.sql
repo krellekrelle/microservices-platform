@@ -1,11 +1,8 @@
--- Add distance, workout_id, and workout_name columns to training_sessions table
+-- Add workout_name column to training_sessions table
 ALTER TABLE training_sessions 
-ADD COLUMN IF NOT EXISTS distance VARCHAR(50),
-ADD COLUMN IF NOT EXISTS workout_id VARCHAR(50),
 ADD COLUMN IF NOT EXISTS workout_name VARCHAR(255);
 
--- Add indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_training_sessions_workout_id ON training_sessions(workout_id);
+-- Add index for workout_name for faster searches
 CREATE INDEX IF NOT EXISTS idx_training_sessions_workout_name ON training_sessions(workout_name);
 
 -- Update the unique constraint to include workout_name since workouts can have same description but different names
