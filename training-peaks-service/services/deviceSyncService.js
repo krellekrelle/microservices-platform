@@ -230,23 +230,6 @@ class DeviceSyncService {
                 successfulPushes: enabledDevices.length,
                 totalDevices: enabledDevices.length
             };
-
-            // Push to enabled devices
-            // const pushResults = await this.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
-            
-            // const successCount = pushResults.filter(r => r.success).length;
-            // const totalCount = pushResults.length;
-            
-            // console.log(`✅ Test workout pushed to ${successCount}/${totalCount} enabled devices`);
-            
-            // return {
-            //     success: true,
-            //     workoutId: actualWorkoutId,
-            //     workoutName: workoutResult.data?.workoutName || workoutData.name,
-            //     pushResults,
-            //     successfulPushes: successCount,
-            //     totalDevices: totalCount
-            // };
             
         } catch (error) {
             console.error('Error creating and pushing test workout:', error);

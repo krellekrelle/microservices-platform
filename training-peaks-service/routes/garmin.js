@@ -460,17 +460,25 @@ router.post('/create-workout', async (req, res) => {
                 }
                 
                 console.log(`🔄 Auto-pushing workout ${actualWorkoutId} to enabled devices for user ${userId}`);
-                const deviceSyncService = require('../services/deviceSyncService');
-                const pushResults = await deviceSyncService.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
+
+                const client = garminService.client;
+
+
+                const syncResult = await client.pushWorkoutToDevice(
+                    { workoutId: actualWorkoutId.toString() },
+                    device.device_id,
+                );
+                // const deviceSyncService = require('../services/deviceSyncService');
+                // const pushResults = await deviceSyncService.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
                 
-                const successCount = pushResults.filter(r => r.success).length;
-                const totalCount = pushResults.length;
+                // const successCount = pushResults.filter(r => r.success).length;
+                // const totalCount = pushResults.length;
                 
-                if (totalCount > 0) {
-                    console.log(`✅ Auto-pushed workout to ${successCount}/${totalCount} enabled devices`);
-                } else {
-                    console.log(`ℹ️ No enabled devices found for auto-push`);
-                }
+                // if (totalCount > 0) {
+                //     console.log(`✅ Auto-pushed workout to ${successCount}/${totalCount} enabled devices`);
+                // } else {
+                //     console.log(`ℹ️ No enabled devices found for auto-push`);
+                // }
             } catch (deviceError) {
                 console.error(`⚠️ Device auto-push failed for workout ${result.workoutId}:`, deviceError);
                 // Don't fail the workout creation if device push fails
