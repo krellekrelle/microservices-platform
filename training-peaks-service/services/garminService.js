@@ -295,59 +295,59 @@ class GarminConnectService {
             console.log(`📅 Date: "${workoutDate || 'Current date'}"`);
 
             // Use AI to convert Danish description to Garmin workout JSON
-            // const workoutJson = await this.workoutParser.parseTrainingDescription(
-            //     trainingDescription, 
-            //     workoutDate,
-            //     workoutName
-            // );
-            const workoutJson = {
-                "workoutName": `[${this.incrementer++}] jog tirsdag 09/09`,
-                "description": "50 min jog. Gælder om at komme så nemt igennem som muligt",
-                "updateDate": "2025-09-08T12:06:14.587Z",
-                "createdDate": "2025-09-08T12:06:14.587Z",
-                "sportType": {
-                    "sportTypeId": 1,
-                    "sportTypeKey": "running"
-                },
-                "estimatedDurationInSecs": 3000,
-                "estimatedDistanceInMeters": null,
-                "workoutSegments": [
-                    {
-                        "segmentOrder": 1,
-                        "sportType": {
-                            "sportTypeId": 1,
-                            "sportTypeKey": "running"
-                        },
-                        "workoutSteps": [
-                            {
-                                "type": "ExecutableStepDTO",
-                                "stepOrder": 1,
-                                "stepType": {
-                                    "stepTypeId": 3,
-                                    "stepTypeKey": "interval"
-                                },
-                                "endCondition": {
-                                    "conditionTypeId": 2,
-                                    "conditionTypeKey": "time"
-                                },
-                                "endConditionValue": 3000,
-                                "targetType": {
-                                    "workoutTargetTypeId": 1,
-                                    "workoutTargetTypeKey": "no.target"
-                                },
-                                "targetValueOne": 0,
-                                "targetValueTwo": 0,
-                                "strokeType": {
-                                    "strokeTypeId": 0
-                                },
-                                "equipmentType": {
-                                    "equipmentTypeId": 0
-                                }
-                            }
-                        ]
-                    }
-                ]
-            };
+            const workoutJson = await this.workoutParser.parseTrainingDescription(
+                trainingDescription, 
+                workoutDate,
+                workoutName
+            );
+            // const workoutJson = {
+            //     "workoutName": `[${this.incrementer++}] jog tirsdag 09/09`,
+            //     "description": "50 min jog. Gælder om at komme så nemt igennem som muligt",
+            //     "updateDate": "2025-09-08T12:06:14.587Z",
+            //     "createdDate": "2025-09-08T12:06:14.587Z",
+            //     "sportType": {
+            //         "sportTypeId": 1,
+            //         "sportTypeKey": "running"
+            //     },
+            //     "estimatedDurationInSecs": 3000,
+            //     "estimatedDistanceInMeters": null,
+            //     "workoutSegments": [
+            //         {
+            //             "segmentOrder": 1,
+            //             "sportType": {
+            //                 "sportTypeId": 1,
+            //                 "sportTypeKey": "running"
+            //             },
+            //             "workoutSteps": [
+            //                 {
+            //                     "type": "ExecutableStepDTO",
+            //                     "stepOrder": 1,
+            //                     "stepType": {
+            //                         "stepTypeId": 3,
+            //                         "stepTypeKey": "interval"
+            //                     },
+            //                     "endCondition": {
+            //                         "conditionTypeId": 2,
+            //                         "conditionTypeKey": "time"
+            //                     },
+            //                     "endConditionValue": 3000,
+            //                     "targetType": {
+            //                         "workoutTargetTypeId": 1,
+            //                         "workoutTargetTypeKey": "no.target"
+            //                     },
+            //                     "targetValueOne": 0,
+            //                     "targetValueTwo": 0,
+            //                     "strokeType": {
+            //                         "strokeTypeId": 0
+            //                     },
+            //                     "equipmentType": {
+            //                         "equipmentTypeId": 0
+            //                     }
+            //                 }
+            //             ]
+            //         }
+            //     ]
+            // };
 
             console.log('✅ AI parsing complete, creating workout on Garmin Connect...');
             console.log(`🏃 Workout: ${workoutJson.workoutName}`);

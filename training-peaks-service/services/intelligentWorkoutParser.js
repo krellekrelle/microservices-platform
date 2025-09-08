@@ -42,7 +42,8 @@ class IntelligentWorkoutParser {
                 metadata: {
                     // model: 'llama-3.1-8b-instant',
                     // model: 'llama-3.3-70b-versatile', // Updated model
-                    model : 'groq/compound',
+                    // model : 'groq/compound',
+                    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
                     promptType: 'danish-direct',
                     responseLength: rawResponse?.length || 0
                 }
@@ -222,11 +223,6 @@ class IntelligentWorkoutParser {
         console.log(`📋 [DEBUG] AI Parser - Prompt length: ${prompt.length} characters`);
         
         try {
-            
-            // get rate limits for each model
-            console.log('Getting rate limits for Groq models...');
-            // const rateLimits = await this.groq.models.listRateLimits();
-            // console.log('🚦 [DEBUG] AI Parser - Rate limits:', rateLimits);
             console.log('🚀 [DEBUG] AI Parser - Sending request to Groq API...');
 
             const completion = await this.groq.chat.completions.create({
@@ -234,8 +230,9 @@ class IntelligentWorkoutParser {
                     role: 'user', 
                     content: prompt 
                 }],
-                model: 'groq/compound',
-                max_tokens: 5000,
+                model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                // model: 'groq/compound',
+                // max_tokens: 5000,
 
                 // model: 'llama-3.3-70b-versatile', // Updated to better model for complex reasoning
                 temperature: 0.1, // Low temperature for consistent parsing
