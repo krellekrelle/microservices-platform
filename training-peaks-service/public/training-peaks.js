@@ -35,8 +35,7 @@ class TrainingPeaksApp {
                 this.displayStatistics(data.statistics);
                 
                 if (data.hasCredentials) {
-                    await this.loadTrainingSchedules();
-                    await this.loadScrapingHistory();
+                    // await this.loadScrapingHistory();
                 }
             }
         } catch (error) {
@@ -117,97 +116,8 @@ class TrainingPeaksApp {
     displayStatistics(stats) {
         if (!stats) return;
 
-        document.getElementById('current-week-total').textContent = `${stats.current_week_sessions || 0} sessions`;
-        document.getElementById('next-week-total').textContent = `${stats.next_week_sessions || 0} sessions`;
         document.getElementById('training-types').textContent = `${stats.training_types || 0} types`;
         document.getElementById('total-sessions').textContent = `${stats.total_sessions || 0} sessions`;
-    }
-
-    async loadTrainingSchedules() {
-        try {
-            // Load current week
-            const currentWeekResponse = await fetch('/training/api/training-schedule?week=current');
-            if (currentWeekResponse.ok) {
-                const currentWeekData = await currentWeekResponse.json();
-                this.displayTrainingSchedule('current', currentWeekData);
-            }
-
-            // Load next week
-            const nextWeekResponse = await fetch('/training/api/training-schedule?week=next');
-            if (nextWeekResponse.ok) {
-                const nextWeekData = await nextWeekResponse.json();
-                this.displayTrainingSchedule('next', nextWeekData);
-            }
-        } catch (error) {
-            console.error('Failed to load training schedules:', error);
-        }
-    }
-
-    displayTrainingSchedule(week, data) {
-        const weekElement = document.getElementById(`${week}-week`);
-        const datesElement = document.getElementById(`${week}-week-dates`);
-        const sessionsElement = document.getElementById(`${week}-week-sessions`);
-        const scheduleElement = document.getElementById(`${week}-week-schedule`);
-
-        if (datesElement) {
-            const startDate = new Date(data.startDate);
-            const endDate = new Date(data.endDate);
-            datesElement.textContent = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
-        }
-
-        if (sessionsElement) {
-            sessionsElement.textContent = `${data.sessions.length} sessions`;
-        }
-
-        if (scheduleElement) {
-            scheduleElement.innerHTML = this.generateTrainingScheduleHTML(data.sessions, data.startDate);
-        }
-    }
-
-    generateTrainingScheduleHTML(sessions, startDateStr) {
-        const startDate = new Date(startDateStr);
-        const days = [];
-        
-        // Generate 7 days (Monday to Sunday)
-        for (let i = 0; i < 7; i++) {
-            const date = new Date(startDate);
-            date.setDate(startDate.getDate() + i);
-            days.push(date);
-        }
-
-        const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        
-        return days.map((date, index) => {
-            const dateStr = date.toISOString().split('T')[0];
-            const daySessions = sessions.filter(session => session.session_date === dateStr);
-            
-            return `
-                <div class="training-day">
-                    <div class="day-header">
-                        ${dayNames[index]} ${date.getDate()}/${date.getMonth() + 1}
-                    </div>
-                    <div class="day-sessions">
-                        ${daySessions.length > 0 
-                            ? daySessions.map(session => this.generateSessionHTML(session)).join('')
-                            : '<div class="no-sessions">No training scheduled</div>'
-                        }
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    generateSessionHTML(session) {
-        return `
-            <div class="training-session">
-                <div class="session-title">${session.title}</div>
-                <div class="session-description">${session.description || 'No description'}</div>
-                <div class="session-meta">
-                    ${session.duration ? `<span>Duration: ${session.duration}</span>` : ''}
-                    ${session.training_type ? `<span>Type: ${session.training_type}</span>` : ''}
-                </div>
-            </div>
-        `;
     }
 
     async loadScrapingHistory() {

@@ -505,6 +505,7 @@
                 <button id="test-garmin-credentials" class="btn hidden" disabled>Test Credentials</button>
                 <button id="delete-garmin-credentials" class="btn btn-danger hidden">Delete Credentials</button>
                 <button id="run-full-pipeline" class="btn btn-primary hidden" disabled>🚀 Run Full Pipeline</button>
+                <button id="run-next-week-pipeline" class="btn btn-primary hidden" disabled>📅 Run Next Week Pipeline</button>
             </div>
 
             <!-- Garmin Status -->
@@ -520,21 +521,6 @@
             </div>
         </div>
 
-        <!-- Garmin Workout Generation -->
-        <div id="schedule-section" class="card">
-            <h2>🤖 Garmin Workout Generation</h2>
-            <p>Generate structured Garmin workouts from your TrainingPeaks sessions using AI.</p>
-            
-            <div id="week-info">
-                <strong>Week:</strong> <span id="week-range">Loading...</span>
-                <button id="refresh-sessions" class="btn btn-small" style="margin-left: 15px;">🔄 Refresh</button>
-            </div>
-            
-            <div id="training-sessions-list">
-                <div class="loading">Loading training sessions...</div>
-            </div>
-        </div>
-
         <!-- Device Management Section -->
         <div id="device-section" class="card">
             <h2>⌚ Garmin Device Management</h2>
@@ -542,22 +528,11 @@
             
             <div class="device-controls">
                 <button id="sync-devices-btn" class="btn">🔄 Sync Devices</button>
-                <button id="test-push-btn" class="btn" style="background-color: #28a745; margin-left: 10px;">🧪 Test 5K Push</button>
                 <div id="device-sync-status" class="status-message"></div>
             </div>
             
             <div id="devices-list">
                 <div class="loading">Loading your devices...</div>
-            </div>
-        </div>
-        <!-- Test Section -->
-        <div class="card">
-            <h2>🧪 Test TrainingPeaks Integration</h2>
-            <p>Test fetching training data for the week of September 1-7, 2025 (Sunday to Saturday).</p>
-            <button id="test-fetch" class="btn" disabled>Test Fetch Training Data</button>
-            <div id="test-results" class="hidden">
-                <h3>Test Results:</h3>
-                <div id="test-output"></div>
             </div>
         </div>
 
@@ -640,7 +615,6 @@
                 if (data.hasCredentials) {
                     hasCredentials = true;
                     showCredentialsConfigured(data.username);
-                    document.getElementById('test-fetch').disabled = false;
                 } else {
                     hasCredentials = false;
                     showCredentialsRequired();
@@ -711,7 +685,6 @@
                     showMessage('Credentials saved successfully!', 'success');
                     hasCredentials = true;
                     showCredentialsConfigured(username);
-                    document.getElementById('test-fetch').disabled = false;
                 } else {
                     showMessage('Error: ' + data.error, 'error');
                 }
@@ -740,7 +713,6 @@
                     showCredentialsRequired();
                     document.getElementById('tp-username').value = '';
                     document.getElementById('tp-password').value = '';
-                    document.getElementById('test-fetch').disabled = true;
                     document.getElementById('schedule-section').classList.add('hidden');
                 } else {
                     showMessage('Error deleting credentials: ' + data.error, 'error');
@@ -748,54 +720,6 @@
             } catch (error) {
                 console.error('Error deleting credentials:', error);
                 showMessage('Error deleting credentials: ' + error.message, 'error');
-            }
-        });
-
-        // Handle test fetch
-        document.getElementById('test-fetch').addEventListener('click', async function() {
-            if (!hasCredentials) {
-                showMessage('Please save your credentials first', 'error');
-                return;
-            }
-
-            try {
-                showMessage('Fetching training data for September 1-7, 2025...', 'info');
-                document.getElementById('test-results').classList.remove('hidden');
-                document.getElementById('test-output').innerHTML = '<div class="loading">Testing...</div>';
-
-                const response = await fetch('/training/api/scrape', {
-                    method: 'POST'
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    showMessage('Successfully fetched training data!', 'success');
-                    document.getElementById('test-output').innerHTML = `
-                        <div class="status success">
-                            <strong>Success!</strong> Found ${data.sessions} training sessions
-                        </div>
-                    `;
-                    
-                    // Load and display the schedule
-                    loadTrainingSchedule();
-                } else {
-                    showMessage('Error fetching data: ' + data.error, 'error');
-                    document.getElementById('test-output').innerHTML = `
-                        <div class="status error">
-                            <strong>Error:</strong> ${data.error}
-                            ${data.details ? '<br><small>' + data.details + '</small>' : ''}
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error testing fetch:', error);
-                showMessage('Error testing fetch: ' + error.message, 'error');
-                document.getElementById('test-output').innerHTML = `
-                    <div class="status error">
-                        <strong>Network Error:</strong> ${error.message}
-                    </div>
-                `;
             }
         });
 
@@ -1107,12 +1031,6 @@
         document.getElementById('sync-devices-btn').addEventListener('click', async function() {
             await syncDevices();
         });
-
-        // Test push when test button is clicked
-        document.getElementById('test-push-btn').addEventListener('click', async function() {
-            await testWorkoutPush();
-        });
-
         // Sync devices from Garmin
         async function syncDevices() {
             const button = document.getElementById('sync-devices-btn');
@@ -1149,56 +1067,6 @@
             } finally {
                 button.disabled = false;
                 button.textContent = '🔄 Sync Devices';
-            }
-        }
-
-        // Test workout creation and push to devices
-        async function testWorkoutPush() {
-            const button = document.getElementById('test-push-btn');
-            const statusDiv = document.getElementById('device-sync-status');
-            
-            button.disabled = true;
-            button.textContent = '🧪 Creating & Pushing...';
-            statusDiv.className = 'status-message';
-            statusDiv.textContent = 'Creating test 5K workout and pushing to enabled devices...';
-            
-            try {
-                const response = await fetch('/training/api/devices/test-push', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusDiv.className = 'status-message success';
-                    const successCount = result.summary.successfulPushes;
-                    const totalCount = result.summary.totalDevices;
-                    statusDiv.innerHTML = `
-                        ✅ Test workout created successfully!<br>
-                        📤 Pushed to ${successCount}/${totalCount} enabled devices<br>
-                        🏃 Workout: "${result.workoutResult.workoutName}" (ID: ${result.workoutResult.workoutId})
-                    `;
-                    
-                    // Show detailed results if there were any failures
-                    if (successCount < totalCount) {
-                        const failures = result.pushResults.filter(r => !r.success);
-                        console.log('Failed pushes:', failures);
-                        statusDiv.innerHTML += `<br>❌ Failed devices: ${failures.map(f => f.deviceName).join(', ')}`;
-                    }
-                } else {
-                    statusDiv.className = 'status-message error';
-                    statusDiv.textContent = `❌ ${result.error}`;
-                }
-            } catch (error) {
-                console.error('Error in test workout push:', error);
-                statusDiv.className = 'status-message error';
-                statusDiv.textContent = `❌ Error: ${error.message}`;
-            } finally {
-                button.disabled = false;
-                button.textContent = '🧪 Test 5K Push';
             }
         }
 
@@ -1332,6 +1200,7 @@
             const testBtn = document.getElementById('test-garmin-credentials');
             const deleteBtn = document.getElementById('delete-garmin-credentials');
             const pipelineBtn = document.getElementById('run-full-pipeline');
+            const nextWeekPipelineBtn = document.getElementById('run-next-week-pipeline');
 
             if (status.hasCredentials) {
                 statusDiv.innerHTML = `
@@ -1347,6 +1216,8 @@
                 deleteBtn.classList.remove('hidden');
                 pipelineBtn.classList.remove('hidden');
                 pipelineBtn.disabled = false;
+                nextWeekPipelineBtn.classList.remove('hidden');
+                nextWeekPipelineBtn.disabled = false;
             } else {
                 statusDiv.innerHTML = `
                     <div class="status info">
@@ -1357,6 +1228,7 @@
                 testBtn.classList.add('hidden');
                 deleteBtn.classList.add('hidden');
                 pipelineBtn.classList.add('hidden');
+                nextWeekPipelineBtn.classList.add('hidden');
             }
         }
 
@@ -1514,6 +1386,65 @@
             } catch (error) {
                 console.error('Error running full pipeline:', error);
                 showMessage('❌ Pipeline failed: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+                this.textContent = originalText;
+            }
+        });
+
+        // Next Week Pipeline - Scrape + Create Workouts + Push to Devices for NEXT week
+        document.getElementById('run-next-week-pipeline').addEventListener('click', async function() {
+            if (!confirm('This will:\n1. Scrape NEXT week from TrainingPeaks\n2. Create Garmin workouts for each session\n3. Push all workouts to your enabled devices\n\nContinue?')) {
+                return;
+            }
+
+            this.disabled = true;
+            const originalText = this.textContent;
+            this.textContent = '📅 Running Next Week Pipeline...';
+
+            try {
+                showMessage('📅 Starting next week pipeline: Scrape → Create → Push to devices...', 'info');
+                
+                const response = await fetch('/training/api/garmin/full-pipeline', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ week: 'next' })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    const { summary } = result;
+                    showMessage(
+                        `🎉 Next week pipeline completed! ${summary.successfulWorkouts}/${summary.totalTrainingSessions} sessions processed successfully (${summary.completionRate}% success rate)`, 
+                        'success'
+                    );
+                    
+                    // Display detailed results
+                    console.log('Next Week Pipeline Results:', result);
+                    
+                    // Show summary in a more detailed way
+                    if (result.workoutResults && result.workoutResults.length > 0) {
+                        let details = '\n\nNext Week Results:\n';
+                        result.workoutResults.forEach(workout => {
+                            if (workout.status === 'success') {
+                                details += `✅ ${workout.session} (${workout.date}) - Pushed to ${workout.deviceResults.length} devices\n`;
+                            } else {
+                                details += `❌ ${workout.session} (${workout.date}) - ${workout.status}\n`;
+                            }
+                        });
+                        console.log(details);
+                    }
+                    
+                } else {
+                    showMessage(`❌ Next week pipeline failed: ${result.error || 'Unknown error'}`, 'error');
+                    console.error('Next week pipeline error:', result);
+                }
+            } catch (error) {
+                console.error('Error running next week pipeline:', error);
+                showMessage('❌ Next week pipeline failed: ' + error.message, 'error');
             } finally {
                 this.disabled = false;
                 this.textContent = originalText;

@@ -603,38 +603,6 @@ Returner kun JSON.`;
             throw new Error('Workout must have at least one workout step');
         }
     }
-
-    /**
-     * Test the parser with a simple Danish description
-     */
-    async testParser() {
-        await this.loadContext();
-        
-        console.log('🧪 Testing workout parser with simple description...');
-        
-        const testDescription = "Løb 5 km i 4.05 tempo med 1 km opvarmning";
-        const testDate = "2025-09-07";
-        
-        try {
-            console.log(`\n--- Testing Description ---`);
-            console.log(`Description: "${testDescription}"`);
-            console.log(`Date: "${testDate}"`);
-            
-            const parsed = await this.parseTrainingDescription(testDescription, testDate, "Test Løb");
-            console.log(`✅ Successfully parsed test description`);
-            console.log('📋 Result structure:', {
-                hasWorkoutName: !!parsed.workoutName,
-                hasSegments: !!parsed.workoutSegments,
-                segmentCount: parsed.workoutSegments?.length || 0,
-                firstSegmentSteps: parsed.workoutSegments?.[0]?.workoutSteps?.length || 0
-            });
-            
-            return { success: true, result: parsed };
-        } catch (error) {
-            console.error(`❌ Failed to parse test description:`, error.message);
-            return { success: false, error: error.message };
-        }
-    }
 }
 
 module.exports = IntelligentWorkoutParser;

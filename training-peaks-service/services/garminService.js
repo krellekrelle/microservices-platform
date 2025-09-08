@@ -397,14 +397,6 @@ class GarminConnectService {
     }
 
     /**
-     * Test the AI workout parser with a simple description
-     */
-    async testWorkoutParser() {
-        console.log('🧪 Testing AI workout parser...');
-        return await this.workoutParser.testParser();
-    }
-
-    /**
      * Cleanup session
      */
     disconnect() {

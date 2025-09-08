@@ -178,88 +178,6 @@ router.delete('/credentials', async (req, res) => {
 });
 
 /**
- * Create and sync a test workout (5K run at 5:00-5:10 pace)
- * POST /training/api/garmin/test-workout
- */
-router.post('/test-workout', async (req, res) => {
-    try {
-        const userId = req.user.id;
-        
-        // Get user's Garmin credentials
-        const credentials = await storageService.getGarminCredentials(userId);
-        if (!credentials) {
-            return res.status(400).json({
-                error: 'No Garmin credentials found. Please add your credentials first.'
-            });
-        }
-
-        console.log(`🏃 Creating test workout for user ${userId}`);
-
-        // Authenticate with Garmin (with session reuse)
-        const authSuccess = await garminService.authenticate(
-            credentials.username, 
-            credentials.decrypted_password,
-            userId
-        );
-
-        if (!authSuccess) {
-            return res.status(400).json({
-                error: 'Failed to authenticate with Garmin Connect. Please check your credentials.'
-            });
-        }
-
-        // Create test workout (5K run at 5:00-5:10 pace)
-        const workoutData = {
-            name: 'Test 5K Run',
-            description: 'Test workout created by Training Peaks Service',
-            distance: 5000, // 5K in meters
-            paceMinSlow: '5:00', // 5:00 per km
-            paceMaxFast: '5:10'  // 5:10 per km
-        };
-
-        const result = await garminService.createRunningWorkout(workoutData);
-
-        // Log the sync attempt
-        await storageService.logGarminSync(
-            userId,
-            'manual',
-            'create_workout',
-            result.success,
-            result.error || null,
-            workoutData,
-            result.data
-        );
-
-        if (result.success) {
-            console.log(`✅ Test workout created successfully for user ${userId}`);
-            res.json({
-                success: true,
-                message: 'Test workout created successfully!',
-                workoutId: result.workoutId,
-                details: result.data
-            });
-        } else {
-            console.error(`❌ Failed to create test workout for user ${userId}:`, result.error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to create test workout',
-                details: result.error
-            });
-        }
-
-        // Cleanup connection
-        garminService.disconnect();
-
-    } catch (error) {
-        console.error('Error creating test workout:', error);
-        res.status(500).json({
-            error: 'Failed to create test workout',
-            details: error.message
-        });
-    }
-});
-
-/**
  * Sync specific training session to Garmin
  * POST /training/api/garmin/sync-session/:sessionId
  */
@@ -639,74 +557,9 @@ router.post('/create-from-json', async (req, res) => {
 });
 
 /**
- * Test the AI workout parser with examples
- * GET /training/api/garmin/test-parser
+ * Get pipeline status with statistics
+ * GET /training/api/garmin/pipeline-status
  */
-router.get('/test-parser', async (req, res) => {
-    try {
-        console.log('🧪 AI Parser Test Started - Endpoint Hit');
-        console.log('⏰ Timestamp:', new Date().toISOString());
-        console.log('👤 User ID:', req.user?.id || 'Unknown');
-        
-        const garminService = new GarminConnectService();
-        
-        console.log('🤖 Initializing AI workout parser test...');
-        const testResults = await garminService.testWorkoutParser();
-        
-        console.log('✅ AI Parser Test Completed Successfully');
-        console.log(`📊 Results: ${testResults.filter(r => r.success).length}/${testResults.length} examples parsed successfully`);
-        
-        // Save the JSON results to files for manual inspection
-        const fs = require('fs').promises;
-        const path = require('path');
-        const outputDir = path.join(__dirname, '../data/ai-test-results');
-        
-        try {
-            // Create output directory if it doesn't exist
-            await fs.mkdir(outputDir, { recursive: true });
-            
-            // Save each successful result to a separate file
-            let savedCount = 0;
-            for (let i = 0; i < testResults.length; i++) {
-                const result = testResults[i];
-                if (result.success && result.parsedWorkout) {
-                    const filename = `test-example-${i + 1}-${Date.now()}.json`;
-                    const filepath = path.join(outputDir, filename);
-                    
-                    await fs.writeFile(filepath, JSON.stringify(result.parsedWorkout, null, 2), 'utf8');
-                    console.log(`💾 Saved AI result ${i + 1} to: ${filename}`);
-                    savedCount++;
-                }
-            }
-            
-            console.log(`📁 ${savedCount} AI test results saved to: ${outputDir}`);
-        } catch (saveError) {
-            console.error('❌ Failed to save AI test results to files:', saveError);
-        }
-        
-        res.json({
-            success: true,
-            message: 'AI workout parser test completed successfully',
-            timestamp: new Date().toISOString(),
-            results: testResults,
-            summary: {
-                totalTests: testResults.length,
-                successful: testResults.filter(r => r.success).length,
-                failed: testResults.filter(r => !r.success).length
-            },
-            savedToFiles: `Results saved to data/ai-test-results/ directory`
-        });
-
-    } catch (error) {
-        console.error('❌ AI Parser Test Failed:', error);
-        console.error('📍 Error Stack:', error.stack);
-        res.status(500).json({
-            error: 'Failed to test AI workout parser',
-            details: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
 
 /**
  * Parse training session description into Garmin workout format
@@ -747,17 +600,19 @@ async function parseTrainingToWorkout(session) {
 }
 
 /**
- * Full pipeline: Scrape current week → Create workouts → Push to devices
+ * Full pipeline: Scrape current/next week → Create workouts → Push to devices
  * POST /training/api/garmin/full-pipeline
+ * Body: { week: 'current' | 'next' } (optional, defaults to 'current')
  */
 router.post('/full-pipeline', async (req, res) => {
     try {
         const userId = req.user.id;
-        console.log(`🚀 [PIPELINE] Starting full pipeline for user ${userId}`);
+        const week = req.body.week || 'current'; // Default to current week
+        console.log(`🚀 [PIPELINE] Starting full pipeline for user ${userId} - ${week} week`);
 
-        // Step 1: Get Monday of current week
-        const currentMondayDate = getCurrentWeekMonday();
-        console.log(`📅 [PIPELINE] Current week Monday: ${currentMondayDate}`);
+        // Step 1: Get Monday of specified week (current or next)
+        const mondayDate = getWeekMonday(week);
+        console.log(`📅 [PIPELINE] ${week === 'next' ? 'Next' : 'Current'} week Monday: ${mondayDate}`);
 
         // Step 2: Get user's TrainingPeaks credentials
         const tpCredentials = await storageService.getUserCredentials(userId);
@@ -777,15 +632,15 @@ router.post('/full-pipeline', async (req, res) => {
 
         console.log(`✅ [PIPELINE] Found both TrainingPeaks and Garmin credentials`);
 
-        // Step 4: Initialize scraper and scrape current week
+        // Step 4: Initialize scraper and scrape specified week
         const TrainingPeaksScraper = require('../services/scraper-with-session');
         const scraper = new TrainingPeaksScraper();
         
-        console.log(`🔍 [PIPELINE] Starting TrainingPeaks scraping for week ${currentMondayDate}`);
+        console.log(`🔍 [PIPELINE] Starting TrainingPeaks scraping for week ${mondayDate}`);
         const scrapedSessions = await scraper.scrapeWithCredentialsAndDate(
             tpCredentials.username, 
             tpCredentials.password,
-            currentMondayDate
+            mondayDate
         );
 
         // Step 5: Flatten scraped data and filter out empty sessions
@@ -937,7 +792,7 @@ router.post('/full-pipeline', async (req, res) => {
         res.json({
             success: true,
             message: `Pipeline completed: ${successfulWorkouts}/${totalWorkouts} training sessions processed successfully`,
-            weekStartDate: currentMondayDate,
+            weekStartDate: mondayDate,
             scrapedDays: scrapedSessions.length,
             actualTrainingSessions: totalWorkouts,
             workoutResults: workoutResults,
@@ -969,9 +824,10 @@ router.post('/full-pipeline', async (req, res) => {
 });
 
 /**
- * Helper function to get Monday of current week
+ * Helper function to get Monday of current or next week
+ * @param {string} week - 'current' or 'next'
  */
-function getCurrentWeekMonday() {
+function getWeekMonday(week = 'current') {
     const today = new Date();
     const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
     
@@ -981,12 +837,24 @@ function getCurrentWeekMonday() {
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysToSubtract);
     
+    // If next week is requested, add 7 days
+    if (week === 'next') {
+        monday.setDate(monday.getDate() + 7);
+    }
+    
     // Format as YYYY-MM-DD
     const year = monday.getFullYear();
     const month = String(monday.getMonth() + 1).padStart(2, '0');
     const day = String(monday.getDate()).padStart(2, '0');
     
     return `${year}-${month}-${day}`;
+}
+
+/**
+ * Helper function to get Monday of current week (for backward compatibility)
+ */
+function getCurrentWeekMonday() {
+    return getWeekMonday('current');
 }
 
 module.exports = router;
