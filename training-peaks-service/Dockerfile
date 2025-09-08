@@ -21,7 +21,10 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Copy local garmin-connect library
+COPY lib/ ./lib/
+
+# Install dependencies (this will install the local garmin-connect)
 RUN npm install
 
 # Copy application files

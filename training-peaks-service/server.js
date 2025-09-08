@@ -70,6 +70,7 @@ function setupApp() {
     app.use('/api', require('./routes/api'));
     app.use('/api/calendar', require('./routes/calendar'));
     app.use('/api/garmin', require('./routes/garmin'));
+    app.use('/api/devices', require('./routes/devices'));
 
     // Error handling middleware
     app.use((err, req, res, next) => {

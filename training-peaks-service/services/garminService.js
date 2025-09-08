@@ -1,7 +1,8 @@
 // Garmin Connect API Integration Service using garmin-connect library
 // This service handles authentication and workout creation/sync with Garmin Connect
 
-const { GarminConnect } = require('garmin-connect');
+// const { GarminConnect } = require('garmin-connect');
+const { GarminConnect } = require('../lib/garmin-connect/dist');
 const StorageService = require('./storage');
 const IntelligentWorkoutParser = require('./intelligentWorkoutParser');
 
@@ -44,6 +45,7 @@ class GarminConnectService {
                         if (userProfile && userProfile.profileId) {
                             console.log('✅ Successfully reused stored OAuth tokens');
                             console.log(`👤 Authenticated as: ${userProfile.userName || userProfile.displayName}`);
+                            // this.client.getDevices(); // Pre-fetch devices to ensure session is active
                             this.isAuthenticated = true;
                             return true;
                         }

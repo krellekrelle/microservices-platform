@@ -137,3 +137,5 @@ auth-service/data/session.secret
 # But keep the data directory structure
 !auth-service/data/
 !auth-service/data/.gitkeep
+
+training-peaks-service/data/

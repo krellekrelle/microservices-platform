@@ -102,6 +102,17 @@ router.post('/credentials', async (req, res) => {
         
         console.log(`✅ Garmin credentials saved for user ${userId}`);
         
+        // Automatically sync devices after credentials are saved
+        try {
+            console.log(`🔄 Auto-syncing devices for user ${userId}`);
+            const deviceSyncService = require('../services/deviceSyncService');
+            const devices = await deviceSyncService.syncUserDevices(userId);
+            console.log(`✅ Auto-synced ${devices.length} devices for user ${userId}`);
+        } catch (deviceError) {
+            console.error(`⚠️ Device sync failed for user ${userId}:`, deviceError);
+            // Don't fail the credential save if device sync fails
+        }
+        
         res.json({
             success: true,
             message: 'Garmin Connect credentials saved successfully',
@@ -435,6 +446,36 @@ router.post('/create-workout', async (req, res) => {
         console.log(`✅ [DEBUG] AI Workout Creation - Sync logged successfully`);
         
         if (result.success) {
+            // Auto-push workout to enabled devices
+            try {
+                console.log(`� DEBUG: Auto-push workoutId type:`, typeof result.workoutId);
+                console.log(`🔍 DEBUG: Auto-push workoutId value:`, result.workoutId);
+                
+                // Extract the actual ID if workoutId is an object
+                let actualWorkoutId = result.workoutId;
+                if (typeof result.workoutId === 'object' && result.workoutId !== null) {
+                    // If it's an object, try to find the ID property
+                    actualWorkoutId = result.workoutId.id || result.workoutId.workoutId || result.workoutId.workoutKey || String(result.workoutId);
+                    console.log(`🔍 DEBUG: Extracted workoutId:`, actualWorkoutId);
+                }
+                
+                console.log(`🔄 Auto-pushing workout ${actualWorkoutId} to enabled devices for user ${userId}`);
+                const deviceSyncService = require('../services/deviceSyncService');
+                const pushResults = await deviceSyncService.pushWorkoutToEnabledDevices(userId, actualWorkoutId);
+                
+                const successCount = pushResults.filter(r => r.success).length;
+                const totalCount = pushResults.length;
+                
+                if (totalCount > 0) {
+                    console.log(`✅ Auto-pushed workout to ${successCount}/${totalCount} enabled devices`);
+                } else {
+                    console.log(`ℹ️ No enabled devices found for auto-push`);
+                }
+            } catch (deviceError) {
+                console.error(`⚠️ Device auto-push failed for workout ${result.workoutId}:`, deviceError);
+                // Don't fail the workout creation if device push fails
+            }
+            
             res.json({
                 success: true,
                 message: 'Workout created successfully using AI parsing!',

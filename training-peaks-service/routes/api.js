@@ -3,6 +3,7 @@ const router = express.Router();
 const StorageService = require('../services/storage');
 const TrainingPeaksScraper = require('../services/scraper-with-session');
 const EmailNotificationService = require('../services/email');
+const deviceSyncService = require('../services/deviceSyncService');
 
 const storageService = new StorageService();
 const scraper = new TrainingPeaksScraper();
@@ -214,6 +215,103 @@ router.delete('/credentials', async (req, res) => {
     } catch (error) {
         console.error('Error deleting credentials:', error);
         res.status(500).json({ error: 'Failed to delete credentials' });
+    }
+});
+
+// Push workout to Garmin device
+router.post('/sync-workout', async (req, res) => {
+    try {
+        const { workoutId, workoutName, type, description, duration, distance } = req.body;
+        
+        if (!workoutId && !workoutName) {
+            return res.status(400).json({ error: 'Workout ID or name is required' });
+        }
+        
+        console.log('📱 Attempting to sync workout to Garmin device...');
+        
+        const workoutData = {
+            id: workoutId,
+            name: workoutName,
+            type: type,
+            description: description,
+            duration: duration,
+            distance: distance
+        };
+        
+        const result = await deviceSyncService.createWorkoutWithSyncGuidance(workoutData);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('Error syncing workout to device:', error);
+        res.status(500).json({ 
+            error: 'Failed to sync workout to device',
+            details: error.message 
+        });
+    }
+});
+
+// Get device sync status
+router.get('/device-status', async (req, res) => {
+    try {
+        console.log('📱 Checking device status...');
+        
+        const deviceInfo = await deviceSyncService.getDeviceInfo();
+        
+        res.json({
+            success: true,
+            deviceInfo,
+            message: 'Device status checked'
+        });
+        
+    } catch (error) {
+        console.error('Error checking device status:', error);
+        res.status(500).json({ 
+            error: 'Failed to check device status',
+            details: error.message 
+        });
+    }
+});
+
+// Sync training session to device
+router.post('/sync-session/:sessionId', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sessionId = req.params.sessionId;
+        
+        console.log(`📱 Syncing training session ${sessionId} to Garmin device...`);
+        
+        // Get session details from database
+        const session = await storageService.getTrainingSession(userId, sessionId);
+        
+        if (!session) {
+            return res.status(404).json({ error: 'Training session not found' });
+        }
+        
+        const workoutData = {
+            id: session.workout_id,
+            name: session.workout_name || `${session.type} Training`,
+            type: session.type,
+            description: session.description,
+            duration: session.duration,
+            distance: session.distance,
+            date: session.date
+        };
+        
+        const result = await deviceSyncService.createWorkoutWithSyncGuidance(workoutData);
+        
+        res.json({
+            ...result,
+            sessionId: sessionId,
+            message: `Training session "${workoutData.name}" prepared for device sync`
+        });
+        
+    } catch (error) {
+        console.error('Error syncing session to device:', error);
+        res.status(500).json({ 
+            error: 'Failed to sync session to device',
+            details: error.message 
+        });
     }
 });
 
