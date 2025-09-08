@@ -1014,17 +1014,6 @@
             }
         }
 
-        // Refresh training sessions
-        document.getElementById('refresh-sessions').addEventListener('click', function() {
-            this.disabled = true;
-            this.textContent = '🔄 Refreshing...';
-            
-            loadTrainingSchedule().finally(() => {
-                this.disabled = false;
-                this.textContent = '🔄 Refresh';
-            });
-        });
-
         // ===== DEVICE MANAGEMENT =====
 
         // Load devices when sync button is clicked
