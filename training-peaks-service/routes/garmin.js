@@ -17,27 +17,34 @@ const storageService = new StorageService();
  */
 router.post('/test-credentials', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const userId = req.user.id;
         
-        if (!username || !password) {
+        // Get saved Garmin credentials
+        const credentials = await storageService.getGarminCredentials(userId);
+        
+        if (!credentials || !credentials.username || !credentials.decrypted_password) {
             return res.status(400).json({ 
-                error: 'Username and password are required' 
+                error: 'No Garmin credentials found. Please save your credentials first.' 
             });
         }
 
-        console.log(`🔐 Testing Garmin credentials for user ${req.user.id}`);
+        console.log(`🔐 Testing saved Garmin credentials for user ${userId}`);
         
         // Test connection to Garmin Connect with session reuse
-        const testResult = await garminService.testConnection(username, password, req.user.id);
+        const testResult = await garminService.testConnection(
+            credentials.username, 
+            credentials.decrypted_password, 
+            userId
+        );
         
         // Log the test attempt
         await storageService.logGarminSync(
-            req.user.id, 
+            userId, 
             'test', 
             'auth', 
             testResult.authentication,
             testResult.error || null,
-            { username: username },
+            { username: credentials.username },
             testResult
         );
 
