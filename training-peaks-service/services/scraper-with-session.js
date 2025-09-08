@@ -337,8 +337,9 @@ class TrainingPeaksScraper {
             // Login first
             await this.loginToTrainingPeaks(username, password);
             
-            // Then scrape the weekly schedule
-            const weekData = await this.scrapeWeeklySchedule('2025-09-08');
+            // Then scrape the weekly schedule (default to current week Monday)
+            const currentMondayDate = this.getCurrentWeekMonday();
+            const weekData = await this.scrapeWeeklySchedule(currentMondayDate);
             
             return weekData;
             
@@ -348,9 +349,50 @@ class TrainingPeaksScraper {
         }
     }
 
+    async scrapeWithCredentialsAndDate(username, password, startDate) {
+        try {
+            console.log(`🔐 Starting complete scraping flow with credentials for date ${startDate}...`);
+            
+            // Initialize browser if not already done
+            if (!this.browser) {
+                await this.initialize();
+            }
+            
+            // Login first
+            await this.loginToTrainingPeaks(username, password);
+            
+            // Then scrape the weekly schedule for the specified date
+            const weekData = await this.scrapeWeeklySchedule(startDate);
+            
+            return weekData;
+            
+        } catch (error) {
+            console.error(`❌ Failed to scrape with credentials and date:`, error.message);
+            throw error;
+        }
+    }
+
+    getCurrentWeekMonday() {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        
+        // Calculate days to subtract to get to Monday
+        const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days
+        
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - daysToSubtract);
+        
+        // Format as YYYY-MM-DD
+        const year = monday.getFullYear();
+        const month = String(monday.getMonth() + 1).padStart(2, '0');
+        const day = String(monday.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    }
+
     async scrapeWeeklySchedule(startDate) {
         try {
-            console.log(`📅 Scraping training schedule for September 8-15, 2025`);
+            console.log(`📅 Scraping training schedule for week starting ${startDate}`);
             
             // Navigate to calendar
             await this.page.goto('https://app.trainingpeaks.com/#calendar', { 

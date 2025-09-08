@@ -746,4 +746,247 @@ async function parseTrainingToWorkout(session) {
     return workoutData;
 }
 
+/**
+ * Full pipeline: Scrape current week → Create workouts → Push to devices
+ * POST /training/api/garmin/full-pipeline
+ */
+router.post('/full-pipeline', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        console.log(`🚀 [PIPELINE] Starting full pipeline for user ${userId}`);
+
+        // Step 1: Get Monday of current week
+        const currentMondayDate = getCurrentWeekMonday();
+        console.log(`📅 [PIPELINE] Current week Monday: ${currentMondayDate}`);
+
+        // Step 2: Get user's TrainingPeaks credentials
+        const tpCredentials = await storageService.getUserCredentials(userId);
+        if (!tpCredentials) {
+            return res.status(400).json({
+                error: 'No TrainingPeaks credentials found. Please add your credentials first.'
+            });
+        }
+
+        // Step 3: Get user's Garmin credentials
+        const garminCredentials = await storageService.getGarminCredentials(userId);
+        if (!garminCredentials) {
+            return res.status(400).json({
+                error: 'No Garmin credentials found. Please add your Garmin credentials first.'
+            });
+        }
+
+        console.log(`✅ [PIPELINE] Found both TrainingPeaks and Garmin credentials`);
+
+        // Step 4: Initialize scraper and scrape current week
+        const TrainingPeaksScraper = require('../services/scraper-with-session');
+        const scraper = new TrainingPeaksScraper();
+        
+        console.log(`🔍 [PIPELINE] Starting TrainingPeaks scraping for week ${currentMondayDate}`);
+        const scrapedSessions = await scraper.scrapeWithCredentialsAndDate(
+            tpCredentials.username, 
+            tpCredentials.password,
+            currentMondayDate
+        );
+
+        // Step 5: Flatten scraped data and filter out empty sessions
+        const allWorkouts = [];
+        scrapedSessions.forEach(day => {
+            day.workouts.forEach(workout => {
+                // Only include workouts that have actual training data
+                if (workout.title || workout.description) {
+                    allWorkouts.push({
+                        title: workout.title,
+                        description: workout.description,
+                        session_date: day.date,
+                        type: workout.type,
+                        duration: workout.duration,
+                        distance: workout.distance
+                    });
+                }
+            });
+        });
+
+        console.log(`📊 [PIPELINE] Found ${allWorkouts.length} actual training sessions (filtered from ${scrapedSessions.length} days)`);
+
+        // Step 6: Store scraped sessions in database
+        if (scrapedSessions.length > 0) {
+            await storageService.storeTrainingSessions(userId, scrapedSessions);
+            await storageService.logScrapingAttempt(userId, 'pipeline', 'success', 'Pipeline scraping successful', allWorkouts.length);
+        }
+
+        // Step 7: Authenticate with Garmin once for all operations
+        console.log(`🔐 [PIPELINE] Authenticating with Garmin Connect`);
+        const authSuccess = await garminService.authenticate(
+            garminCredentials.username, 
+            garminCredentials.decrypted_password,
+            userId
+        );
+
+        if (!authSuccess) {
+            return res.status(400).json({
+                error: 'Failed to authenticate with Garmin Connect. Please check your credentials.'
+            });
+        }
+
+        // Step 8: Process each actual training session - create workout and push to devices
+        const workoutResults = [];
+        
+        for (let i = 0; i < allWorkouts.length; i++) {
+            const session = allWorkouts[i];
+            console.log(`🏃 [PIPELINE] Processing training session ${i + 1}/${allWorkouts.length}: "${session.title}"`);
+
+            try {
+                // Create workout using AI parsing
+                const workoutResult = await garminService.createWorkoutFromDescription(
+                    session.description,
+                    session.session_date,
+                    session.title
+                );
+
+                if (workoutResult.success) {
+                    // Auto-push to enabled devices using the same pattern as create-workout
+                    try {
+                        console.log(`🔄 [PIPELINE] Auto-pushing workout ${workoutResult.workoutId} to enabled devices`);
+                        
+                        // Extract the actual ID if workoutId is an object
+                        let actualWorkoutId = workoutResult.workoutId;
+                        if (typeof workoutResult.workoutId === 'object' && workoutResult.workoutId !== null) {
+                            actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
+                        }
+                        
+                        // Get enabled devices
+                        const enabledDevices = await garminService.getEnabledDevicesForUser(userId);
+                        const client = garminService.client;
+                        
+                        const deviceResults = [];
+                        for (const device of enabledDevices) {
+                            try {
+                                console.log(`🔄 [PIPELINE] Pushing workout ${actualWorkoutId} to device ${device.device_name}`);
+                                const syncResult = await client.pushWorkoutToDevice(
+                                    { workoutId: actualWorkoutId.toString() },
+                                    device.device_id,
+                                );
+                                console.log(`✅ [PIPELINE] Successfully pushed to ${device.device_name}`);
+                                deviceResults.push({ device: device.device_name, status: 'success' });
+                            } catch (deviceError) {
+                                console.error(`❌ [PIPELINE] Failed to push to ${device.device_name}:`, deviceError);
+                                deviceResults.push({ device: device.device_name, status: 'failed', error: deviceError.message });
+                            }
+                        }
+                        
+                        workoutResults.push({
+                            session: session.title,
+                            date: session.session_date,
+                            workoutId: actualWorkoutId,
+                            status: 'success',
+                            deviceResults: deviceResults
+                        });
+                        
+                        console.log(`✅ [PIPELINE] Successfully processed session: ${session.title}`);
+                    } catch (pushError) {
+                        console.log(`⚠️ [PIPELINE] Workout created but device push failed: ${pushError.message}`);
+                        workoutResults.push({
+                            session: session.title,
+                            date: session.session_date,
+                            workoutId: workoutResult.workoutId,
+                            status: 'workout_created_push_failed',
+                            error: pushError.message
+                        });
+                    }
+                } else {
+                    console.log(`❌ [PIPELINE] Failed to create workout for session: ${session.title}`);
+                    workoutResults.push({
+                        session: session.title,
+                        date: session.session_date,
+                        status: 'workout_creation_failed',
+                        error: workoutResult.error
+                    });
+                }
+
+                // Log the workout creation attempt
+                await storageService.logGarminSync(
+                    userId,
+                    'pipeline',
+                    'create_workout',
+                    workoutResult.success,
+                    workoutResult.error || null,
+                    { description: session.description, title: session.title, date: session.session_date },
+                    workoutResult
+                );
+
+            } catch (sessionError) {
+                console.error(`❌ [PIPELINE] Error processing session ${session.title}:`, sessionError);
+                workoutResults.push({
+                    session: session.title,
+                    date: session.session_date,
+                    status: 'processing_error',
+                    error: sessionError.message
+                });
+            }
+        }
+
+        // Step 9: Close scraper
+        await scraper.cleanup();
+
+        // Step 10: Return comprehensive results
+        const successfulWorkouts = workoutResults.filter(r => r.status === 'success').length;
+        const totalWorkouts = allWorkouts.length;
+
+        console.log(`🎉 [PIPELINE] Pipeline completed: ${successfulWorkouts}/${totalWorkouts} training sessions successfully processed`);
+
+        res.json({
+            success: true,
+            message: `Pipeline completed: ${successfulWorkouts}/${totalWorkouts} training sessions processed successfully`,
+            weekStartDate: currentMondayDate,
+            scrapedDays: scrapedSessions.length,
+            actualTrainingSessions: totalWorkouts,
+            workoutResults: workoutResults,
+            summary: {
+                totalTrainingSessions: totalWorkouts,
+                successfulWorkouts,
+                failedWorkouts: totalWorkouts - successfulWorkouts,
+                completionRate: totalWorkouts > 0 ? Math.round((successfulWorkouts / totalWorkouts) * 100) : 0
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [PIPELINE] Full pipeline failed:', error);
+        
+        // Log the pipeline failure
+        await storageService.logScrapingAttempt(
+            req.user.id, 
+            'pipeline', 
+            'error', 
+            `Pipeline failed: ${error.message}`, 
+            0
+        );
+
+        res.status(500).json({
+            error: 'Full pipeline failed',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * Helper function to get Monday of current week
+ */
+function getCurrentWeekMonday() {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    
+    // Calculate days to subtract to get to Monday
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToSubtract);
+    
+    // Format as YYYY-MM-DD
+    const year = monday.getFullYear();
+    const month = String(monday.getMonth() + 1).padStart(2, '0');
+    const day = String(monday.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+}
+
 module.exports = router;
