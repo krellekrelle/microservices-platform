@@ -6,7 +6,6 @@ const EmailNotificationService = require('../services/email');
 const deviceSyncService = require('../services/deviceSyncService');
 
 const storageService = new StorageService();
-const scraper = new TrainingPeaksScraper();
 const emailService = new EmailNotificationService();
 
 // Get user status and configuration
@@ -52,7 +51,9 @@ router.post('/credentials', async (req, res) => {
         
         // Test credentials by attempting to login
         try {
+            const scraper = new TrainingPeaksScraper(userId);
             await scraper.testCredentials(username, password);
+            await scraper.cleanup();
         } catch (error) {
             return res.status(400).json({ 
                 error: 'Invalid credentials or TrainingPeaks login failed',
@@ -172,6 +173,7 @@ router.post('/scrape', async (req, res) => {
         }
         
         // Perform scraping
+        const scraper = new TrainingPeaksScraper(userId);
         const schedule = await scraper.scrapeWithCredentials(credentials.username, credentials.password);
         
         if (schedule.length > 0) {
@@ -191,6 +193,9 @@ router.post('/scrape', async (req, res) => {
                 sessions: 0
             });
         }
+        
+        // Cleanup the scraper
+        await scraper.cleanup();
     } catch (error) {
         console.error('Error in manual scraping:', error);
         await storageService.logScrapingAttempt(req.user.id, 'manual', 'error', error.message, 0);
@@ -347,6 +352,7 @@ router.post('/test-scraping', async (req, res) => {
         console.log('🧪 Starting test scraping with provided credentials...');
         
         // Perform scraping with test credentials
+        const scraper = new TrainingPeaksScraper('test-user');
         const schedule = await scraper.scrapeWithCredentials(username, password);
         
         // Don't store data for test endpoint, just return it
@@ -356,6 +362,9 @@ router.post('/test-scraping', async (req, res) => {
             sessions: schedule.length,
             data: schedule
         });
+        
+        // Cleanup the scraper
+        await scraper.cleanup();
         
     } catch (error) {
         console.error('Error in test scraping:', error);

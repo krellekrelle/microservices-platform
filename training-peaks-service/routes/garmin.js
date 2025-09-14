@@ -641,7 +641,7 @@ router.post('/full-pipeline', async (req, res) => {
 
         // Step 4: Initialize scraper and scrape specified week
         const TrainingPeaksScraper = require('../services/scraper-with-session');
-        const scraper = new TrainingPeaksScraper();
+        const scraper = new TrainingPeaksScraper(userId);
         
         console.log(`🔍 [PIPELINE] Starting TrainingPeaks scraping for week ${mondayDate}`);
         const scrapedSessions = await scraper.scrapeWithCredentialsAndDate(

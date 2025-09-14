@@ -3,16 +3,20 @@ const fs = require('fs').promises;
 const path = require('path');
 
 class TrainingPeaksScraper {
-    constructor() {
+    constructor(userId = 'default') {
         this.browser = null;
         this.page = null;
         this.context = null;
         this.isInitialized = false;
-        this.sessionDataPath = '/app/data/browser-session';
+        this.userId = userId;
+        this.sessionDataPath = `/app/data/browser-session-${userId}`;
     }
     
     async initialize() {
         try {
+            console.log(`🎭 Initializing scraper for user: ${this.userId}`);
+            console.log(`📁 Session data path: ${this.sessionDataPath}`);
+            
             this.browser = await chromium.launch({
                 headless: true,
                 executablePath: '/usr/bin/chromium-browser',

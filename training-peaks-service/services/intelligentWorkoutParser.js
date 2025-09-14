@@ -240,7 +240,7 @@ class IntelligentWorkoutParser {
                 response_format: { type: 'json_object' }
             });
 
-            console.log('Completion object:', completion); // Debug log to inspect the full response
+            // console.log('Completion object:', completion); // Debug log to inspect the full response
             
             console.log('✅ [DEBUG] AI Parser - Received response from Groq API');
             
