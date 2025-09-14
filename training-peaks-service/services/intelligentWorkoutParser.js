@@ -418,6 +418,16 @@ ANALYSE DANSKE TRÆNINGSKOMPONENTER:
 - "X min pause" = X minutters pause/hvile (time-based recovery step)
 - "X km nedløb" = X km distance-based løb uden target (no.target)
 
+FARTLEG/PYRAMID HÅNDTERING - KRITISK VIGTIG:
+- "1,2,3,4,4,3,2,1 min fartleg" = 8 separate ExecutableStepDTO steps (ALDRIG RepeatGroupDTO!)
+- Hver fartleg step: endCondition: time, endConditionValue: [minutes] * 60, targetType: no.target
+- Tilføj beskrivende text: description: "1 min fartleg", "2 min fartleg", etc.
+- Mellem hver fartleg: 1 min jog recovery (endCondition: time, endConditionValue: 60)
+- VIGTIG: Pyramid patterns skal ALTID splittes til individuelle steps, aldrig som repeats
+- Fartleg = speed play uden specifik pace, derfor targetType: "no.target"
+- KRITISK: Start fartleg DIREKTE efter den foregående aktivitet - ingen ekstra steps imellem!
+- Efter fartleg: Fortsæt med de resterende aktiviteter fra beskrivelsen
+
 PACE HÅNDTERING:
 - Pace ranges ("4.05-4.15") = targetType: "pace.zone"
 - Enkelt pace ("4.05") = targetType: "pace.zone"
@@ -430,6 +440,7 @@ REPEAT GROUPS - BRUG RepeatGroupDTO FOR GENTAGELSER:
 - "1x" eller enkelt aktivitet = ExecutableStepDTO (IKKE RepeatGroupDTO)
 - "jog imellem" = recovery step INDEN I repeat group
 - "pause imellem" = rest step INDEN I repeat group
+- VIGTIGT: Pyramid patterns som "1,2,3,4,4,3,2,1 min" = 8 separate ExecutableStepDTO (ALDRIG RepeatGroupDTO)
 
 HVORNÅR BRUGE RepeatGroupDTO vs ExecutableStepDTO:
 - RepeatGroupDTO: KUN når beskrivelsen har "2x", "3x", "4x" etc. (numberOfIterations > 1)
@@ -448,6 +459,7 @@ EKSEMPLER PÅ HVORNÅR BRUGE ExecutableStepDTO:
 - "5 km jog" ✅ ExecutableStepDTO (ingen gentagelser)
 - "5 km 4.05-4.15" ✅ ExecutableStepDTO (enkelt interval)
 - "1 km opvarmning" ✅ ExecutableStepDTO (enkelt aktivitet)
+- "1,2,3,4,4,3,2,1 min fartleg" ✅ 8 separate ExecutableStepDTO + 7 recovery steps (pyramid pattern)
 
 STEP TYPES - BRUG KORREKTE ID'ER:
 - Running/Intervals: stepType: {"stepTypeId": 3, "stepTypeKey": "interval"}
@@ -570,6 +582,29 @@ STEP 3: ExecutableStepDTO - 5 km jog (DISTANCE-BASED)
 - endCondition: {"conditionTypeId": 3, "conditionTypeKey": "distance"}
 - endConditionValue: 5000 (5 km = 5000 meter)
 - targetType: {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
+
+FARTLEG PYRAMID EKSEMPEL:
+"1,2,3,4,4,3,2,1 min fartleg" betyder 8 individuelle fartleg steps + 7 recovery steps:
+FØRSTE fartleg step: 1 min fartleg (description: "1 min fartleg")
+Derefter: 1 min jog recovery
+ANDEN fartleg step: 2 min fartleg (description: "2 min fartleg")
+Derefter: 1 min jog recovery
+TREDJE fartleg step: 3 min fartleg (description: "3 min fartleg")
+Derefter: 1 min jog recovery
+FJERDE fartleg step: 4 min fartleg (description: "4 min fartleg")
+Derefter: 1 min jog recovery
+FEMTE fartleg step: 4 min fartleg (description: "4 min fartleg")
+Derefter: 1 min jog recovery
+SJETTE fartleg step: 3 min fartleg (description: "3 min fartleg")
+Derefter: 1 min jog recovery
+SYVENDE fartleg step: 2 min fartleg (description: "2 min fartleg")
+Derefter: 1 min jog recovery
+OTTENDE fartleg step: 1 min fartleg (description: "1 min fartleg")
+Derefter: Fortsæt med resterende aktiviteter fra beskrivelsen
+
+ALLE fartleg steps bruger:
+- endCondition: time, endConditionValue: [minutes * 60]
+- targetType: no.target, description: "Fartleg"
 
 VIGTIGE REGLER:
 - "X km jog" = ALTID distance-based (endCondition: distance)
