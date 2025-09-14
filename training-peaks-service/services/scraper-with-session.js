@@ -408,8 +408,8 @@ class TrainingPeaksScraper {
             console.log('⏳ Waiting 5 seconds for calendar to fully load...');
             await this.page.waitForTimeout(5000);
             
-            // Get September 8-15, 2025 week data
-            const weekData = await this.extractWeekData();
+            // Get week data for the specified date
+            const weekData = await this.extractWeekData(startDate);
             
             return weekData;
             
@@ -419,9 +419,24 @@ class TrainingPeaksScraper {
         }
     }
 
-        // Extract workout data for September 8-15, 2025
-    async extractWeekData() {
-        console.log('📅 Extracting September 8-15, 2025 workout data...');
+        // Extract workout data for the specified week
+    async extractWeekData(startDate) {
+        // Calculate the end date for the week (6 days later)
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(startDateObj);
+        endDateObj.setDate(startDateObj.getDate() + 6);
+        
+        const startMonth = startDateObj.toLocaleDateString('en-US', { month: 'long' });
+        const endMonth = endDateObj.toLocaleDateString('en-US', { month: 'long' });
+        const startDay = startDateObj.getDate();
+        const endDay = endDateObj.getDate();
+        const year = startDateObj.getFullYear();
+        
+        const weekRange = startMonth === endMonth 
+            ? `${startMonth} ${startDay}-${endDay}, ${year}`
+            : `${startMonth} ${startDay}-${endMonth} ${endDay}, ${year}`;
+            
+        console.log(`📅 Extracting ${weekRange} workout data...`);
         
         try {
             // Wait an additional moment for any lazy-loaded content
@@ -433,11 +448,11 @@ class TrainingPeaksScraper {
             
             const weekData = [];
             
-            // Look for the specific week container for September 8-15, 2025
-            const weekContainer = await this.page.$('div.calendarWeekContainer[data-date="2025-09-08"]');
+            // Look for the specific week container for the start date
+            const weekContainer = await this.page.$(`div.calendarWeekContainer[data-date="${startDate}"]`);
             
             if (!weekContainer) {
-                console.log('❌ Could not find week container for September 8-15, 2025');
+                console.log(`❌ Could not find week container for ${weekRange}`);
                 // Try to find any week container to debug
                 const anyWeekContainer = await this.page.$('div.calendarWeekContainer');
                 if (anyWeekContainer) {
@@ -449,10 +464,16 @@ class TrainingPeaksScraper {
                 return weekData;
             }
             
-            console.log('✅ Found week container for September 8-15, 2025');
+            console.log(`✅ Found week container for ${weekRange}`);
             
-            // Extract workouts for each day in the week
-            const targetDates = ['2025-09-08', '2025-09-09', '2025-09-10', '2025-09-11', '2025-09-12', '2025-09-13', '2025-09-14'];
+            // Generate target dates for the week (7 days starting from startDate)
+            const targetDates = [];
+            for (let i = 0; i < 7; i++) {
+                const targetDate = new Date(startDateObj);
+                targetDate.setDate(startDateObj.getDate() + i);
+                const dateString = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                targetDates.push(dateString);
+            }
             
             for (const date of targetDates) {
                 console.log(`🗓️ Processing ${date}...`);
