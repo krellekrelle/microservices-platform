@@ -1345,13 +1345,6 @@ function initializeSocket() {
         } catch (e) {
             console.error('Error showing trick-completed payload:', e);
         }
-        // // Clear the transient trick after the same delay used server-side
-        // setTimeout(() => {
-        //     // Only clear if the server hasn't already provided a newer game-state that includes currentTrickCards
-        //     if (!lobbyState || !lobbyState.currentTrickCards || lobbyState.currentTrickCards.length === 0) {
-        //         showTrick([]);
-        //     }
-        // }, 1500);
     });
     // Game pause/resume events
     socket.on('game-paused', (data) => {
