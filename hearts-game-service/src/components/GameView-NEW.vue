@@ -1,15 +1,35 @@
 <template>
   <div class="game-view">
-    <!-- Pass Cards Button (only during passing phase) -->
-    <div v-if="gameStore.lobbyState?.state === 'passing' && !gameStore.hasPassed" class="pass-controls">
-      <button 
-        class="pass-cards-btn"
-        :disabled="gameStore.selectedCards.length !== 3"
-        @click="passSelectedCards"
-      >
-        Pass {{ gameStore.selectedCards.length }}/3 Cards
-        <span v-if="gameStore.selectedCards.length === 3">→</span>
-      </button>
+    <!-- Game Header -->
+    <div class="game-header">
+      <div class="game-status">
+        <h2 v-if="gameStore.lobbyState?.state === 'passing'">
+          🃏 Card Passing Phase
+        </h2>
+        <h2 v-else-if="gameStore.lobbyState?.state === 'playing'">
+          🂡 Playing Hearts - Round {{ gameStore.lobbyState?.currentRound || 1 }}
+        </h2>
+        
+        <div v-if="gameStore.isMyTurn" class="turn-indicator">
+          ⭐ Your Turn!
+        </div>
+      </div>
+
+      <!-- Pass Cards Button (only during passing phase) -->
+      <div v-if="gameStore.lobbyState?.state === 'passing' && !gameStore.hasPassed" class="pass-controls">
+        <button 
+          class="pass-cards-btn"
+          :disabled="gameStore.selectedCards.length !== 3"
+          @click="passSelectedCards"
+        >
+          Pass {{ gameStore.selectedCards.length }}/3 Cards
+          <span v-if="gameStore.selectedCards.length === 3">→</span>
+        </button>
+      </div>
+
+      <div v-else-if="gameStore.hasPassed" class="waiting-message">
+        ⏳ Waiting for other players to pass cards...
+      </div>
     </div>
 
     <!-- 3x3 Game Table Layout -->
@@ -28,16 +48,20 @@
       <div class="game-seat game-seat-center">
         <div class="trick-area">
           <div v-if="gameStore.lobbyState?.currentTrickCards?.length" class="current-trick">
-            <div class="trick-cards-positioned">
-              <PlayerCard 
+            <h3>Current Trick</h3>
+            <div class="trick-cards">
+              <div 
                 v-for="(play, index) in gameStore.lobbyState.currentTrickCards"
-                :key="index"
-                :card="play.card"
-                :size="'medium'"
-                :clickable="false"
-                :style="getTrickCardPosition(play.seat)"
-                class="trick-card-positioned"
-              />
+                :key="index" 
+                class="trick-card"
+              >
+                <PlayerCard 
+                  :card="play.card"
+                  :size="'medium'"
+                  :clickable="false"
+                />
+                <div class="card-player">{{ getPlayerName(play.seat) }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -51,10 +75,7 @@
       <!-- Bottom: My Hand and Avatar -->
       <div class="game-seat game-seat-hand">
         <!-- My Avatar/Profile -->
-        <div 
-          class="my-player-info"
-          :class="{ 'my-turn': gameStore.isMyTurn }"
-        >
+        <div class="my-player-info">
           <div class="my-avatar">
             <img 
               v-if="gameStore.myPlayer?.profilePicture"
@@ -86,8 +107,8 @@
       </div>
     </div>
 
-    <!-- Scoreboard Overlay (Top Right) -->
-    <div class="scoreboard-overlay" v-if="gameStore.lobbyState?.scores">
+    <!-- Scoreboard -->
+    <div class="scoreboard" v-if="gameStore.lobbyState?.scores">
       <h3>Scores</h3>
       <div class="score-table">
         <div class="score-header">
@@ -96,14 +117,14 @@
           <div>Total</div>
         </div>
         <div 
-          v-for="(player, index) in gameStore.lobbyState.players"
-          :key="index"
+          v-for="(player, seatIndex) in gameStore.lobbyState?.players"
+          :key="seatIndex"
           v-if="player?.name"
           class="score-row"
         >
-          <div class="player-name">{{ getPlayerFirstName(player.name) }}</div>
-          <div class="current-score">{{ getCurrentRoundScore(index) }}</div>
-          <div class="total-score">{{ getTotalScore(index) }}</div>
+          <div>{{ getPlayerFirstName(player.name) }}</div>
+          <div>{{ getCurrentRoundScore(seatIndex) }}</div>
+          <div>{{ getTotalScore(seatIndex) }}</div>
         </div>
       </div>
     </div>
@@ -185,46 +206,6 @@ function getOpponentSeat(position) {
   return seatMappings[mySeat]?.[position] ?? null
 }
 
-function getTrickCardPosition(seatIndex) {
-  // Position cards closer to the player who played them (no rotation)
-  const mySeat = gameStore.mySeat
-  if (mySeat === null || mySeat === undefined) return {}
-  
-  // Define positions relative to center for each seat position
-  const positions = {
-    // If I'm in seat 0 (bottom), opponents are positioned as:
-    0: {
-      0: { transform: 'translate(-10px, 40px)' },   // My card (bottom)
-      1: { transform: 'translate(40px, -10px)' },   // Right opponent  
-      2: { transform: 'translate(10px, -40px)' },   // Top opponent
-      3: { transform: 'translate(-40px, 10px)' }    // Left opponent
-    },
-    // If I'm in seat 1 (right), adjust positions accordingly
-    1: {
-      0: { transform: 'translate(-40px, 10px)' },   // Left of me
-      1: { transform: 'translate(40px, -10px)' },   // My card (right)
-      2: { transform: 'translate(10px, 40px)' },    // Bottom  
-      3: { transform: 'translate(-10px, -40px)' }   // Top
-    },
-    // If I'm in seat 2 (top), adjust positions accordingly  
-    2: {
-      0: { transform: 'translate(10px, 40px)' },    // Bottom
-      1: { transform: 'translate(-40px, 10px)' },   // Left
-      2: { transform: 'translate(-10px, -40px)' },  // My card (top)
-      3: { transform: 'translate(40px, -10px)' }    // Right
-    },
-    // If I'm in seat 3 (left), adjust positions accordingly
-    3: {
-      0: { transform: 'translate(40px, -10px)' },   // Right
-      1: { transform: 'translate(10px, 40px)' },    // Bottom
-      2: { transform: 'translate(-10px, -40px)' },  // Top  
-      3: { transform: 'translate(-40px, 10px)' }    // My card (left)
-    }
-  }
-  
-  return positions[mySeat]?.[seatIndex] || { transform: 'translate(0px, 0px)' }
-}
-
 function passSelectedCards() {
   if (gameStore.selectedCards.length === 3) {
     emitPassCards(gameStore.selectedCards)
@@ -252,264 +233,220 @@ function stopGame() {
   flex-direction: column;
 }
 
+.game-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
 
+.game-status h2 {
+  margin-bottom: 0.5rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.turn-indicator {
+  background: linear-gradient(45deg, #ffeb3b, #ffc107);
+  color: #333;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: bold;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
 
 .pass-controls {
-  position: absolute;
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+  margin-top: 1rem;
 }
 
 .pass-cards-btn {
-  background: linear-gradient(45deg, #4caf50, #66bb6a);
+  background: linear-gradient(45deg, #4caf50, #45a049);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
-  font-size: 1rem;
   transition: all 0.3s ease;
 }
 
 .pass-cards-btn:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  background: #666;
   cursor: not-allowed;
 }
 
-
-
-/* 3x3 Grid Layout for Hearts Table - Fixed Size */
-.game-seats-container {
-  display: grid;
-  grid-template-areas: 
-    ".    upper    ."
-    "left center right"
-    "hand hand hand";
-  grid-template-columns: 200px 400px 200px;
-  grid-template-rows: 150px 250px 200px;
-  gap: 1rem;
-  width: 800px;
-  height: 600px;
-  margin: 2rem auto;
-  flex-shrink: 0;
+.pass-cards-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.game-seat {
+.waiting-message {
+  color: #ffeb3b;
+  font-weight: bold;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+/* 3x3 Game Table Layout */
+.game-seats-container {
+  display: grid;
+  grid-template-areas:
+    ".    upper    ."
+    "left center  right"
+    "hand hand   hand";
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 1rem;
+  margin: 2rem auto;
+  max-width: 1000px;
+  min-height: 500px;
+  height: 600px;
+  justify-items: center;
+  align-items: center;
+}
+
+.game-seat-upper { 
+  grid-area: upper; 
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.game-seat-left { 
+  grid-area: left; 
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.game-seat-right { 
+  grid-area: right; 
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.game-seat-hand { 
+  grid-area: hand; 
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.game-seat-upper {
-  grid-area: upper;
-}
-
-.game-seat-left {
-  grid-area: left;
-}
-
-.game-seat-center {
-  grid-area: center;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  min-height: 200px;
-}
-
-.game-seat-right {
-  grid-area: right;
-}
-
-.game-seat-hand {
-  grid-area: hand;
-  flex-direction: column;
   gap: 1rem;
 }
 
+.game-seat-center { 
+  grid-area: center; 
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Trick Area Styles */
+.trick-area {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.current-trick h3 {
+  margin-bottom: 1rem;
+  color: #ffeb3b;
+  font-size: 1rem;
+}
+
+.trick-cards {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.trick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.card-player {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* My Player Area */
 .my-player-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
   padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 15px;
   margin-bottom: 1rem;
-  border: 2px solid transparent;
-  transition: all 0.3s ease;
-}
-
-.my-player-info.my-turn {
-  border-color: #ffeb3b;
-  box-shadow: 0 0 15px rgba(255, 235, 59, 0.5);
-  animation: pulse-border 2s infinite;
-}
-
-@keyframes pulse-border {
-  0%, 100% { 
-    border-color: #ffeb3b;
-    box-shadow: 0 0 15px rgba(255, 235, 59, 0.5);
-  }
-  50% { 
-    border-color: #ffc107;
-    box-shadow: 0 0 25px rgba(255, 235, 59, 0.8);
-  }
+  width: fit-content;
 }
 
 .my-avatar {
+  margin-bottom: 0.5rem;
+}
+
+.player-avatar {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  border: 3px solid #ffeb3b;
-  overflow: hidden;
-}
-
-.my-avatar .player-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
 
 .avatar-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, #4caf50, #66bb6a);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.5rem;
   color: white;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
 
 .my-name {
   font-weight: bold;
-  color: #ffeb3b;
-}
-
-.my-stats {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.my-hand-area {
-  display: flex;
-  justify-content: center;
-}
-
-.game-board {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 2rem 0;
-}
-
-.trick-area {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 2rem;
-  text-align: center;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.trick-cards-positioned {
-  position: relative;
-  width: 300px;
-  height: 200px;
-  margin: 0 auto;
-}
-
-.trick-card-positioned {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transition: all 0.3s ease;
-  z-index: 1;
-}
-
-.opponents-area {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.opponent {
-  position: absolute;
-  pointer-events: auto;
-}
-
-.opponent.current-turn {
-  animation: highlight 2s infinite;
-}
-
-@keyframes highlight {
-  0%, 100% { box-shadow: 0 0 0 rgba(255, 235, 59, 0); }
-  50% { box-shadow: 0 0 20px rgba(255, 235, 59, 0.6); }
-}
-
-.opponent-info {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 1rem;
-  text-align: center;
-  min-width: 120px;
-}
-
-.opponent-avatar, .opponent-avatar-placeholder {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  margin: 0 auto 0.5rem;
-}
-
-.opponent-avatar-placeholder {
-  background: linear-gradient(45deg, #666, #888);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
   color: white;
-}
-
-.opponent-name {
-  font-weight: bold;
   margin-bottom: 0.25rem;
 }
 
-.opponent-stats {
+.my-stats {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
 }
 
+.my-hand-area {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
 
-
-.scoreboard-overlay {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: rgba(0, 0, 0, 0.8);
+.scoreboard {
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 1rem;
-  min-width: 200px;
-  z-index: 10;
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 1rem;
 }
 
 .score-table {
