@@ -67,6 +67,7 @@ app.use('/hearts/dist', express.static(path.join(__dirname, 'public/dist')));
 // Handle /hearts prefixed routes (simulate Caddy path stripping)
 app.use('/hearts/sounds', express.static(path.join(__dirname, 'public/sounds')));
 app.use('/hearts/icons', express.static(path.join(__dirname, 'public/icons')));
+app.use('/hearts/bridge3-box-qr-Large', express.static(path.join(__dirname, 'public/bridge3-box-qr-Large')));
 app.use('/hearts/favicon.svg', express.static(path.join(__dirname, 'public/favicon.svg')));
 app.use('/hearts/legacy-sound-manager.js', express.static(path.join(__dirname, 'public/legacy-sound-manager.js')));
 

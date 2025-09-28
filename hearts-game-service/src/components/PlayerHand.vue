@@ -6,7 +6,7 @@
       :card="card"
       :index="index"
       :selected="selectedCards.includes(card)"
-      :clickable="isPassingPhase"
+      :clickable="isClickable"
       :size="cardSize"
       :overlap="overlapAmount"
       @click="handleCardClick"
@@ -35,13 +35,23 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['cardClick'])
+
 const gameStore = useGameStore()
-const { emitPassCards } = useSocket()
+const { emitPassCards, emitPlayCard } = useSocket()
 
 const selectedCards = computed(() => gameStore.selectedCards)
 
 const isPassingPhase = computed(() => {
   return gameStore.lobbyState?.state === 'passing' && !gameStore.hasPassed
+})
+
+const isPlayingPhase = computed(() => {
+  return gameStore.lobbyState?.state === 'playing' && gameStore.isMyTurn
+})
+
+const isClickable = computed(() => {
+  return isPassingPhase.value || isPlayingPhase.value
 })
 
 const handContainerStyles = computed(() => {
@@ -56,12 +66,20 @@ const handContainerStyles = computed(() => {
 })
 
 function handleCardClick(card) {
-  if (!isPassingPhase.value) return
+  console.log('🃏 Card clicked:', card, 'Phase:', gameStore.lobbyState?.state, 'IsMyTurn:', gameStore.isMyTurn)
   
-  const wasToggled = gameStore.toggleCardSelection(card)
-  
-  if (wasToggled) {
-    console.log('🃏 Card toggled:', card, 'Selected cards:', gameStore.selectedCards)
+  if (isPassingPhase.value) {
+    // Passing phase: toggle card selection
+    const wasToggled = gameStore.toggleCardSelection(card)
+    if (wasToggled) {
+      console.log('🃏 Card toggled for passing:', card, 'Selected cards:', gameStore.selectedCards)
+    }
+  } else if (isPlayingPhase.value) {
+    // Playing phase: play the card immediately
+    console.log('🎯 Playing card:', card)
+    emitPlayCard(card)
+    // Also emit to parent component if needed
+    emit('cardClick', card)
   }
 }
 </script>
