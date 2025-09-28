@@ -180,12 +180,21 @@ class SocketHandler {
     }
 
     setupEventHandlers(socket) {
+        console.log(`🔧 Setting up event handlers for user:`, socket.user.id);
         const userId = socket.user.id;
         const userName = socket.user.name || socket.user.email;
 
+        // Add debug logging for ALL events
+        socket.onAny((eventName, ...args) => {
+            console.log(`🎯 DEBUG: Received event '${eventName}' from user ${socket.user.id}:`, args);
+        });
+
         // Lobby events
         socket.on('join-lobby', () => this.handleJoinLobby(socket));
-        socket.on('take-seat', (data) => this.handleTakeSeat(socket, data));
+        socket.on('take-seat', (data) => {
+            console.log(`🎯 Received take-seat event for user ${socket.user.id}:`, data);
+            this.handleTakeSeat(socket, data);
+        });
         socket.on('leave-seat', () => this.handleLeaveSeat(socket));
         socket.on('ready-for-game', () => this.handleToggleReady(socket));
         socket.on('start-game', () => this.handleStartGame(socket));
@@ -286,6 +295,8 @@ class SocketHandler {
     }
 
     async handleTakeSeat(socket, data) {
+        console.log(`🔥 handleTakeSeat called with data:`, data);
+        console.log(`🔥 Socket user:`, socket.user);
         try {
             const userId = socket.user.id;
             const userName = socket.user.name || socket.user.email;

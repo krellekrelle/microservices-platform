@@ -4,6 +4,11 @@
 
 This is a **centralized-auth microservices platform** running on Docker with Caddy reverse proxy. All authentication is handled by the `auth-service`, while individual services remain stateless.
 
+### Frontend Technology
+- **Hearts Game Service**: Migrated to **Vue.js 3** with Vite build system
+- **Static Services**: Traditional HTML/CSS/JS for simpler services
+- **Build Process**: Vue apps are built during Docker image creation
+
 ### Core Services
 - **auth-service** (3001): Google OAuth + JWT token management + user database
 - **landing-page** (3000): Stateless dashboard that proxies all auth decisions to auth-service
@@ -23,6 +28,13 @@ This is a **centralized-auth microservices platform** running on Docker with Cad
 3. Initialize with `await jwtMiddleware.initialize()` before starting server
 4. Add to `docker-compose.yml` and `Caddyfile` with unique port and path prefix
 5. Use middleware layers: `authenticate` → `requireApproved` → `requireAdmin`
+
+### Vue.js Services (Hearts Game Pattern)
+1. **Development**: `npm run vue:dev` for live Vue development server
+2. **Production Build**: `npm run build` creates `/public/dist/` assets
+3. **Docker Build**: Automatically runs `npm run build` during image creation
+4. **Serving**: Express serves Vue app at root route with authentication
+5. **File Structure**: `/src/` for Vue source, `/public/dist/` for built assets
 
 ### Authentication Flow
 ```javascript
@@ -76,6 +88,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 docker compose up -d                    # Start all services
 docker compose logs -f auth-service     # Debug auth issues
 ./admin.sh                              # User management CLI
+
+# Vue.js Development (Hearts Game Service)
+docker compose up -d                    # Start backend services
+cd hearts-game-service && npm run vue:dev  # Start Vue dev server (localhost:5173)
 
 # Database operations  
 docker compose exec database psql -U app_user -d microservices_platform

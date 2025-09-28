@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "vue:dev": "vite",
     "test": "jest",
     "test:watch": "jest --watch",
     "migrate": "node scripts/migrate.js",
@@ -25,7 +28,12 @@
     "nodemon": "^3.0.2",
     "jest": "^29.7.0",
     "supertest": "^6.3.3",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "vue": "^3.3.8",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-vue": "^4.5.0",
+    "pinia": "^2.1.7",
+    "@vueuse/core": "^10.5.0"
   },
   "keywords": ["hearts", "card-game", "multiplayer", "websocket", "real-time"],
   "author": "",

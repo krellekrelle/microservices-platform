@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/hearts/favicon.svg">
+    <link rel="alternate icon" href="/hearts/favicon.svg">
+    <title>Hearts Game</title>
+    <style>
+        /* Loading styles before Vue loads */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            min-height: 100vh;
+        }
+        
+        .loading-fallback {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left: 4px solid #ffeb3b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Ensure Vue app takes full height */
+        #hearts-app {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="hearts-app">
+        <!-- Fallback content while Vue.js loads -->
+        <div class="loading-fallback">
+            <div class="loading-spinner"></div>
+            <h2>🂡 Hearts Game</h2>
+            <p>Loading Vue.js application...</p>
+        </div>
+    </div>
+
+    <!-- Load Socket.IO for the Vue app -->
+    <script src="/hearts/socket.io/socket.io.js"></script>
+    
+    <!-- Load legacy sound manager -->
+    <script src="/hearts/legacy-sound-manager.js"></script>
+    
+    <!-- Initialize legacy components -->
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🎮 Hearts Game: DOM loaded, initializing legacy components...')
+            
+            // Initialize sound manager
+            if (typeof SoundManager !== 'undefined') {
+                window.soundManager = new SoundManager()
+                console.log('🔊 Legacy SoundManager initialized')
+            }
+            
+            console.log('🎥 VideoManager class available for Vue.js')
+        })
+    </script>
+    
+    <!-- Vue.js entry point -->
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<template>
+  <div class="lobby-view">
+    <div class="lobby-header">
+      <h1>🚀 VUE.JS HEARTS LOBBY - NEW VERSION! 🚀</h1>
+      <p v-if="gameStore.lobbyState">
+        Room: <strong>{{ gameStore.lobbyState.roomId || 'Main Lobby' }}</strong>
+      </p>
+    </div>
+
+        <div class="seats-container" v-if="gameStore.lobbyState">
+      <!-- Seat 0 (Top) -->
+      <div class="seat seat-upper" 
+           :class="getSeatClasses(0)"
+           @click="handleSeatClick(0)">
+        <div class="seat-number">Seat 1</div>
+        <div class="seat-content">
+          <div v-if="gameStore.lobbyState.players[0]" class="seat-player">
+            <div class="player-avatar-container">
+              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 0">👑</div>
+              <img 
+                v-if="gameStore.lobbyState.players[0].profilePicture" 
+                :src="gameStore.lobbyState.players[0].profilePicture" 
+                :alt="gameStore.lobbyState.players[0].name"
+                class="player-avatar"
+              />
+              <div v-else class="player-avatar-placeholder">
+                {{ getPlayerInitials(gameStore.lobbyState.players[0].name) }}
+              </div>
+            </div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0].name) }}</div>
+            <div v-if="gameStore.lobbyState.players[0].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="gameStore.lobbyState.players[0].isBot" class="bot-status">🤖 Bot</div>
+          </div>
+          <div v-else class="empty-seat">Click to sit</div>
+          <button v-if="!gameStore.lobbyState.players[0]" class="add-bot-seat-btn btn info" @click.stop="addBotToSeat(0)">+</button>
+          <button v-if="gameStore.lobbyState.players[0] && gameStore.lobbyState.players[0].isBot" class="remove-bot-btn btn danger" @click.stop="removeBotFromSeat(0)">×</button>
+        </div>
+      </div>
+
+      <!-- Seat 1 (Right) -->
+      <div class="seat seat-right" 
+           :class="getSeatClasses(1)"
+           @click="handleSeatClick(1)">
+        <div class="seat-number">Seat 2</div>
+        <div class="seat-content">
+          <div v-if="gameStore.lobbyState.players[1]" class="seat-player">
+            <div class="player-avatar-container">
+              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 1">👑</div>
+              <img 
+                v-if="gameStore.lobbyState.players[1].profilePicture" 
+                :src="gameStore.lobbyState.players[1].profilePicture" 
+                :alt="gameStore.lobbyState.players[1].name"
+                class="player-avatar"
+              />
+              <div v-else class="player-avatar-placeholder">
+                {{ getPlayerInitials(gameStore.lobbyState.players[1].name) }}
+              </div>
+            </div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1].name) }}</div>
+            <div v-if="gameStore.lobbyState.players[1].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="gameStore.lobbyState.players[1].isBot" class="bot-status">🤖 Bot</div>
+          </div>
+          <div v-else class="empty-seat">Click to sit</div>
+          <button v-if="!gameStore.lobbyState.players[1]" class="add-bot-seat-btn btn info" @click.stop="addBotToSeat(1)">+</button>
+          <button v-if="gameStore.lobbyState.players[1] && gameStore.lobbyState.players[1].isBot" class="remove-bot-btn btn danger" @click.stop="removeBotFromSeat(1)">×</button>
+        </div>
+      </div>
+
+      <!-- Center Controls -->
+      <div class="lobby-controls">
+        <button v-if="gameStore.mySeat !== null" id="leave-seat-btn" class="btn danger" @click="leaveSeat">
+          Leave Seat
+        </button>
+        <button 
+          v-if="gameStore.mySeat !== null" 
+          id="ready-btn" 
+          class="btn success" 
+          :class="{ active: gameStore.myPlayer?.ready }"
+          @click="toggleReady"
+        >
+          {{ gameStore.myPlayer?.ready ? '✓ Ready' : 'Ready Up' }}
+        </button>
+        <button 
+          id="start-game-btn" 
+          class="btn success" 
+          :disabled="!gameStore.canStartGame"
+          @click="startGame"
+        >
+          Start Game
+        </button>
+      </div>
+
+      <!-- Seat 2 (Bottom) -->
+      <div class="seat seat-lower" 
+           :class="getSeatClasses(2)"
+           @click="handleSeatClick(2)">
+        <div class="seat-number">Seat 3</div>
+        <div class="seat-content">
+          <div v-if="gameStore.lobbyState.players[2]" class="seat-player">
+            <div class="player-avatar-container">
+              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 2">👑</div>
+              <img 
+                v-if="gameStore.lobbyState.players[2].profilePicture" 
+                :src="gameStore.lobbyState.players[2].profilePicture" 
+                :alt="gameStore.lobbyState.players[2].name"
+                class="player-avatar"
+              />
+              <div v-else class="player-avatar-placeholder">
+                {{ getPlayerInitials(gameStore.lobbyState.players[2].name) }}
+              </div>
+            </div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2].name) }}</div>
+            <div v-if="gameStore.lobbyState.players[2].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="gameStore.lobbyState.players[2].isBot" class="bot-status">🤖 Bot</div>
+          </div>
+          <div v-else class="empty-seat">Click to sit</div>
+          <button v-if="!gameStore.lobbyState.players[2]" class="add-bot-seat-btn btn info" @click.stop="addBotToSeat(2)">+</button>
+          <button v-if="gameStore.lobbyState.players[2] && gameStore.lobbyState.players[2].isBot" class="remove-bot-btn btn danger" @click.stop="removeBotFromSeat(2)">×</button>
+        </div>
+      </div>
+
+      <!-- Seat 3 (Left) -->
+      <div class="seat seat-left" 
+           :class="getSeatClasses(3)"
+           @click="handleSeatClick(3)">
+        <div class="seat-number">Seat 4</div>
+        <div class="seat-content">
+          <div v-if="gameStore.lobbyState.players[3]" class="seat-player">
+            <div class="player-avatar-container">
+              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 3">👑</div>
+              <img 
+                v-if="gameStore.lobbyState.players[3].profilePicture" 
+                :src="gameStore.lobbyState.players[3].profilePicture" 
+                :alt="gameStore.lobbyState.players[3].name"
+                class="player-avatar"
+              />
+              <div v-else class="player-avatar-placeholder">
+                {{ getPlayerInitials(gameStore.lobbyState.players[3].name) }}
+              </div>
+            </div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3].name) }}</div>
+            <div v-if="gameStore.lobbyState.players[3].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="gameStore.lobbyState.players[3].isBot" class="bot-status">🤖 Bot</div>
+          </div>
+          <div v-else class="empty-seat">Click to sit</div>
+          <button v-if="!gameStore.lobbyState.players[3]" class="add-bot-seat-btn btn info" @click.stop="addBotToSeat(3)">+</button>
+          <button v-if="gameStore.lobbyState.players[3] && gameStore.lobbyState.players[3].isBot" class="remove-bot-btn btn danger" @click.stop="removeBotFromSeat(3)">×</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game info -->
+    <div class="game-info">
+      <h3>How to Play Hearts</h3>
+      <ul>
+        <li>🎯 <strong>Goal:</strong> Get the lowest score possible</li>
+        <li>❤️ <strong>Hearts:</strong> Each heart card = 1 point</li>
+        <li>♠️ <strong>Queen of Spades:</strong> 13 points</li>
+        <li>🃏 <strong>Passing:</strong> Pass 3 cards before each round</li>
+        <li>🏆 <strong>Winner:</strong> Lowest score when someone reaches 100 points</li>
+      </ul>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { useGameStore } from '../stores/gameStore'
+import { useSocket } from '../composables/useSocket'
+
+const gameStore = useGameStore()
+const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat } = useSocket()
+
+function getPlayerDisplayName(fullName) {
+  if (!fullName) return 'Unknown'
+  return fullName.split(' ')[0]
+}
+
+function getPlayerInitials(fullName) {
+  if (!fullName) return '?'
+  return fullName.split(' ')
+    .map(name => name[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+function getSeatClasses(seatIndex) {
+  const player = gameStore.lobbyState?.players[seatIndex]
+  return {
+    'occupied': player && player.name,
+    'my-seat': gameStore.mySeat === seatIndex,
+    'leader': gameStore.lobbyState?.lobbyLeader === seatIndex
+  }
+}
+
+function handleSeatClick(seatIndex) {
+  console.log(`🪑 Clicked seat ${seatIndex}`);
+  console.log('🎮 Current mySeat:', gameStore.mySeat);
+  console.log('👤 Seat occupied?', gameStore.lobbyState?.players[seatIndex]);
+  
+  // Only allow sitting if seat is empty and user doesn't have a seat
+  if (!gameStore.lobbyState?.players[seatIndex] && gameStore.mySeat === null) {
+    console.log('📡 About to emit take-seat event...');
+    // Take the specific seat
+    emitTakeSeat(seatIndex)
+    console.log('✅ Take-seat event emitted');
+  } else {
+    console.log('❌ Cannot take seat - either occupied or user already has seat');
+  }
+}
+
+function leaveSeat() {
+  if (gameStore.mySeat !== null) {
+    // Leave current seat
+    emitLeaveSeat()
+  }
+}
+
+function toggleReady() {
+  emitToggleReady()
+}
+
+function addBotToSeat(seatIndex) {
+  emitAddBot(seatIndex)
+}
+
+function removeBotFromSeat(seatIndex) {
+  emitRemoveBot(seatIndex)
+}
+
+function startGame() {
+  if (gameStore.canStartGame) {
+    emitStartGame()
+  }
+}
+</script>
+
+<style scoped>
+.lobby-view {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: white;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  min-height: 100vh;
+}
+
+/* Diamond layout for seats */
+.seats-container {
+  display: grid;
+  grid-template-areas:
+    ".    seat0    ."
+    "seat3  controls    seat1"
+    ".    seat2    .";
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 1rem 1rem;
+  margin: 2rem 0;
+  max-width: 1000px;
+  justify-items: center;
+  align-items: center;
+  height: 715px;
+}
+
+.seat-upper { grid-area: seat0; }
+.seat-right { grid-area: seat1; }
+.seat-lower { grid-area: seat2; }
+.seat-left { grid-area: seat3; }
+.lobby-controls { grid-area: controls; }
+
+/* Seat styling matching original */
+.seat {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 15px;
+  padding: 0;
+  text-align: center;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+  height: 200px;
+  width: 220px;
+  max-width: 260px;
+  min-width: 110px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.seat:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.seat.occupied {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: #4caf50;
+  cursor: default;
+}
+
+.seat.my-seat {
+  background: rgba(33, 150, 243, 0.3);
+  border-color: #2196f3;
+}
+
+.seat.occupied:hover {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.seat-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding-bottom: 36px;
+  padding-top: 12px;
+}
+
+.seat-number {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+  margin-top: 0.3rem;
+  opacity: 0.7;
+  display: none; /* Hide seat numbers like original */
+}
+
+.empty-seat {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+.seat-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-avatar-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lobby-leader-crown {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 1.2rem;
+  z-index: 2;
+}
+
+.player-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.player-avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.player-name {
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.ready-indicator {
+  color: #4caf50;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.bot-status {
+  color: #ff9800;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* Bot control buttons */
+.add-bot-seat-btn, .remove-bot-btn {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-bot-seat-btn {
+  background: rgba(33, 150, 243, 0.8);
+  color: white;
+}
+
+.add-bot-seat-btn:hover {
+  background: rgba(33, 150, 243, 1);
+}
+
+.remove-bot-btn {
+  background: rgba(244, 67, 54, 0.8);
+  color: white;
+}
+
+.remove-bot-btn:hover {
+  background: rgba(244, 67, 54, 1);
+}
+
+/* Center controls */
+.lobby-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.btn.success {
+  background: #4caf50;
+  color: white;
+}
+
+.btn.success:hover {
+  background: #45a049;
+}
+
+.btn.success:disabled {
+  background: rgba(76, 175, 80, 0.5);
+  cursor: not-allowed;
+}
+
+.btn.success.active {
+  background: #2e7d32;
+}
+
+.btn.danger {
+  background: #f44336;
+  color: white;
+}
+
+.btn.danger:hover {
+  background: #d32f2f;
+}
+
+.lobby-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.lobby-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.game-info {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.game-info h3 {
+  margin-bottom: 1rem;
+  color: #ffeb3b;
+}
+
+.game-info ul {
+  list-style: none;
+  padding: 0;
+}
+
+.game-info li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-info li:last-child {
+  border-bottom: none;
+}
+</style>

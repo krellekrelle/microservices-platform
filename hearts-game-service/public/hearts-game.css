@@ -292,7 +292,7 @@ body {
 
 /* Prevent layout shifts when buttons appear in seat: reserve footer space and absolutely position buttons */
 .seat { position: relative; }
-/*.seat .seat-content { padding-bottom: 0px; /* reserve space for buttons (reduced to save vertical space) */ }
+/* .seat .seat-content { padding-bottom: 0px; /* reserve space for buttons (reduced to save vertical space) */ */
 .seat .add-bot-seat-btn, .seat .remove-bot-btn {
     position: absolute;
     bottom: 10px;

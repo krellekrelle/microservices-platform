@@ -49,10 +49,35 @@ app.use(express.json());
 // Serve static assets before auth middleware
 app.use('/bridge3-box-qr-Large', express.static(path.join(__dirname, 'public/bridge3-box-qr-Large')));
 app.use('/favicon.svg', express.static(path.join(__dirname, 'public/favicon.svg')));
+
+// Serve Vue.js build assets without auth (they're already compiled)
+app.use('/dist', express.static(path.join(__dirname, 'public/dist')));
+
 // Protect all other public files with authentication using JWTMiddleware
 app.use(cookieParser());
 app.use(jwtMiddleware.authenticate, jwtMiddleware.requireApproved);
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Vue.js built assets (served without auth for loading)
+app.use('/dist', express.static(path.join(__dirname, 'public/dist')));
+
+// Main route - serve Vue.js app (with authentication)
+app.get('/', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
+    console.log('📱 Serving Vue.js app from /dist/index.html');
+    res.sendFile(path.join(__dirname, 'public/dist/index.html'));
+});
+
+// Legacy route (for fallback)
+app.get('/legacy', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/index.html.backup'));
+});
+
+// API routes first (before catch-all)
+app.use('/hearts-game.css', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, express.static(path.join(__dirname, 'public/hearts-game.css')));
+app.use('/hearts-game.js', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, express.static(path.join(__dirname, 'public/hearts-game.js')));
+app.use('/legacy-sound-manager.js', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, express.static(path.join(__dirname, 'public/legacy-sound-manager.js')));
+app.use('/sounds', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, express.static(path.join(__dirname, 'public/sounds')));
+app.use('/icons', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, express.static(path.join(__dirname, 'public/icons')));
 
 // Initialize Socket.IO handler
 socketHandler.initialize(io);
@@ -80,11 +105,6 @@ app.use('/static', express.static(path.join(__dirname, 'public'), {
         }
     }
 }));
-
-// Routes
-app.get('/', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // Play card endpoint (HTTP, not socket)
 app.post('/play-card', jwtMiddleware.authenticate, async (req, res) => {
@@ -147,6 +167,12 @@ app.use('*', (req, res, next) => {
     }
     console.log('Redirecting non-Socket.IO request to frontend');
     res.redirect(process.env.FRONTEND_URL || 'https://kl-pi.tail9f5728.ts.net');
+});
+
+// Catch-all route - serve Vue.js app for any unmatched routes (must be last!)
+app.get('*', jwtMiddleware.authenticate, jwtMiddleware.requireApproved, (req, res) => {
+    console.log(`🔄 Catch-all route serving Vue.js app for: ${req.path}`);
+    res.sendFile(path.join(__dirname, 'public/dist/index.html'));
 });
 
 const PORT = process.env.PORT || 3004;

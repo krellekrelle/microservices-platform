@@ -1,0 +1,77 @@
+<template>
+  <div class="player-hand" :style="handContainerStyles">
+    <PlayerCard
+      v-for="(card, index) in hand"
+      :key="card"
+      :card="card"
+      :index="index"
+      :selected="selectedCards.includes(card)"
+      :clickable="isPassingPhase"
+      :size="cardSize"
+      :overlap="overlapAmount"
+      @click="handleCardClick"
+    />
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import { useGameStore } from '../stores/gameStore'
+import { useSocket } from '../composables/useSocket'
+import PlayerCard from './PlayerCard.vue'
+
+const props = defineProps({
+  hand: {
+    type: Array,
+    default: () => []
+  },
+  cardSize: {
+    type: String,
+    default: 'large'
+  },
+  overlapAmount: {
+    type: Number,
+    default: 25
+  }
+})
+
+const gameStore = useGameStore()
+const { emitPassCards } = useSocket()
+
+const selectedCards = computed(() => gameStore.selectedCards)
+
+const isPassingPhase = computed(() => {
+  return gameStore.lobbyState?.state === 'passing' && !gameStore.hasPassed
+})
+
+const handContainerStyles = computed(() => {
+  const totalWidth = Math.max(300, (props.hand.length - 1) * props.overlapAmount + 80)
+  
+  return {
+    position: 'relative',
+    width: `${totalWidth}px`,
+    height: '120px',
+    margin: '0 auto'
+  }
+})
+
+function handleCardClick(card) {
+  if (!isPassingPhase.value) return
+  
+  const wasToggled = gameStore.toggleCardSelection(card)
+  
+  if (wasToggled) {
+    console.log('🃏 Card toggled:', card, 'Selected cards:', gameStore.selectedCards)
+  }
+}
+</script>
+
+<style scoped>
+.player-hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  margin: 1rem auto;
+  min-height: 120px;
+}
+</style>
