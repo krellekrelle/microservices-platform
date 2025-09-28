@@ -711,8 +711,10 @@ class SocketHandler {
                                         } catch (e) {
                                             console.error('Error persisting trick before emit (human play):', e);
                                         }
+                                        console.log('🎯 Emitting trick-completed event:', JSON.stringify(trickCompletedPayload, null, 2));
                                         this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
                 await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                console.log('🎯 Trick display timeout completed, broadcasting game-state');
                 this.broadcastGameStateToRoom(result.gameId, 0);
             } else {
                 // No trick completed, broadcast immediately

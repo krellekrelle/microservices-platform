@@ -129,6 +129,13 @@ export function useSocket() {
       gameStore.clearSelectedCards()
     })
 
+    socket.value.on('trick-completed', (data) => {
+      console.log('🎯 Trick completed:', data)
+      // Show the completed trick with all 4 cards for 1.5 seconds
+      // The server will send updated game-state after TRICK_DISPLAY_MS to clear it
+      gameStore.setTrickCompleted(data)
+    })
+
     socket.value.on('game-ended', (data) => {
       console.log('🏁 Game ended:', data)
       gameStore.updateLobbyState(data)

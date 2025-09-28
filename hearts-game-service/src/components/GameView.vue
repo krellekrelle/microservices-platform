@@ -27,11 +27,26 @@
       <!-- Middle Center: Trick Area -->
       <div class="game-seat game-seat-center">
         <div class="trick-area">
-          <div v-if="gameStore.lobbyState?.currentTrickCards?.length" class="current-trick">
+          <!-- Show completed trick (all 4 cards) if available -->
+          <div v-if="gameStore.lobbyState?.trickCompleted" class="current-trick completed-trick">
+            <div class="trick-cards-positioned">
+              <PlayerCard 
+                v-for="(play, index) in gameStore.lobbyState.trickCompleted.trickCards"
+                :key="`completed-${index}`"
+                :card="play.card"
+                :size="'medium'"
+                :clickable="false"
+                :style="getTrickCardPosition(play.seat)"
+                class="trick-card-positioned"
+              />
+            </div>
+          </div>
+          <!-- Show current in-progress trick if no completed trick -->
+          <div v-else-if="gameStore.lobbyState?.currentTrickCards?.length" class="current-trick">
             <div class="trick-cards-positioned">
               <PlayerCard 
                 v-for="(play, index) in gameStore.lobbyState.currentTrickCards"
-                :key="index"
+                :key="`current-${index}`"
                 :card="play.card"
                 :size="'medium'"
                 :clickable="false"
@@ -87,7 +102,7 @@
     </div>
 
     <!-- Scoreboard Overlay (Top Right) -->
-    <div class="scoreboard-overlay" v-if="gameStore.lobbyState?.scores">
+    <div class="scoreboard-overlay" v-if="gameStore.lobbyState?.players">
       <h3>Scores</h3>
       <div class="score-table">
         <div class="score-header">
@@ -95,16 +110,16 @@
           <div>Current</div>
           <div>Total</div>
         </div>
-        <div 
-          v-for="(player, index) in gameStore.lobbyState.players"
-          :key="index"
-          v-if="player?.name"
-          class="score-row"
-        >
-          <div class="player-name">{{ getPlayerFirstName(player.name) }}</div>
-          <div class="current-score">{{ getCurrentRoundScore(index) }}</div>
-          <div class="total-score">{{ getTotalScore(index) }}</div>
-        </div>
+        <template v-for="index in [0, 1, 2, 3]" :key="index">
+          <div 
+            v-if="gameStore.lobbyState.players[index]"
+            class="score-row"
+          >
+            <div class="player-name">{{ getPlayerFirstName(gameStore.lobbyState.players[index].userName || gameStore.lobbyState.players[index].name || 'Unknown') }}</div>
+            <div class="current-score">{{ getCurrentRoundScore(index) }}</div>
+            <div class="total-score">{{ getTotalScore(index) }}</div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -157,12 +172,12 @@ function getTricksWon(seatIndex) {
 }
 
 function getCurrentRoundScore(seatIndex) {
-  // This would need to be calculated based on current round
-  return 0 // Placeholder
+  // Get current round score from the scores object
+  return gameStore.lobbyState?.scores?.round?.[seatIndex] || 0
 }
 
 function getTotalScore(seatIndex) {
-  return gameStore.lobbyState?.scores?.totals?.[seatIndex] || 0
+  return gameStore.lobbyState?.scores?.total?.[seatIndex] || 0
 }
 
 function getOpponentSeat(position) {
@@ -186,43 +201,44 @@ function getOpponentSeat(position) {
 }
 
 function getTrickCardPosition(seatIndex) {
-  // Position cards closer to the player who played them (no rotation)
+  // Position cards closer to the player who played them from the center
   const mySeat = gameStore.mySeat
   if (mySeat === null || mySeat === undefined) return {}
   
-  // Define positions relative to center for each seat position
+  // Define positions relative to absolute center with proper offsets
+  // All positions use position: absolute with top: 50%, left: 50% as base
   const positions = {
     // If I'm in seat 0 (bottom), opponents are positioned as:
     0: {
-      0: { transform: 'translate(-10px, 40px)' },   // My card (bottom)
-      1: { transform: 'translate(40px, -10px)' },   // Right opponent  
-      2: { transform: 'translate(10px, -40px)' },   // Top opponent
-      3: { transform: 'translate(-40px, 10px)' }    // Left opponent
+      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // My card (bottom)
+      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // Right opponent  
+      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // Top opponent
+      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' }   // Left opponent
     },
     // If I'm in seat 1 (right), adjust positions accordingly
     1: {
-      0: { transform: 'translate(-40px, 10px)' },   // Left of me
-      1: { transform: 'translate(40px, -10px)' },   // My card (right)
-      2: { transform: 'translate(10px, 40px)' },    // Bottom  
-      3: { transform: 'translate(-10px, -40px)' }   // Top
+      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' },  // Left of me
+      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // My card (right)
+      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom  
+      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' }   // Top
     },
     // If I'm in seat 2 (top), adjust positions accordingly  
     2: {
-      0: { transform: 'translate(10px, 40px)' },    // Bottom
-      1: { transform: 'translate(-40px, 10px)' },   // Left
-      2: { transform: 'translate(-10px, -40px)' },  // My card (top)
-      3: { transform: 'translate(40px, -10px)' }    // Right
+      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom
+      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' },  // Left
+      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // My card (top)
+      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' }    // Right
     },
     // If I'm in seat 3 (left), adjust positions accordingly
     3: {
-      0: { transform: 'translate(40px, -10px)' },   // Right
-      1: { transform: 'translate(10px, 40px)' },    // Bottom
-      2: { transform: 'translate(-10px, -40px)' },  // Top  
-      3: { transform: 'translate(-40px, 10px)' }    // My card (left)
+      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // Right
+      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom
+      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // Top  
+      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' }   // My card (left)
     }
   }
   
-  return positions[mySeat]?.[seatIndex] || { transform: 'translate(0px, 0px)' }
+  return positions[mySeat]?.[seatIndex] || { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
 }
 
 function passSelectedCards() {
@@ -425,15 +441,23 @@ function stopGame() {
 
 .trick-cards-positioned {
   position: relative;
-  width: 300px;
-  height: 200px;
+  width: 200px;
+  height: 150px;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.completed-trick .trick-cards-positioned {
+  /* Slightly emphasize completed tricks */
+  background: rgba(255, 255, 0, 0.1);
+  border-radius: 8px;
+  padding: 10px;
 }
 
 .trick-card-positioned {
   position: absolute;
-  top: 50%;
-  left: 50%;
   transition: all 0.3s ease;
   z-index: 1;
 }

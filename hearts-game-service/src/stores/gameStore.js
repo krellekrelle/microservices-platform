@@ -79,7 +79,13 @@ export const useGameStore = defineStore('game', () => {
 
   function updateGameState(newState) {
     console.log('🎮 Store: Updating game state:', newState)
-    lobbyState.value = { ...lobbyState.value, ...newState }
+    // Clear any trick completed data when receiving regular game state update
+    // This happens after the server's TRICK_DISPLAY_MS delay
+    const updatedState = { ...lobbyState.value, ...newState }
+    if (updatedState.trickCompleted) {
+      delete updatedState.trickCompleted
+    }
+    lobbyState.value = updatedState
   }
 
   function toggleCardSelection(card) {
@@ -117,6 +123,14 @@ export const useGameStore = defineStore('game', () => {
 
   function setCountdownEndTime(time) {
     countdownEndTime.value = time
+  }
+
+  function setTrickCompleted(trickData) {
+    // Store the completed trick data temporarily for display
+    // The server will send updated game-state after TRICK_DISPLAY_MS to clear it
+    if (lobbyState.value) {
+      lobbyState.value.trickCompleted = trickData
+    }
   }
 
   function resetGameState() {
@@ -158,6 +172,7 @@ export const useGameStore = defineStore('game', () => {
     setHasPassed,
     setEndGameShown,
     setCountdownEndTime,
+    setTrickCompleted,
     resetGameState
   }
 })
