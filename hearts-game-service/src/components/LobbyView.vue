@@ -362,22 +362,22 @@ function startGame() {
 }
 
 .player-avatar {
-  width: 60px;
-  height: 60px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .player-avatar-placeholder {
-  width: 60px;
-  height: 60px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 2rem;
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 

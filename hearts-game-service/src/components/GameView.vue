@@ -464,8 +464,8 @@ function handleCardClick(card) {
 }
 
 .my-avatar {
-  width: 60px;
-  height: 60px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   border: 3px solid #ffeb3b;
   overflow: hidden;
@@ -485,7 +485,7 @@ function handleCardClick(card) {
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 1.5rem;
+  font-size: 2.5rem;
   color: white;
 }
 
@@ -581,8 +581,8 @@ function handleCardClick(card) {
 }
 
 .opponent-avatar, .opponent-avatar-placeholder {
-  width: 50px;
-  height: 50px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   margin: 0 auto 0.5rem;
@@ -594,6 +594,7 @@ function handleCardClick(card) {
   align-items: center;
   justify-content: center;
   font-weight: bold;
+  font-size: 2rem;
   color: white;
 }
 
