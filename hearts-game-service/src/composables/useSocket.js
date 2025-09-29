@@ -7,6 +7,36 @@ import { io } from 'socket.io-client'
 const socket = ref(null)
 const videoManager = ref(null)
 
+// Function to fetch user info from API
+async function fetchUserInfo() {
+  try {
+    console.log('📡 Fetching user info from API...')
+    const response = await fetch('/api/user', {
+      method: 'GET',
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 User info received from API:', data)
+    
+    if (data.success && data.user) {
+      return data.user
+    } else if (data.authenticated && data.user) {
+      // Handle alternative response format
+      return data.user
+    } else {
+      throw new Error('Invalid user data received')
+    }
+  } catch (error) {
+    console.error('❌ Failed to fetch user info:', error)
+    return null
+  }
+}
+
 export function useSocket() {
   const gameStore = useGameStore()
   const toastStore = useToastStore()
@@ -37,9 +67,9 @@ export function useSocket() {
   function initializeSocket() {
     console.log('🔌 Initializing Socket.IO connection...')
     
-    // For local development, connect to localhost:3005
+    // For local development, connect to localhost:3004
     const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    const socketUrl = isLocalDev ? 'http://localhost:3005' : undefined
+    const socketUrl = isLocalDev ? 'http://localhost:3004' : undefined
     
     socket.value = io(socketUrl, {
       withCredentials: true,
@@ -48,12 +78,16 @@ export function useSocket() {
     })
 
     // Connection events
-    socket.value.on('connect', () => {
+    socket.value.on('connect', async () => {
       console.log('✅ Connected to server')
       gameStore.updateConnectionStatus(true)
       
-      // Initialize current user from JWT for seat detection
-      gameStore.initializeCurrentUser()
+      // Fetch user info from API
+      const userInfo = await fetchUserInfo()
+      if (userInfo) {
+        gameStore.setCurrentUser(userInfo)
+      }
+      
       socket.value.emit('join-lobby')
       
       // Initialize video manager if available

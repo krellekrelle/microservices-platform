@@ -117,6 +117,15 @@ io.on('connection', (socket) => {
     // Handler sets up all event listeners and mock user
 });
 
+// User info endpoint
+app.get('/api/user', (req, res) => {
+    console.log('📡 API: User info requested');
+    res.json({
+        success: true,
+        user: req.user
+    });
+});
+
 // Play card endpoint (HTTP, not socket)
 app.post('/play-card', async (req, res) => {
     try {

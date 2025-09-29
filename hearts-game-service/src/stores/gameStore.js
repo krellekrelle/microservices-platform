@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getCurrentUserFromJWT } from '../utils/jwt'
 
 export const useGameStore = defineStore('game', () => {
   // State
@@ -60,17 +59,6 @@ export const useGameStore = defineStore('game', () => {
   function setCurrentUser(user) {
     currentUser.value = user
     console.log('👤 Current user set:', user)
-  }
-
-  function initializeCurrentUser() {
-    const user = getCurrentUserFromJWT()
-    if (user) {
-      console.log('🔍 Initialized current user from JWT:', user)
-      setCurrentUser(user)
-    } else {
-      console.warn('Failed to get current user from JWT')
-    }
-    return user
   }
 
   function setMySeat(seat) {
@@ -189,7 +177,6 @@ export const useGameStore = defineStore('game', () => {
     // Actions
     updateConnectionStatus,
     setCurrentUser,
-    initializeCurrentUser,
     setMySeat,
     updateLobbyState,
     updateGameState,

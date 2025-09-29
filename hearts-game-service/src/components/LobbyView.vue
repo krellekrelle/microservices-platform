@@ -215,7 +215,7 @@ function handleSeatClick(seatIndex) {
   console.log('👤 Seat occupied?', gameStore.lobbyState?.players[seatIndex]);
   
   // Only allow sitting if seat is empty and user doesn't have a seat
-  if (!gameStore.lobbyState?.players[seatIndex] && gameStore.mySeat === null) {
+  if (!gameStore.lobbyState?.players[seatIndex] && gameStore.mySeat == null) {
     console.log('📡 About to emit take-seat event...');
     // Take the specific seat
     emitTakeSeat(seatIndex)
