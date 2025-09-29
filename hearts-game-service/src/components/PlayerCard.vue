@@ -75,7 +75,8 @@ const cardDimensions = computed(() => {
   const sizes = {
     small: { width: 40, height: 60 },
     medium: { width: 60, height: 90 },
-    large: { width: 80, height: 115 }
+    large: { width: 80, height: 115 },
+    xlarge: { width: 100, height: 144 }
   }
   return sizes[props.size]
 })

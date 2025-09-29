@@ -94,8 +94,8 @@
           <PlayerHand
             v-if="gameStore.myPlayer?.hand"
             :hand="gameStore.myPlayer.hand"
-            :cardSize="'large'"
-            :overlapAmount="25"
+            :cardSize="'xlarge'"
+            :overlapAmount="35"
             @cardClick="handleCardClick"
           />
         </div>

@@ -55,12 +55,14 @@ const isClickable = computed(() => {
 })
 
 const handContainerStyles = computed(() => {
-  const totalWidth = Math.max(300, (props.hand.length - 1) * props.overlapAmount + 80)
+  // Calculate total width based on card size and overlap
+  const cardWidth = props.cardSize === 'xlarge' ? 100 : 80
+  const totalWidth = Math.max(400, (props.hand.length - 1) * props.overlapAmount + cardWidth)
   
   return {
     position: 'relative',
     width: `${totalWidth}px`,
-    height: '120px',
+    height: '150px', // Increased height for larger cards
     margin: '0 auto'
   }
 })
