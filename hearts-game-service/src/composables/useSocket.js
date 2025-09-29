@@ -112,6 +112,31 @@ export function useSocket() {
       try {
         gameStore.updateGameState(data)
         
+        // Auto-detect my seat if not already set and we have player data
+        if (gameStore.mySeat === null && data.players) {
+          console.log('🔍 Attempting to detect my seat from game state...')
+          
+          // Look for the only human player (non-bot)
+          const humanPlayers = []
+          for (let seat = 0; seat < 4; seat++) {
+            const player = data.players[seat]
+            if (player && !player.isBot && player.userName) {
+              humanPlayers.push({ seat, player })
+            }
+          }
+          
+          console.log('🔍 Found', humanPlayers.length, 'human players in game state:', humanPlayers)
+          
+          // If there's only one human player, it must be us
+          if (humanPlayers.length === 1) {
+            const mySeat = humanPlayers[0].seat
+            console.log('🪑 Auto-detected my seat from game state:', mySeat)
+            gameStore.setMySeat(mySeat)
+          } else {
+            console.log('🤷 Could not auto-detect seat from game state. Multiple or no human players found.')
+          }
+        }
+        
         // Check for sound events
         if (window.soundManager) {
           window.soundManager.checkForSoundEvents(data)

@@ -81,11 +81,12 @@ export const useGameStore = defineStore('game', () => {
     console.log('🎮 Store: Updating game state:', newState)
     // Clear any trick completed data when receiving regular game state update
     // This happens after the server's TRICK_DISPLAY_MS delay
-    const updatedState = { ...lobbyState.value, ...newState }
+    const updatedState = { ...(lobbyState.value || {}), ...newState }
     if (updatedState.trickCompleted) {
       delete updatedState.trickCompleted
     }
     lobbyState.value = updatedState
+    console.log('🎮 Store: Updated lobbyState to:', lobbyState.value)
   }
 
   function toggleCardSelection(card) {
