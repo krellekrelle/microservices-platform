@@ -4,6 +4,17 @@
       {{ gameStore.connected ? 'Connected' : 'Disconnected' }}
     </div>
     
+    <!-- Video toggle button -->
+    <button 
+      v-if="gameStore.mySeat !== null"
+      class="video-toggle-btn"
+      :class="videoManager?.isVideoEnabled?.value ? 'btn-video-on' : 'btn-video-off'"
+      @click="toggleVideo"
+      :title="videoManager?.isVideoEnabled?.value ? 'Turn off camera' : 'Turn on camera'"
+    >
+      {{ videoManager?.isVideoEnabled?.value ? '📹' : '📷' }}
+    </button>
+    
     <!-- Stop Game button for lobby leader during game -->
     <button 
       v-if="gameStore.isLobbyLeader && isInGame"
@@ -22,7 +33,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 
 const gameStore = useGameStore()
-const { emitStopGame } = useSocket()
+const { emitStopGame, videoManager } = useSocket()
 
 const isInGame = computed(() => {
   return gameStore.lobbyState?.state === 'playing' || gameStore.lobbyState?.state === 'passing'
@@ -31,6 +42,19 @@ const isInGame = computed(() => {
 function stopGame() {
   if (confirm('Are you sure you want to stop the current game?')) {
     emitStopGame()
+  }
+}
+
+function toggleVideo() {
+  if (!videoManager || !videoManager.value) {
+    console.warn('Video manager not available yet')
+    return
+  }
+  
+  if (videoManager.value.isVideoEnabled?.value) {
+    videoManager.value.disableVideo()
+  } else {
+    videoManager.value.enableVideo()
   }
 }
 </script>
@@ -84,6 +108,44 @@ function stopGame() {
   background: linear-gradient(45deg, #ff6666, #ee3333);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(255, 68, 68, 0.4);
+}
+
+/* Video toggle button styles */
+.video-toggle-btn {
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-video-off {
+  background: linear-gradient(45deg, #6c757d, #495057);
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+.btn-video-off:hover {
+  background: linear-gradient(45deg, #495057, #343a40);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+.btn-video-on {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.btn-video-on:hover {
+  background: linear-gradient(45deg, #0056b3, #003d82);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
 }
 
 @keyframes pulse {

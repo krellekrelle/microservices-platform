@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useToastStore } from '../stores/toastStore'
+import { useVideoManager } from './useVideoManager'
 import { io } from 'socket.io-client'
 
 // Singleton socket instance shared across all components
@@ -77,6 +78,9 @@ export function useSocket() {
       path: '/hearts/socket.io/'
     })
 
+    // Initialize video manager immediately 
+    videoManager.value = useVideoManager(socket)
+
     // Connection events
     socket.value.on('connect', async () => {
       console.log('✅ Connected to server')
@@ -90,10 +94,8 @@ export function useSocket() {
       
       socket.value.emit('join-lobby')
       
-      // Initialize video manager if available
-      if (window.VideoManager) {
-        videoManager.value = new window.VideoManager(socket.value)
-      }
+      // Setup video manager listeners after connection
+      videoManager.value.setupSocketListeners()
     })
 
     socket.value.on('disconnect', (reason) => {
@@ -419,6 +421,7 @@ export function useSocket() {
 
   return {
     socket,
+    videoManager,
     initializeSocket,
     emitJoinLobby,
     emitTakeSeat,

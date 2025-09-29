@@ -15,19 +15,15 @@
         <div class="seat-number">Seat 1</div>
         <div class="seat-content">
           <div v-if="gameStore.lobbyState.players[0]" class="seat-player">
-            <div class="player-avatar-container">
-              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 0">👑</div>
-              <img 
-                v-if="gameStore.lobbyState.players[0].profilePicture" 
-                :src="gameStore.lobbyState.players[0].profilePicture" 
-                :alt="getPlayerName(gameStore.lobbyState.players[0])"
-                class="player-avatar"
-                @error="onImageError"
-              />
-              <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[0]) }}
-              </div>
-            </div>
+            <PlayerAvatar
+              :seat="0"
+              :player-name="getPlayerName(gameStore.lobbyState.players[0])"
+              :profile-picture="gameStore.lobbyState.players[0].profilePicture"
+              :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 0"
+              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null"
+              :show-video="0 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value"
+              size="xlarge"
+            />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
             <div v-if="gameStore.lobbyState.players[0].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[0].isBot" class="bot-status">🤖 Bot</div>
@@ -45,19 +41,15 @@
         <div class="seat-number">Seat 2</div>
         <div class="seat-content">
           <div v-if="gameStore.lobbyState.players[1]" class="seat-player">
-            <div class="player-avatar-container">
-              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 1">👑</div>
-              <img 
-                v-if="gameStore.lobbyState.players[1].profilePicture" 
-                :src="gameStore.lobbyState.players[1].profilePicture" 
-                :alt="getPlayerName(gameStore.lobbyState.players[1])"
-                class="player-avatar"
-                @error="onImageError"
-              />
-              <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[1]) }}
-              </div>
-            </div>
+            <PlayerAvatar
+              :seat="1"
+              :player-name="getPlayerName(gameStore.lobbyState.players[1])"
+              :profile-picture="gameStore.lobbyState.players[1].profilePicture"
+              :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 1"
+              :video-stream="videoManager?.value?.remoteStreams?.value?.get(1) || (1 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
+              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(1) || (1 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              size="xlarge"
+            />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
             <div v-if="gameStore.lobbyState.players[1].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[1].isBot" class="bot-status">🤖 Bot</div>
@@ -99,19 +91,15 @@
         <div class="seat-number">Seat 3</div>
         <div class="seat-content">
           <div v-if="gameStore.lobbyState.players[2]" class="seat-player">
-            <div class="player-avatar-container">
-              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 2">👑</div>
-              <img 
-                v-if="gameStore.lobbyState.players[2].profilePicture" 
-                :src="gameStore.lobbyState.players[2].profilePicture" 
-                :alt="getPlayerName(gameStore.lobbyState.players[2])"
-                class="player-avatar"
-                @error="onImageError"
-              />
-              <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[2]) }}
-              </div>
-            </div>
+            <PlayerAvatar
+              :seat="2"
+              :player-name="getPlayerName(gameStore.lobbyState.players[2])"
+              :profile-picture="gameStore.lobbyState.players[2].profilePicture"
+              :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 2"
+              :video-stream="videoManager?.value?.remoteStreams?.value?.get(2) || (2 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
+              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(2) || (2 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              size="xlarge"
+            />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
             <div v-if="gameStore.lobbyState.players[2].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[2].isBot" class="bot-status">🤖 Bot</div>
@@ -129,19 +117,15 @@
         <div class="seat-number">Seat 4</div>
         <div class="seat-content">
           <div v-if="gameStore.lobbyState.players[3]" class="seat-player">
-            <div class="player-avatar-container">
-              <div class="lobby-leader-crown" v-if="gameStore.lobbyState.lobbyLeader === 3">👑</div>
-              <img 
-                v-if="gameStore.lobbyState.players[3].profilePicture" 
-                :src="gameStore.lobbyState.players[3].profilePicture" 
-                :alt="getPlayerName(gameStore.lobbyState.players[3])"
-                class="player-avatar"
-                @error="onImageError"
-              />
-              <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[3]) }}
-              </div>
-            </div>
+            <PlayerAvatar
+              :seat="3"
+              :player-name="getPlayerName(gameStore.lobbyState.players[3])"
+              :profile-picture="gameStore.lobbyState.players[3].profilePicture"
+              :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 3"
+              :video-stream="videoManager?.value?.remoteStreams?.value?.get(3) || (3 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
+              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(3) || (3 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              size="xlarge"
+            />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
             <div v-if="gameStore.lobbyState.players[3].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[3].isBot" class="bot-status">🤖 Bot</div>
@@ -158,9 +142,10 @@
 <script setup>
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
+import PlayerAvatar from './PlayerAvatar.vue'
 
 const gameStore = useGameStore()
-const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat } = useSocket()
+const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat, videoManager } = useSocket()
 
 function getPlayerName(player) {
   if (!player) return 'Unknown'
@@ -192,11 +177,6 @@ function getSeatClasses(seatIndex) {
   }
 }
 
-function onImageError(event) {
-  console.warn('Failed to load profile image:', event.target.src)
-  event.target.style.display = 'none'
-}
-
 function handleSeatClick(seatIndex) {
   console.log(`🪑 Clicked seat ${seatIndex}`);
   console.log('🎮 Current mySeat:', gameStore.mySeat);
@@ -208,6 +188,14 @@ function handleSeatClick(seatIndex) {
     // Take the specific seat
     emitTakeSeat(seatIndex)
     console.log('✅ Take-seat event emitted');
+    
+    // Automatically enable video when taking a seat
+    setTimeout(() => {
+      if (videoManager?.value && !videoManager.value.isVideoEnabled?.value) {
+        console.log('📹 Auto-enabling video after taking seat...');
+        videoManager.value.enableVideo();
+      }
+    }, 500);
   } else {
     console.log('❌ Cannot take seat - either occupied or user already has seat');
   }
@@ -235,6 +223,19 @@ function removeBotFromSeat(seatIndex) {
 function startGame() {
   if (gameStore.canStartGame) {
     emitStartGame()
+  }
+}
+
+function toggleVideo() {
+  if (!videoManager || !videoManager.value) {
+    console.warn('Video manager not available yet')
+    return
+  }
+  
+  if (videoManager.value.isVideoEnabled?.value) {
+    videoManager.value.disableVideo()
+  } else {
+    videoManager.value.enableVideo()
   }
 }
 </script>
@@ -344,41 +345,6 @@ function startGame() {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-}
-
-.player-avatar-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lobby-leader-crown {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  font-size: 1.2rem;
-  z-index: 2;
-}
-
-.player-avatar {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.player-avatar-placeholder {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 2rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .player-name {
@@ -512,6 +478,35 @@ function startGame() {
 .game-info li {
   padding: 0.5rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Video toggle button styles */
+#toggle-video-btn {
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+  white-space: nowrap;
+}
+
+#toggle-video-btn.btn-primary {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  border: none;
+  color: white;
+}
+
+#toggle-video-btn.btn-primary:hover {
+  background: linear-gradient(45deg, #0056b3, #003d82);
+  transform: translateY(-1px);
+}
+
+#toggle-video-btn.btn-danger {
+  background: linear-gradient(45deg, #dc3545, #c82333);
+  border: none;
+  color: white;
+}
+
+#toggle-video-btn.btn-danger:hover {
+  background: linear-gradient(45deg, #c82333, #a71e2a);
+  transform: translateY(-1px);
 }
 
 .game-info li:last-child {

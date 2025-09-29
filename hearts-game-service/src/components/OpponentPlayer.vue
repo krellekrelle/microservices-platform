@@ -7,19 +7,15 @@
       'is-bot': player.isBot 
     }"
   >
-    <div class="opponent-avatar">
-      <img 
-        v-if="player.profilePicture"
-        :src="player.profilePicture" 
-        :alt="getPlayerName(player)"
-        class="player-avatar"
-        @error="onImageError"
-      >
-      <div v-else class="avatar-placeholder">
-        {{ getPlayerInitials(getPlayerName(player)) }}
-        <div v-if="player.isBot" class="bot-indicator">🤖</div>
-      </div>
-    </div>
+    <PlayerAvatar
+      :seat="seatIndex"
+      :player-name="getPlayerName(player)"
+      :profile-picture="player.profilePicture"
+      :is-lobby-leader="false"
+      :video-stream="videoManager?.remoteStreams?.value?.get(seatIndex)"
+      :show-video="videoManager?.activeVideoSeats?.value?.has(seatIndex) && !player.isBot"
+      size="large"
+    />
     
     <div class="opponent-info">
       <div class="opponent-name">{{ getPlayerFirstName(getPlayerName(player)) }}</div>
@@ -27,11 +23,7 @@
         Cards: {{ getPlayerHandSize(seatIndex) }} | 
         Tricks: {{ getTricksWon(seatIndex) }}
       </div>
-    </div>
-
-    <!-- Video area for camera (when implemented) -->
-    <div class="video-area" v-if="!player.isBot">
-      <div class="video-placeholder">📹</div>
+      <div v-if="player.isBot" class="bot-indicator">🤖 Bot</div>
     </div>
   </div>
   
@@ -43,6 +35,8 @@
 <script setup>
 import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
+import { useSocket } from '../composables/useSocket'
+import PlayerAvatar from './PlayerAvatar.vue'
 
 const props = defineProps({
   seatIndex: {
@@ -52,6 +46,7 @@ const props = defineProps({
 })
 
 const gameStore = useGameStore()
+const { videoManager } = useSocket()
 
 const player = computed(() => {
   if (props.seatIndex === null || props.seatIndex === undefined) return null
@@ -63,20 +58,9 @@ function getPlayerName(player) {
   return player.userName || player.name || 'Unknown'
 }
 
-function getPlayerInitials(name) {
-  if (!name) return '?'
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-}
-
 function getPlayerFirstName(name) {
   if (!name) return 'Unknown'
   return name.split(' ')[0]
-}
-
-function onImageError(event) {
-  console.warn('Failed to load profile image:', event.target.src)
-  // Hide the broken image by setting the parent to show placeholder instead
-  event.target.style.display = 'none'
 }
 
 function getPlayerHandSize(seatIndex) {
@@ -125,45 +109,13 @@ function getTricksWon(seatIndex) {
   border-color: rgba(100, 255, 100, 0.3);
 }
 
-.opponent-avatar {
-  position: relative;
-  margin-bottom: 0.5rem;
-}
-
-.player-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-}
-
-.avatar-placeholder {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 1.2rem;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  position: relative;
-}
-
 .bot-indicator {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
   background: rgba(0, 0, 0, 0.8);
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
+  border-radius: 8px;
+  padding: 0.2rem 0.4rem;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: white;
 }
 
 .opponent-info {
@@ -181,23 +133,6 @@ function getTricksWon(seatIndex) {
 .opponent-stats {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
-}
-
-.video-area {
-  margin-top: 0.5rem;
-  width: 60px;
-  height: 45px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.video-placeholder {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.8rem;
 }
 
 .empty-opponent {

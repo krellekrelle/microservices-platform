@@ -70,18 +70,15 @@
           class="my-player-info"
           :class="{ 'my-turn': gameStore.isMyTurn }"
         >
-          <div class="my-avatar">
-            <img 
-              v-if="gameStore.myPlayer?.profilePicture"
-              :src="gameStore.myPlayer.profilePicture" 
-              :alt="getMyPlayerName()"
-              class="player-avatar"
-              @error="onMyImageError"
-            >
-            <div v-else class="avatar-placeholder">
-              {{ getPlayerInitials(getMyPlayerName()) }}
-            </div>
-          </div>
+          <PlayerAvatar
+            :seat="gameStore.mySeat"
+            :player-name="getMyPlayerName()"
+            :profile-picture="gameStore.myPlayer?.profilePicture"
+            :is-lobby-leader="false"
+            :video-stream="videoManager?.localStream?.value"
+            :show-video="videoManager?.isVideoEnabled?.value"
+            size="xlarge"
+          />
           <div class="my-name">{{ getPlayerFirstName(getMyPlayerName()) }}</div>
           <div class="my-stats">
             Cards: {{ gameStore.myPlayer?.hand?.length || 0 }} | 
@@ -151,9 +148,10 @@ import { useSocket } from '../composables/useSocket'
 import PlayerCard from './PlayerCard.vue'
 import PlayerHand from './PlayerHand.vue'
 import OpponentPlayer from './OpponentPlayer.vue'
+import PlayerAvatar from './PlayerAvatar.vue'
 
 const gameStore = useGameStore()
-const { emitPassCards, emitPlayCard, emitStopGame } = useSocket()
+const { emitPassCards, emitPlayCard, emitStopGame, videoManager } = useSocket()
 
 function getPlayerFirstName(fullName) {
   if (!fullName) return 'Unknown'
@@ -177,11 +175,6 @@ function getPlayerName(seatIndex) {
 function getMyPlayerName() {
   if (!gameStore.myPlayer) return 'You'
   return gameStore.myPlayer.userName || gameStore.myPlayer.name || 'You'
-}
-
-function onMyImageError(event) {
-  console.warn('Failed to load my profile image:', event.target.src)
-  event.target.style.display = 'none'
 }
 
 function getPlayerHandSize(seatIndex) {
@@ -461,32 +454,6 @@ function handleCardClick(card) {
     border-color: #ffc107;
     box-shadow: 0 0 25px rgba(255, 235, 59, 0.8);
   }
-}
-
-.my-avatar {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  border: 3px solid #ffeb3b;
-  overflow: hidden;
-}
-
-.my-avatar .player-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, #4caf50, #66bb6a);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 2.5rem;
-  color: white;
 }
 
 .my-name {
