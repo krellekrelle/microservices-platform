@@ -97,36 +97,57 @@ export default {
     // Watch for video stream changes and update video element
     watch(() => [props.videoStream, props.showVideo], async () => {
       console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!props.videoStream}`)
-      console.log(`🎬 Video stream object:`, props.videoStream)
-      console.log(`🎬 Video stream tracks:`, props.videoStream?.getTracks?.())
       
       if (props.showVideo && props.videoStream) {
         console.log(`🎬 Attempting to set video stream for seat ${props.seat}`)
         await nextTick()
+        
         const videoElement = document.getElementById(`video-${props.seat}`)
         console.log(`🎬 Video element found for seat ${props.seat}:`, !!videoElement)
-        console.log(`🎬 Video element:`, videoElement)
         
         if (videoElement) {
-          console.log(`🎬 Setting video stream for seat ${props.seat}`)
-          videoElement.srcObject = props.videoStream
-          console.log(`🎬 Video element srcObject set to:`, videoElement.srcObject)
+          console.log(`🎬 Setting video stream for seat ${props.seat} using working pattern`)
           
-          videoElement.onloadedmetadata = () => {
-            console.log(`🎬 Video loaded for seat ${props.seat}`)
-            videoElement.play().catch(error => {
-              console.error(`❌ Video play failed for seat ${props.seat}:`, error)
-            })
-          }
+          // WORKING PATTERN FROM OLD CODE:
+          // 1. Force display properties IMMEDIATELY
+          videoElement.style.display = 'block'
+          videoElement.style.visibility = 'visible'
+          videoElement.style.opacity = '1'
           
-          videoElement.onerror = (error) => {
-            console.error(`❌ Video error for seat ${props.seat}:`, error)
-          }
+          // 2. Clear srcObject first
+          videoElement.srcObject = null
+          
+          // 3. Use setTimeout to reassign
+          setTimeout(() => {
+            videoElement.srcObject = props.videoStream
+            
+            // 4. Force display again after stream attachment
+            videoElement.style.display = 'block'
+            videoElement.style.visibility = 'visible'
+            videoElement.style.opacity = '1'
+            
+            console.log(`🎬 Stream attached to video element:`, props.videoStream)
+            console.log(`🎬 Video element srcObject:`, videoElement.srcObject)
+            
+            videoElement.onloadedmetadata = () => {
+              console.log(`🎬 Video loaded for seat ${props.seat}`)
+              videoElement.play().catch(error => {
+                console.error(`❌ Video play failed for seat ${props.seat}:`, error)
+              })
+            }
+          }, 50)
         } else {
           console.error(`❌ Video element not found for seat ${props.seat}`)
         }
       } else {
         console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!props.videoStream}`)
+        
+        // Hide video when not needed
+        const videoElement = document.getElementById(`video-${props.seat}`)
+        if (videoElement) {
+          videoElement.style.display = 'none'
+          videoElement.srcObject = null
+        }
       }
     }, { immediate: true })
     
@@ -236,13 +257,14 @@ export default {
 }
 
 .player-video.video-debugging {
-  border: 3px solid red !important;
-  background: rgba(255, 0, 0, 0.1) !important;
+  border: 2px solid rgba(0, 255, 0, 0.8) !important;
   border-radius: 10px !important;
 }
 
 .player-video.video-enabled {
   display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .dummy-video-test {

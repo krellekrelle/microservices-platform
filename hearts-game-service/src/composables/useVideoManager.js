@@ -138,6 +138,12 @@ export function useVideoManager(socket) {
       const socketInstance = socket.value || socket
       socketInstance.emit('video-enabled', { seat: gameStore.mySeat })
       
+      // Add our own seat to active video seats so our avatar shows video
+      if (gameStore.mySeat !== null) {
+        activeVideoSeats.value.add(gameStore.mySeat)
+        console.log(`📹 Added own seat ${gameStore.mySeat} to activeVideoSeats`)
+      }
+      
       toastStore.showSuccess('Camera enabled successfully!')
       console.log('✅ Video enabled successfully')
       
@@ -175,6 +181,12 @@ export function useVideoManager(socket) {
     remoteStreams.value.clear()
     
     isVideoEnabled.value = false
+    
+    // Remove our own seat from active video seats
+    if (gameStore.mySeat !== null) {
+      activeVideoSeats.value.delete(gameStore.mySeat)
+      console.log(`📹 Removed own seat ${gameStore.mySeat} from activeVideoSeats`)
+    }
     
     // Notify other players
     const socketInstance = socket.value || socket

@@ -20,8 +20,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[0])"
               :profile-picture="gameStore.lobbyState.players[0].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 0"
-              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null"
-              :show-video="0 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value"
+              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream : null"
+              :show-video="0 === gameStore.mySeat && videoManager?.value?.isVideoEnabled"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
@@ -46,8 +46,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[1])"
               :profile-picture="gameStore.lobbyState.players[1].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 1"
-              :video-stream="videoManager?.value?.remoteStreams?.value?.get(1) || (1 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(1) || (1 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              :video-stream="videoManager?.value?.remoteStreams?.get(1) || (1 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
+              :show-video="videoManager?.value?.activeVideoSeats?.has(1) || (1 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
@@ -74,6 +74,25 @@
         >
           {{ gameStore.myPlayer?.ready ? '✓ Ready' : 'Ready Up' }}
         </button>
+        
+        <!-- Video Controls -->
+        <button 
+          v-if="gameStore.mySeat !== null && !videoManager?.value?.isVideoEnabled" 
+          id="enable-video-btn" 
+          class="btn info" 
+          @click="enableVideo"
+        >
+          📹 Enable Video
+        </button>
+        <button 
+          v-if="gameStore.mySeat !== null && videoManager?.value?.isVideoEnabled" 
+          id="disable-video-btn" 
+          class="btn warning" 
+          @click="disableVideo"
+        >
+          📹 Disable Video
+        </button>
+        
         <button 
           id="start-game-btn" 
           class="btn success" 
@@ -96,8 +115,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[2])"
               :profile-picture="gameStore.lobbyState.players[2].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 2"
-              :video-stream="videoManager?.value?.remoteStreams?.value?.get(2) || (2 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(2) || (2 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              :video-stream="videoManager?.value?.remoteStreams?.get(2) || (2 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
+              :show-video="(videoManager?.value?.activeVideoSeats?.has && videoManager?.value?.activeVideoSeats?.has(2)) || (2 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
@@ -122,8 +141,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[3])"
               :profile-picture="gameStore.lobbyState.players[3].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 3"
-              :video-stream="videoManager?.value?.remoteStreams?.value?.get(3) || (3 === gameStore.mySeat ? videoManager?.value?.localStream?.value : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.value?.has(3) || (3 === gameStore.mySeat && videoManager?.value?.isVideoEnabled?.value)"
+              :video-stream="videoManager?.value?.remoteStreams?.get(3) || (3 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
+              :show-video="videoManager?.value?.activeVideoSeats?.has(3) || (3 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
@@ -133,6 +152,57 @@
           <div v-else class="empty-seat">Click to sit</div>
           <button v-if="!gameStore.lobbyState.players[3]" class="add-bot-seat-btn btn info" @click.stop="addBotToSeat(3)">+</button>
           <button v-if="gameStore.lobbyState.players[3] && gameStore.lobbyState.players[3].isBot" class="remove-bot-btn btn danger" @click.stop="removeBotFromSeat(3)">×</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- SIMPLE VIDEO TEST BOX AT BOTTOM -->
+  <div class="video-test-box">
+    <h3>Video Test Area</h3>
+    <div class="video-test-content">
+      <div class="local-video-container">
+        <h4>My Camera</h4>
+        <video 
+          id="test-local-video"
+          class="test-video"
+          autoplay
+          muted
+          playsinline
+        ></video>
+        <div class="video-info">
+          <p>Video Enabled: {{ videoManager?.value?.isVideoEnabled?.value ? 'YES' : 'NO' }}</p>
+          <p>Stream Available: {{ videoManager?.value?.localStream?.value ? 'YES' : 'NO' }}</p>
+          <p>My Seat: {{ gameStore.mySeat }}</p>
+        </div>
+        <button 
+          class="btn btn-primary"
+          @click="testEnableVideo"
+          :disabled="videoManager?.value?.isVideoEnabled?.value"
+        >
+          Enable Test Video
+        </button>
+        <button 
+          class="btn btn-danger"
+          @click="testDisableVideo"
+          :disabled="!videoManager?.value?.isVideoEnabled?.value"
+        >
+          Disable Test Video
+        </button>
+      </div>
+      
+      <div class="remote-videos-container">
+        <h4>Other Players</h4>
+        <div class="remote-video-grid">
+          <div v-for="seat in [0, 1, 2, 3]" :key="seat" class="remote-video-slot">
+            <video 
+              :id="`test-remote-video-${seat}`"
+              class="test-video"
+              autoplay
+              playsinline
+            ></video>
+            <p>Seat {{ seat + 1 }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -232,10 +302,118 @@ function toggleVideo() {
     return
   }
   
-  if (videoManager.value.isVideoEnabled?.value) {
-    videoManager.value.disableVideo()
+  if (videoManager.value.isVideoEnabled) {
+    disableVideo()
   } else {
-    videoManager.value.enableVideo()
+    enableVideo()
+  }
+}
+
+function enableVideo() {
+  if (!videoManager || !videoManager.value) {
+    console.warn('Video manager not available yet')
+    return
+  }
+  
+  videoManager.value.enableVideo()
+}
+
+function disableVideo() {
+  if (!videoManager || !videoManager.value) {
+    console.warn('Video manager not available yet')
+    return
+  }
+  
+  videoManager.value.disableVideo()
+}
+
+// TEST VIDEO FUNCTIONS
+function testEnableVideo() {
+  console.log('🎬 TEST: Enabling video...')
+  if (!videoManager || !videoManager.value) {
+    console.error('❌ TEST: Video manager not available')
+    return
+  }
+  
+  videoManager.value.enableVideo().then(() => {
+    console.log('🎬 TEST: Video enabled, attempting to show in test element')
+    console.log('🎬 TEST: Video manager object:', videoManager.value)
+    console.log('🎬 TEST: localStream ref:', videoManager.value.localStream)
+    console.log('🎬 TEST: localStream value:', videoManager.value.localStream?.value)
+    console.log('🎬 TEST: isVideoEnabled:', videoManager.value.isVideoEnabled?.value)
+    
+    // Wait a bit for the stream to be ready
+    setTimeout(() => {
+      const testVideo = document.getElementById('test-local-video')
+      console.log('🎬 TEST: Direct localStream access:', videoManager.value.localStream)
+      console.log('🎬 TEST: Direct localStream type:', typeof videoManager.value.localStream)
+      
+      const stream = videoManager.value.localStream // This IS the MediaStream directly (Vue auto-unwraps)
+      
+      console.log('🎬 TEST: Video element:', testVideo)
+      console.log('🎬 TEST: Stream after assignment:', stream)
+      console.log('🎬 TEST: Stream type:', typeof stream)
+      console.log('🎬 TEST: Stream constructor:', stream?.constructor?.name)
+      
+      // Try direct assignment without variable
+      if (testVideo && videoManager.value.localStream) {
+        console.log('✅ TEST: Both video element and direct stream exist')
+        testVideo.srcObject = videoManager.value.localStream
+        testVideo.style.display = 'block'
+        testVideo.style.visibility = 'visible'
+        testVideo.style.opacity = '1'
+        console.log('✅ TEST: Stream assigned directly to video element')
+        
+        testVideo.onloadedmetadata = () => {
+          console.log('✅ TEST: Video metadata loaded')
+          testVideo.play().catch(error => {
+            console.error('❌ TEST: Video play failed:', error)
+          })
+        }
+      } else if (testVideo && stream) {
+        // Force display properties
+        testVideo.style.display = 'block'
+        testVideo.style.visibility = 'visible'
+        testVideo.style.opacity = '1'
+        
+        // Clear and reassign
+        testVideo.srcObject = null
+        setTimeout(() => {
+          testVideo.srcObject = stream
+          console.log('🎬 TEST: Stream assigned to test video element')
+          
+          testVideo.onloadedmetadata = () => {
+            console.log('🎬 TEST: Video metadata loaded')
+            testVideo.play().catch(error => {
+              console.error('❌ TEST: Video play failed:', error)
+            })
+          }
+        }, 100)
+      } else {
+        console.error('❌ TEST: Missing video element or stream')
+        console.error('❌ TEST: Video element exists:', !!testVideo)
+        console.error('❌ TEST: Stream exists:', !!stream)
+      }
+    }, 200)
+  }).catch(error => {
+    console.error('❌ TEST: Enable video failed:', error)
+  })
+}
+
+function testDisableVideo() {
+  console.log('🎬 TEST: Disabling video...')
+  if (!videoManager || !videoManager.value) {
+    console.error('❌ TEST: Video manager not available')
+    return
+  }
+  
+  videoManager.value.disableVideo()
+  
+  // Clear test video
+  const testVideo = document.getElementById('test-local-video')
+  if (testVideo) {
+    testVideo.srcObject = null
+    testVideo.style.display = 'none'
   }
 }
 </script>
@@ -511,5 +689,90 @@ function toggleVideo() {
 
 .game-info li:last-child {
   border-bottom: none;
+}
+
+/* VIDEO TEST BOX STYLES */
+.video-test-box {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 2px solid #4CAF50;
+}
+
+.video-test-box h3 {
+  color: #4CAF50;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.video-test-content {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.local-video-container {
+  flex: 1;
+  min-width: 300px;
+}
+
+.local-video-container h4 {
+  color: #81C784;
+  margin-bottom: 0.5rem;
+}
+
+.test-video {
+  width: 200px;
+  height: 150px;
+  border: 2px solid #4CAF50;
+  border-radius: 8px;
+  background: #000;
+  object-fit: cover;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.video-info {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+}
+
+.video-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.remote-videos-container {
+  flex: 1;
+  min-width: 300px;
+}
+
+.remote-videos-container h4 {
+  color: #81C784;
+  margin-bottom: 0.5rem;
+}
+
+.remote-video-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.remote-video-slot {
+  text-align: center;
+}
+
+.remote-video-slot .test-video {
+  width: 120px;
+  height: 90px;
+  margin: 0 auto 0.5rem auto;
+}
+
+.remote-video-slot p {
+  font-size: 0.8rem;
+  color: #B0BEC5;
 }
 </style>
