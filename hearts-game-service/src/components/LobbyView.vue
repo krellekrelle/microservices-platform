@@ -152,18 +152,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Game info -->
-    <div class="game-info">
-      <h3>How to Play Hearts</h3>
-      <ul>
-        <li>🎯 <strong>Goal:</strong> Get the lowest score possible</li>
-        <li>❤️ <strong>Hearts:</strong> Each heart card = 1 point</li>
-        <li>♠️ <strong>Queen of Spades:</strong> 13 points</li>
-        <li>🃏 <strong>Passing:</strong> Pass 3 cards before each round</li>
-        <li>🏆 <strong>Winner:</strong> Lowest score when someone reaches 100 points</li>
-      </ul>
-    </div>
   </div>
 </template>
 

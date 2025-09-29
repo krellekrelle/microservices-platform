@@ -141,13 +141,6 @@
         </template>
       </div>
     </div>
-
-    <!-- Game Controls (for lobby leader) -->
-    <div v-if="gameStore.isLobbyLeader" class="game-controls">
-      <button class="stop-game-btn" @click="stopGame">
-        Stop Game
-      </button>
-    </div>
   </div>
 </template>
 
@@ -291,10 +284,6 @@ function handleCardClick(card) {
   if (gameStore.lobbyState?.state === 'playing' && gameStore.isMyTurn) {
     emitPlayCard(card)
   }
-}
-
-function stopGame() {
-  emitStopGame()
 }
 </script>
 
@@ -686,19 +675,5 @@ function stopGame() {
   border-top: 1px solid rgba(255, 255, 255, 0.3);
   border-bottom: none;
   padding: 0.4rem 0.5rem;
-}
-
-.game-controls {
-  text-align: center;
-}
-
-.stop-game-btn {
-  background: linear-gradient(45deg, #f44336, #d32f2f);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
 }
 </style>
