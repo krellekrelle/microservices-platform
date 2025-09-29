@@ -110,7 +110,7 @@ const cardStyles = computed(() => {
     height: `${height}px`,
     position: 'absolute',
     left: `${leftOffset}px`,
-    zIndex: props.index + (props.selected ? 1000 : 0) + (isHovered.value ? 500 : 0),
+    zIndex: props.index,
     transform,
     transition: 'all 0.2s ease',
     borderRadius: '8px',

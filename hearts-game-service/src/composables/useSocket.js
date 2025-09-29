@@ -237,6 +237,27 @@ export function useSocket() {
       console.log('🔄 Player reconnected, countdown stopped')
       gameStore.setCountdownEndTime(null)
     })
+
+    // Handle game stopped
+    socket.value.on('game-stopped', (data) => {
+      console.log('🛑 Game stopped:', data)
+      toastStore.showSuccess(`Game stopped by ${data.stoppedBy}: ${data.reason}`)
+      gameStore.setEndGameShown(false) // Reset for next game
+    })
+
+    // Handle return to lobby
+    socket.value.on('return-to-lobby', (data) => {
+      console.log('🏠 Returning to lobby:', data)
+      
+      // Reset game state
+      gameStore.resetGameState()
+      gameStore.setMySeat(null)
+      gameStore.clearSelectedCards()
+      gameStore.setHasPassed(false)
+      gameStore.setEndGameShown(false)
+      
+      toastStore.showSuccess('Returned to lobby')
+    })
   }
 
   function emitJoinLobby(options = {}) {
