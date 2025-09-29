@@ -1,5 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { useGameStore } from '../stores/gameStore'
+import { useToastStore } from '../stores/toastStore'
 import { io } from 'socket.io-client'
 
 // Singleton socket instance shared across all components
@@ -8,6 +9,30 @@ const videoManager = ref(null)
 
 export function useSocket() {
   const gameStore = useGameStore()
+  const toastStore = useToastStore()
+
+
+
+  function findMySeatByUserId(lobbyData) {
+    const currentUser = gameStore.currentUser
+    if (!currentUser || !lobbyData.players) {
+      console.log('🤷 Cannot detect seat - no current user or player data')
+      return null
+    }
+
+    console.log('🔍 Looking for my seat. Current user ID:', currentUser.id)
+    
+    for (let seat = 0; seat < 4; seat++) {
+      const player = lobbyData.players[seat]
+      if (player && String(player.userId) === String(currentUser.id)) {
+        console.log('🪑 Found my seat:', seat, 'Player:', player)
+        return seat
+      }
+    }
+    
+    console.log('🤷 My seat not found in player data')
+    return null
+  }
 
   function initializeSocket() {
     console.log('🔌 Initializing Socket.IO connection...')
@@ -26,6 +51,9 @@ export function useSocket() {
     socket.value.on('connect', () => {
       console.log('✅ Connected to server')
       gameStore.updateConnectionStatus(true)
+      
+      // Initialize current user from JWT for seat detection
+      gameStore.initializeCurrentUser()
       socket.value.emit('join-lobby')
       
       // Initialize video manager if available
@@ -70,24 +98,10 @@ export function useSocket() {
           }
         }
         
-        // Fallback: try to detect seat by looking for the only human player if there's just one
-        const humanPlayers = []
-        for (let seat = 0; seat < 4; seat++) {
-          const player = data.players[seat]
-          if (player && !player.isBot && player.userName) {
-            humanPlayers.push({ seat, player })
-          }
-        }
-        
-        console.log('🔍 Found', humanPlayers.length, 'human players:', humanPlayers)
-        
-        // If there's only one human player, it must be us
-        if (humanPlayers.length === 1) {
-          const mySeat = humanPlayers[0].seat
-          console.log('🪑 Auto-detected my seat (only human):', mySeat)
-          gameStore.setMySeat(mySeat)
-        } else {
-          console.log('🤷 Could not auto-detect seat. Multiple or no human players found.')
+        // Try to detect seat by matching user ID
+        const detectedSeat = findMySeatByUserId(data)
+        if (detectedSeat !== null) {
+          gameStore.setMySeat(detectedSeat)
         }
       }
     })
@@ -115,25 +129,9 @@ export function useSocket() {
         // Auto-detect my seat if not already set and we have player data
         if (gameStore.mySeat === null && data.players) {
           console.log('🔍 Attempting to detect my seat from game state...')
-          
-          // Look for the only human player (non-bot)
-          const humanPlayers = []
-          for (let seat = 0; seat < 4; seat++) {
-            const player = data.players[seat]
-            if (player && !player.isBot && player.userName) {
-              humanPlayers.push({ seat, player })
-            }
-          }
-          
-          console.log('🔍 Found', humanPlayers.length, 'human players in game state:', humanPlayers)
-          
-          // If there's only one human player, it must be us
-          if (humanPlayers.length === 1) {
-            const mySeat = humanPlayers[0].seat
-            console.log('🪑 Auto-detected my seat from game state:', mySeat)
-            gameStore.setMySeat(mySeat)
-          } else {
-            console.log('🤷 Could not auto-detect seat from game state. Multiple or no human players found.')
+          const detectedSeat = findMySeatByUserId(data)
+          if (detectedSeat !== null) {
+            gameStore.setMySeat(detectedSeat)
           }
         }
         
@@ -176,6 +174,14 @@ export function useSocket() {
     // Error events
     socket.value.on('error', (error) => {
       console.error('❌ Socket error:', error)
+      const message = error.message || error || 'An error occurred'
+      toastStore.showError(message)
+    })
+
+    // Success events
+    socket.value.on('pass-cards-success', (data) => {
+      console.log('✅ Cards passed successfully:', data)
+      toastStore.showSuccess('Cards passed successfully!')
     })
 
     // Disconnection countdown
@@ -205,16 +211,23 @@ export function useSocket() {
     console.log('🎯 DEBUG: socket.value.connected:', socket.value?.connected)
     console.log('🎯 DEBUG: socket.value.id:', socket.value?.id)
     
-    if (socket.value) {
-      console.log('🎯 DEBUG: About to emit take-seat event with data:', { seat: seatIndex })
-      socket.value.emit('take-seat', { seat: seatIndex })
-      console.log('🎯 DEBUG: take-seat event emitted successfully')
-      
-      // Store the seat we're trying to take so we can set it when lobby updates
-      socket.value._pendingSeat = seatIndex
-    } else {
+    if (!socket.value) {
       console.error('❌ DEBUG: Cannot emit take-seat - socket is null')
+      toastStore.showError('Not connected to server')
+      return
     }
+    
+    if (gameStore.mySeat !== null) {
+      toastStore.showError('You already have a seat. Leave your current seat first.')
+      return
+    }
+    
+    console.log('🎯 DEBUG: About to emit take-seat event with data:', { seat: seatIndex })
+    socket.value.emit('take-seat', { seat: seatIndex })
+    console.log('🎯 DEBUG: take-seat event emitted successfully')
+    
+    // Store the seat we're trying to take so we can set it when lobby updates
+    socket.value._pendingSeat = seatIndex
   }
 
   function emitLeaveSeat() {
@@ -242,13 +255,25 @@ export function useSocket() {
   }
 
   function emitStartGame() {
-    if (socket.value) {
-      console.log('🚀 Emitting start-game event...')
-      socket.value.emit('start-game')
-      console.log('✅ Start-game event emitted')
-    } else {
+    if (!socket.value) {
       console.error('❌ Cannot emit start-game - socket is null')
+      toastStore.showError('Not connected to server')
+      return
     }
+    
+    if (!gameStore.isLobbyLeader) {
+      toastStore.showError('Only the lobby leader can start the game')
+      return
+    }
+    
+    if (!gameStore.canStartGame) {
+      toastStore.showError('Not all players are ready')
+      return
+    }
+    
+    console.log('🚀 Emitting start-game event...')
+    socket.value.emit('start-game')
+    console.log('✅ Start-game event emitted')
   }
 
   function emitStopGame() {
@@ -258,16 +283,42 @@ export function useSocket() {
   }
 
   function emitPassCards(cards) {
-    if (socket.value && cards.length === 3) {
-      socket.value.emit('pass-cards', { cards })
-      gameStore.setHasPassed(true)
+    if (!socket.value) {
+      toastStore.showError('Not connected to server')
+      return
     }
+    
+    if (cards.length !== 3) {
+      toastStore.showError('You must select exactly 3 cards to pass')
+      return
+    }
+    
+    if (gameStore.hasPassed) {
+      toastStore.showError('You have already passed cards this round')
+      return
+    }
+    
+    socket.value.emit('pass-cards', { cards })
+    gameStore.setHasPassed(true)
   }
 
   function emitPlayCard(card) {
-    if (socket.value) {
-      socket.value.emit('play-card', { card })
+    if (!socket.value) {
+      toastStore.showError('Not connected to server')
+      return
     }
+    
+    if (!gameStore.isMyTurn) {
+      toastStore.showError('It\'s not your turn')
+      return
+    }
+    
+    if (gameStore.lobbyState?.state !== 'playing') {
+      toastStore.showError('You can only play cards during the playing phase')
+      return
+    }
+    
+    socket.value.emit('play-card', { card })
   }
 
   function cleanup() {

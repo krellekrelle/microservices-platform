@@ -23,6 +23,9 @@
     <div v-else-if="gameStore.lobbyState.state === 'game-ended'" class="game-ended-container">
       <GameEndedView />
     </div>
+
+    <!-- Toast notifications -->
+    <ToastContainer />
   </div>
 </template>
 
@@ -36,6 +39,7 @@ import DisconnectCountdown from './components/DisconnectCountdown.vue'
 import LobbyView from './components/LobbyView.vue'
 import GameView from './components/GameView.vue'
 import GameEndedView from './components/GameEndedView.vue'
+import ToastContainer from './components/ToastContainer.vue'
 
 const gameStore = useGameStore()
 const { socket, initializeSocket, cleanup } = useSocket()

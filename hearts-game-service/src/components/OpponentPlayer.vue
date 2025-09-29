@@ -11,17 +11,18 @@
       <img 
         v-if="player.profilePicture"
         :src="player.profilePicture" 
-        :alt="player.name"
+        :alt="getPlayerName(player)"
         class="player-avatar"
+        @error="onImageError"
       >
       <div v-else class="avatar-placeholder">
-        {{ getPlayerInitials(player.name) }}
+        {{ getPlayerInitials(getPlayerName(player)) }}
         <div v-if="player.isBot" class="bot-indicator">🤖</div>
       </div>
     </div>
     
     <div class="opponent-info">
-      <div class="opponent-name">{{ getPlayerFirstName(player.name) }}</div>
+      <div class="opponent-name">{{ getPlayerFirstName(getPlayerName(player)) }}</div>
       <div class="opponent-stats">
         Cards: {{ getPlayerHandSize(seatIndex) }} | 
         Tricks: {{ getTricksWon(seatIndex) }}
@@ -57,6 +58,11 @@ const player = computed(() => {
   return gameStore.lobbyState?.players?.[props.seatIndex]
 })
 
+function getPlayerName(player) {
+  if (!player) return 'Unknown'
+  return player.userName || player.name || 'Unknown'
+}
+
 function getPlayerInitials(name) {
   if (!name) return '?'
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -65,6 +71,12 @@ function getPlayerInitials(name) {
 function getPlayerFirstName(name) {
   if (!name) return 'Unknown'
   return name.split(' ')[0]
+}
+
+function onImageError(event) {
+  console.warn('Failed to load profile image:', event.target.src)
+  // Hide the broken image by setting the parent to show placeholder instead
+  event.target.style.display = 'none'
 }
 
 function getPlayerHandSize(seatIndex) {

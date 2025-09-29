@@ -74,14 +74,15 @@
             <img 
               v-if="gameStore.myPlayer?.profilePicture"
               :src="gameStore.myPlayer.profilePicture" 
-              :alt="gameStore.myPlayer.name"
+              :alt="getMyPlayerName()"
               class="player-avatar"
+              @error="onMyImageError"
             >
             <div v-else class="avatar-placeholder">
-              {{ getPlayerInitials(gameStore.myPlayer?.name || 'You') }}
+              {{ getPlayerInitials(getMyPlayerName()) }}
             </div>
           </div>
-          <div class="my-name">{{ getPlayerFirstName(gameStore.myPlayer?.name || 'You') }}</div>
+          <div class="my-name">{{ getPlayerFirstName(getMyPlayerName()) }}</div>
           <div class="my-stats">
             Cards: {{ gameStore.myPlayer?.hand?.length || 0 }} | 
             Tricks: {{ getTricksWon(gameStore.mySeat) }}
@@ -101,23 +102,41 @@
       </div>
     </div>
 
-    <!-- Scoreboard Overlay (Top Right) -->
-    <div class="scoreboard-overlay" v-if="gameStore.lobbyState?.players">
-      <h3>Scores</h3>
-      <div class="score-table">
-        <div class="score-header">
-          <div>Player</div>
-          <div>Current</div>
-          <div>Total</div>
-        </div>
-        <template v-for="index in [0, 1, 2, 3]" :key="index">
+    <!-- Scoreboard Overlay -->
+    <div v-if="gameStore.lobbyState?.state !== 'lobby'" class="scoreboard-overlay">
+      <div class="scoreboard">
+        <!-- Header row with player names -->
+        <div class="round-label">Round</div>
+        <template v-for="index in [0, 1, 2, 3]" :key="`header-${index}`">
           <div 
-            v-if="gameStore.lobbyState.players[index]"
-            class="score-row"
+            v-if="gameStore.lobbyState?.players?.[index]"
+            class="player-header"
           >
-            <div class="player-name">{{ getPlayerFirstName(gameStore.lobbyState.players[index].userName || gameStore.lobbyState.players[index].name || 'Unknown') }}</div>
-            <div class="current-score">{{ getCurrentRoundScore(index) }}</div>
-            <div class="total-score">{{ getTotalScore(index) }}</div>
+            {{ getPlayerFirstName(getPlayerName(index)) }}
+          </div>
+        </template>
+        
+        <!-- Round scores -->
+        <template v-for="(roundData, roundIndex) in getHistoricalScores()" :key="`round-${roundIndex}`">
+          <div class="round-number">{{ roundData.round }}</div>
+          <template v-for="index in [0, 1, 2, 3]" :key="`round-${roundIndex}-${index}`">
+            <div 
+              v-if="gameStore.lobbyState?.players?.[index]"
+              class="round-score"
+            >
+              {{ roundData.scores?.[index] || 0 }}
+            </div>
+          </template>
+        </template>
+        
+        <!-- Total row -->
+        <div class="round-label">Total</div>
+        <template v-for="index in [0, 1, 2, 3]" :key="`total-${index}`">
+          <div 
+            v-if="gameStore.lobbyState?.players?.[index]"
+            class="total-score"
+          >
+            {{ getTotalScore(index) }}
           </div>
         </template>
       </div>
@@ -159,7 +178,17 @@ function getPlayerInitials(fullName) {
 
 function getPlayerName(seatIndex) {
   const player = gameStore.lobbyState?.players[seatIndex]
-  return getPlayerFirstName(player?.name)
+  return getPlayerFirstName(player?.userName || player?.name || 'Unknown')
+}
+
+function getMyPlayerName() {
+  if (!gameStore.myPlayer) return 'You'
+  return gameStore.myPlayer.userName || gameStore.myPlayer.name || 'You'
+}
+
+function onMyImageError(event) {
+  console.warn('Failed to load my profile image:', event.target.src)
+  event.target.style.display = 'none'
 }
 
 function getPlayerHandSize(seatIndex) {
@@ -178,6 +207,17 @@ function getCurrentRoundScore(seatIndex) {
 
 function getTotalScore(seatIndex) {
   return gameStore.lobbyState?.scores?.total?.[seatIndex] || 0
+}
+
+function getHistoricalScores() {
+  // Get historical scores from the scores object
+  const historical = gameStore.lobbyState?.scores?.historical || []
+  console.log('🏆 Historical scores:', historical)
+  console.log('🎮 Current game state scores:', gameStore.lobbyState?.scores)
+  
+  // The historical data structure is: [{ round: 1, scores: {0: 0, 1: 25, 2: 0, 3: 1} }]
+  // Return it directly as it's already in the correct format
+  return historical
 }
 
 function getOpponentSeat(position) {
@@ -296,7 +336,64 @@ function stopGame() {
   cursor: not-allowed;
 }
 
+/* Scoreboard overlay */
+.scoreboard-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  pointer-events: none;
+}
 
+.scoreboard {
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: white;
+  display: grid;
+  grid-template-columns: 60px repeat(4, 1fr);
+  gap: 4px 8px;
+  min-width: 250px;
+}
+
+.scoreboard > div {
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.round-label {
+  font-weight: bold;
+  text-align: left;
+}
+
+.player-header {
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 4px;
+}
+
+.round-number {
+  text-align: center;
+  font-weight: bold;
+}
+
+.round-score, .total-score {
+  text-align: center;
+}
+
+.total-score {
+  font-weight: bold;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  padding-top: 4px;
+}
+
+/* Header row styling */
+.scoreboard > .round-label {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 4px;
+}
 
 /* 3x3 Grid Layout for Hearts Table - Fixed Size */
 .game-seats-container {
@@ -527,31 +624,46 @@ function stopGame() {
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 12px;
-  padding: 1rem;
-  min-width: 200px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  padding: 0.75rem;
   z-index: 10;
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 0.85rem;
 }
 
 .score-table {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  grid-template-columns: auto repeat(4, 1fr);
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .score-header {
   display: contents;
   font-weight: bold;
   color: #ffeb3b;
+  font-size: 0.8rem;
 }
 
 .score-header > div {
-  padding: 0.5rem;
+  padding: 0.4rem 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+.round-label, .round-number {
+  text-align: center;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.player-header {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
 }
 
 .score-row {
@@ -559,8 +671,21 @@ function stopGame() {
 }
 
 .score-row > div {
-  padding: 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.total-row {
+  font-weight: bold;
+  color: #ffeb3b;
+}
+
+.total-row > div {
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: none;
+  padding: 0.4rem 0.5rem;
 }
 
 .game-controls {

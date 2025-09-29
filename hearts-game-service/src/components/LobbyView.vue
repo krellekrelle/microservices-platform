@@ -20,14 +20,15 @@
               <img 
                 v-if="gameStore.lobbyState.players[0].profilePicture" 
                 :src="gameStore.lobbyState.players[0].profilePicture" 
-                :alt="gameStore.lobbyState.players[0].name"
+                :alt="getPlayerName(gameStore.lobbyState.players[0])"
                 class="player-avatar"
+                @error="onImageError"
               />
               <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[0].name) }}
+                {{ getPlayerInitials(gameStore.lobbyState.players[0]) }}
               </div>
             </div>
-            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0].name) }}</div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
             <div v-if="gameStore.lobbyState.players[0].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[0].isBot" class="bot-status">🤖 Bot</div>
           </div>
@@ -49,14 +50,15 @@
               <img 
                 v-if="gameStore.lobbyState.players[1].profilePicture" 
                 :src="gameStore.lobbyState.players[1].profilePicture" 
-                :alt="gameStore.lobbyState.players[1].name"
+                :alt="getPlayerName(gameStore.lobbyState.players[1])"
                 class="player-avatar"
+                @error="onImageError"
               />
               <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[1].name) }}
+                {{ getPlayerInitials(gameStore.lobbyState.players[1]) }}
               </div>
             </div>
-            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1].name) }}</div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
             <div v-if="gameStore.lobbyState.players[1].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[1].isBot" class="bot-status">🤖 Bot</div>
           </div>
@@ -102,14 +104,15 @@
               <img 
                 v-if="gameStore.lobbyState.players[2].profilePicture" 
                 :src="gameStore.lobbyState.players[2].profilePicture" 
-                :alt="gameStore.lobbyState.players[2].name"
+                :alt="getPlayerName(gameStore.lobbyState.players[2])"
                 class="player-avatar"
+                @error="onImageError"
               />
               <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[2].name) }}
+                {{ getPlayerInitials(gameStore.lobbyState.players[2]) }}
               </div>
             </div>
-            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2].name) }}</div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
             <div v-if="gameStore.lobbyState.players[2].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[2].isBot" class="bot-status">🤖 Bot</div>
           </div>
@@ -131,14 +134,15 @@
               <img 
                 v-if="gameStore.lobbyState.players[3].profilePicture" 
                 :src="gameStore.lobbyState.players[3].profilePicture" 
-                :alt="gameStore.lobbyState.players[3].name"
+                :alt="getPlayerName(gameStore.lobbyState.players[3])"
                 class="player-avatar"
+                @error="onImageError"
               />
               <div v-else class="player-avatar-placeholder">
-                {{ getPlayerInitials(gameStore.lobbyState.players[3].name) }}
+                {{ getPlayerInitials(gameStore.lobbyState.players[3]) }}
               </div>
             </div>
-            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3].name) }}</div>
+            <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
             <div v-if="gameStore.lobbyState.players[3].ready" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[3].isBot" class="bot-status">🤖 Bot</div>
           </div>
@@ -170,12 +174,19 @@ import { useSocket } from '../composables/useSocket'
 const gameStore = useGameStore()
 const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat } = useSocket()
 
-function getPlayerDisplayName(fullName) {
+function getPlayerName(player) {
+  if (!player) return 'Unknown'
+  return player.userName || player.name || 'Unknown'
+}
+
+function getPlayerDisplayName(player) {
+  const fullName = getPlayerName(player)
   if (!fullName) return 'Unknown'
   return fullName.split(' ')[0]
 }
 
-function getPlayerInitials(fullName) {
+function getPlayerInitials(player) {
+  const fullName = getPlayerName(player)
   if (!fullName) return '?'
   return fullName.split(' ')
     .map(name => name[0])
@@ -187,10 +198,15 @@ function getPlayerInitials(fullName) {
 function getSeatClasses(seatIndex) {
   const player = gameStore.lobbyState?.players[seatIndex]
   return {
-    'occupied': player && player.name,
+    'occupied': player && (player.userName || player.name),
     'my-seat': gameStore.mySeat === seatIndex,
     'leader': gameStore.lobbyState?.lobbyLeader === seatIndex
   }
+}
+
+function onImageError(event) {
+  console.warn('Failed to load profile image:', event.target.src)
+  event.target.style.display = 'none'
 }
 
 function handleSeatClick(seatIndex) {
