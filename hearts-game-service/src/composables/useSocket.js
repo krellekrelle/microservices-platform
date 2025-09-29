@@ -37,9 +37,9 @@ export function useSocket() {
   function initializeSocket() {
     console.log('🔌 Initializing Socket.IO connection...')
     
-    // For local development, connect to localhost:3004
+    // For local development, connect to localhost:3005
     const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    const socketUrl = isLocalDev ? 'http://localhost:3004' : undefined
+    const socketUrl = isLocalDev ? 'http://localhost:3005' : undefined
     
     socket.value = io(socketUrl, {
       withCredentials: true,
@@ -126,6 +126,9 @@ export function useSocket() {
       try {
         gameStore.updateGameState(data)
         
+        // Clear any card being played since we received an update
+        gameStore.clearCardBeingPlayed()
+        
         // Auto-detect my seat if not already set and we have player data
         if (gameStore.mySeat === null && data.players) {
           console.log('🔍 Attempting to detect my seat from game state...')
@@ -176,6 +179,9 @@ export function useSocket() {
       console.error('❌ Socket error:', error)
       const message = error.message || error || 'An error occurred'
       toastStore.showError(message)
+      
+      // Clear any card being played on error
+      gameStore.clearCardBeingPlayed()
     })
 
     // Success events
@@ -317,7 +323,15 @@ export function useSocket() {
       toastStore.showError('You can only play cards during the playing phase')
       return
     }
-    
+
+    // Prevent duplicate card plays
+    if (gameStore.cardBeingPlayed === card) {
+      console.log('🚫 Card already being played:', card)
+      return
+    }
+
+    console.log('🎯 Playing card:', card)
+    gameStore.setCardBeingPlayed(card)
     socket.value.emit('play-card', { card })
   }
 
