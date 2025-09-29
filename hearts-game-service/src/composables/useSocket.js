@@ -242,7 +242,16 @@ export function useSocket() {
     socket.value.on('game-stopped', (data) => {
       console.log('🛑 Game stopped:', data)
       toastStore.showSuccess(`Game stopped by ${data.stoppedBy}: ${data.reason}`)
-      gameStore.setEndGameShown(false) // Reset for next game
+      
+      // Reset game state and rejoin lobby
+      gameStore.resetGameState()
+      gameStore.setMySeat(null)
+      gameStore.clearSelectedCards()
+      gameStore.setHasPassed(false)
+      gameStore.setEndGameShown(false)
+      
+      // Rejoin the lobby
+      socket.value.emit('join-lobby')
     })
 
     // Handle return to lobby
