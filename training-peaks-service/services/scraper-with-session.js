@@ -145,44 +145,50 @@ class TrainingPeaksScraper {
         try {
             // Check current page first
             const currentUrl = this.page.url();
-            const currentTitle = await this.page.title();
             
-            console.log(`🔍 Checking login status - Current URL: ${currentUrl}, Title: ${currentTitle}`);
+            console.log(`🔍 Checking login status - Current URL: ${currentUrl}`);
             
-            // If we're already on login page, we're definitely not logged in
-            if (currentUrl.includes('/login') || currentTitle.includes('Login')) {
-                console.log('🔓 Currently on login page, not logged in');
-                return false;
-            }
-            
-            // Navigate directly to the calendar page we need
-            await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
-                waitUntil: 'domcontentloaded',
-                timeout: 10000
-            });
-            
-            // Wait a bit for any redirects
-            await this.page.waitForTimeout(2000);
-            
-            // Check final URL and title
-            const finalUrl = this.page.url();
-            const finalTitle = await this.page.title();
-            
-            console.log(`🔍 After navigation - URL: ${finalUrl}, Title: ${finalTitle}`);
-            
-            // Check if we're redirected to login page
-            if (finalUrl.includes('/login') || finalTitle.includes('Login')) {
-                console.log('🔓 Session expired, redirected to login');
-                return false;
-            }
-            
-            // Check if we're on the calendar page (successful login)
-            if (finalUrl.includes('app.trainingpeaks.com') && !finalUrl.includes('/login')) {
-                console.log('✅ Successfully on calendar page - logged in');
+            // If we're already on the app pages, we're logged in
+            if (currentUrl.includes('app.trainingpeaks.com') && !currentUrl.includes('/login')) {
+                console.log('✅ Already on app page - logged in');
                 return true;
             }
             
-            console.log('🔓 Not on expected page after navigation');
+            // If we're on about:blank or another page, try navigating to calendar
+            if (currentUrl === 'about:blank' || !currentUrl.includes('trainingpeaks.com')) {
+                console.log('🔍 Navigating to calendar to check session...');
+                await this.page.goto('https://app.trainingpeaks.com/#calendar', { 
+                    waitUntil: 'domcontentloaded',
+                    timeout: 15000
+                });
+                
+                // Wait a bit for any redirects
+                await this.page.waitForTimeout(2000);
+                
+                // Check final URL
+                const finalUrl = this.page.url();
+                console.log(`🔍 After navigation - URL: ${finalUrl}`);
+                
+                // Check if we're redirected to login page
+                if (finalUrl.includes('/login')) {
+                    console.log('🔓 Session expired, redirected to login');
+                    return false;
+                }
+                
+                // Check if we're on the calendar page (successful login)
+                if (finalUrl.includes('app.trainingpeaks.com')) {
+                    console.log('✅ Successfully on calendar page - logged in');
+                    return true;
+                }
+            }
+            
+            // If we're on login page, we're not logged in
+            if (currentUrl.includes('/login')) {
+                console.log('🔓 Currently on login page');
+                return false;
+            }
+            
+            console.log('🔓 Not on expected page');
             return false;
         } catch (error) {
             console.log('🔓 Could not verify login status, assuming need to login:', error.message);
@@ -271,61 +277,99 @@ class TrainingPeaksScraper {
     }
 
     async loginToTrainingPeaks(username, password) {
+        let triedSessionClear = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                console.log(`🔐 Logging into TrainingPeaks for ${username} (attempt ${attempt + 1})`);
+                
+                // Check if already logged in first
+                const alreadyLoggedIn = await this.isLoggedIn();
+                if (alreadyLoggedIn) {
+                    console.log('✅ Already logged in, skipping login process');
+                    await this.saveSessionData();
+                    return;
+                }
+                
+                // Navigate to the app calendar which will redirect to login if needed
+                console.log('🔍 Navigating to TrainingPeaks...');
+                await this.page.goto('https://app.trainingpeaks.com/#calendar', {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 30000
+                });
+                
+                // Wait a moment for any redirects
+                await this.page.waitForTimeout(3000);
+                
+                // Check if we were redirected to the calendar (already logged in)
+                const currentUrl = this.page.url();
+                console.log(`📍 Current URL after navigation: ${currentUrl}`);
+                
+                if (currentUrl.includes('app.trainingpeaks.com') && !currentUrl.includes('/login')) {
+                    console.log('✅ Already authenticated, on calendar page');
+                    await this.saveSessionData();
+                    return;
+                }
+                
+                // We were redirected to login page, proceed with form fill
+                console.log('📝 On login page, filling credentials...');
+                
+                // Handle cookie consent popup first
+                await this.handleCookieConsent();
+                
+                // Wait for login form
+                await this.page.waitForSelector('input[name="Username"]', { timeout: 10000 });
+                
+                // Fill login form - use exact TrainingPeaks selectors
+                console.log('📝 Filling username...');
+                await this.page.fill('input[name="Username"]', username);
+                
+                console.log('📝 Filling password...');
+                await this.page.fill('input[name="Password"]', password);
+                
+                // Wait a moment after filling
+                await this.page.waitForTimeout(1000);
+                
+                // Submit form using the button role selector (more reliable)
+                console.log('🔑 Submitting login form...');
+                await this.page.click('button[type="submit"]', { force: true });
+                
+                // Wait for navigation after login
+                await this.page.waitForTimeout(5000);
+                
+                // Verify we're on the calendar page
+                const finalUrl = this.page.url();
+                console.log(`📍 Final URL after login: ${finalUrl}`);
+                
+                if (finalUrl.includes('app.trainingpeaks.com')) {
+                    console.log('✅ Login successful!');
+                    await this.saveSessionData();
+                    return;
+                } else {
+                    throw new Error('Login appears to have failed - not on calendar page');
+                }
+                
+            } catch (error) {
+                console.error(`❌ Login failed for ${username} (attempt ${attempt + 1}):`, error.message);
+                // If timeout or navigation error, clear session and retry once
+                if (!triedSessionClear && (error.message.includes('Timeout') || error.message.includes('navigation') || error.message.includes('destroyed'))) {
+                    triedSessionClear = true;
+                    console.log('🧹 Clearing session data and retrying login...');
+                    await this.clearSessionData();
+                    // Re-initialize browser context and page
+                    await this.initialize();
+                    continue;
+                }
+                throw error;
+            }
+        }
+    }
+    
+    async clearSessionData() {
         try {
-            console.log(`🔐 Logging into TrainingPeaks for ${username}`);
-            
-            // Check if already logged in first
-            const alreadyLoggedIn = await this.isLoggedIn();
-            if (alreadyLoggedIn) {
-                console.log('✅ Already logged in, skipping login process');
-                return;
-            }
-            
-            // Navigate to login page
-            await this.page.goto('https://home.trainingpeaks.com/login', { 
-                waitUntil: 'networkidle' 
-            });
-            
-            // Wait for login form
-            await this.page.waitForSelector('input[name="Username"]', { timeout: 10000 });
-            
-            // Handle cookie consent popup
-            await this.handleCookieConsent();
-            
-            // Fill login form - use exact TrainingPeaks selectors
-            const emailSelector = await this.page.$('input[name="Username"]');
-            
-            if (emailSelector) {
-                await emailSelector.fill(username);
-            } else {
-                throw new Error('Could not find username input field');
-            }
-            
-            const passwordSelector = await this.page.$('input[name="Password"]');
-            
-            if (passwordSelector) {
-                await passwordSelector.fill(password);
-            } else {
-                throw new Error('Could not find password input field');
-            }
-            
-            // Handle cookie consent again before submitting
-            await this.handleCookieConsent();
-            
-            // Submit form
-            await this.page.click('button[type="submit"], input[type="submit"]');
-            
-            // Wait for login to complete
-            await this.page.waitForTimeout(3000);
-            
-            // Save session after successful login
-            await this.saveSessionData();
-            
-            console.log('✅ Login completed and session saved');
-            
+            await fs.rm(this.sessionDataPath, { recursive: true, force: true });
+            console.log('🧹 Session data cleared');
         } catch (error) {
-            console.error(`❌ Login failed for ${username}:`, error.message);
-            throw error;
+            console.log('📝 No session data to clear');
         }
     }
 
