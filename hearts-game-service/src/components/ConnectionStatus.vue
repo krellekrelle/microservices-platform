@@ -8,11 +8,11 @@
     <button 
       v-if="gameStore.mySeat !== null"
       class="video-toggle-btn"
-      :class="videoManager?.isVideoEnabled?.value ? 'btn-video-on' : 'btn-video-off'"
+      :class="isVideoEnabled ? 'btn-video-on' : 'btn-video-off'"
       @click="toggleVideo"
-      :title="videoManager?.isVideoEnabled?.value ? 'Turn off camera' : 'Turn on camera'"
+      :title="isVideoEnabled ? 'Turn off camera' : 'Turn on camera'"
     >
-      {{ videoManager?.isVideoEnabled?.value ? '📹' : '📷' }}
+      {{ isVideoEnabled ? '📹' : '📷' }}
     </button>
     
     <!-- Stop Game button for lobby leader during game -->
@@ -39,6 +39,9 @@ const isInGame = computed(() => {
   return gameStore.lobbyState?.state === 'playing' || gameStore.lobbyState?.state === 'passing'
 })
 
+// Computed property to properly unwrap isVideoEnabled ref
+const isVideoEnabled = computed(() => videoManager.value?.isVideoEnabled ?? false)
+
 function stopGame() {
   if (confirm('Are you sure you want to stop the current game?')) {
     emitStopGame()
@@ -51,9 +54,13 @@ function toggleVideo() {
     return
   }
   
-  if (videoManager.value.isVideoEnabled?.value) {
+  console.log('🎥 Toggle video clicked, current state:', isVideoEnabled.value)
+  
+  if (isVideoEnabled.value) {
+    console.log('🎥 Disabling video...')
     videoManager.value.disableVideo()
   } else {
+    console.log('🎥 Enabling video...')
     videoManager.value.enableVideo()
   }
 }

@@ -11,30 +11,22 @@
     
     <!-- Avatar Placeholder -->
     <div 
-      v-else-if="!showVideo" 
+      v-if="!showVideo" 
       class="player-avatar-placeholder"
     >
       {{ playerInitial }}
     </div>
     
-    <!-- Video Element -->
+    <!-- Video Element - ALWAYS rendered, just hidden when not showing video -->
     <video
-      v-if="showVideo"
       :id="`video-${seat}`"
       class="player-video"
       autoplay
       muted
       playsinline
-      :class="{ 'video-enabled': showVideo, 'video-debugging': true }"
+      :class="{ 'video-enabled': showVideo }"
+      :style="{ display: showVideo ? 'block' : 'none' }"
     ></video>
-    
-    <!-- Dummy Test Video - Always Visible -->
-    <div 
-      v-if="seat === 0"
-      class="dummy-video-test"
-    >
-      DUMMY VIDEO
-    </div>
     
     <!-- Lobby Leader Crown -->
     <div v-if="isLobbyLeader" class="lobby-leader-crown">
@@ -96,9 +88,11 @@ export default {
     
     // Watch for video stream changes and update video element
     watch(() => [props.videoStream, props.showVideo], async () => {
-      console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!props.videoStream}`)
+      // Handle both ref and raw MediaStream
+      const stream = props.videoStream?.value ?? props.videoStream
+      console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!stream}`)
       
-      if (props.showVideo && props.videoStream) {
+      if (props.showVideo && stream) {
         console.log(`🎬 Attempting to set video stream for seat ${props.seat}`)
         await nextTick()
         
@@ -119,14 +113,14 @@ export default {
           
           // 3. Use setTimeout to reassign
           setTimeout(() => {
-            videoElement.srcObject = props.videoStream
+            videoElement.srcObject = stream
             
             // 4. Force display again after stream attachment
             videoElement.style.display = 'block'
             videoElement.style.visibility = 'visible'
             videoElement.style.opacity = '1'
             
-            console.log(`🎬 Stream attached to video element:`, props.videoStream)
+            console.log(`🎬 Stream attached to video element:`, stream)
             console.log(`🎬 Video element srcObject:`, videoElement.srcObject)
             
             videoElement.onloadedmetadata = () => {
@@ -140,7 +134,7 @@ export default {
           console.error(`❌ Video element not found for seat ${props.seat}`)
         }
       } else {
-        console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!props.videoStream}`)
+        console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!stream}`)
         
         // Hide video when not needed
         const videoElement = document.getElementById(`video-${props.seat}`)

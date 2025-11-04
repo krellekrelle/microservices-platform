@@ -20,8 +20,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[0])"
               :profile-picture="gameStore.lobbyState.players[0].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 0"
-              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream : null"
-              :show-video="0 === gameStore.mySeat && videoManager?.value?.isVideoEnabled"
+              :video-stream="0 === gameStore.mySeat ? localStream : (remoteStreams.get(0) || null)"
+              :show-video="activeVideoSeats.has(0) || (0 === gameStore.mySeat && isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
@@ -46,8 +46,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[1])"
               :profile-picture="gameStore.lobbyState.players[1].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 1"
-              :video-stream="videoManager?.value?.remoteStreams?.get(1) || (1 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.has(1) || (1 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="remoteStreams.get(1) || (1 === gameStore.mySeat ? localStream : null)"
+              :show-video="activeVideoSeats.has(1) || (1 === gameStore.mySeat && isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
@@ -64,33 +64,6 @@
       <div class="lobby-controls">
         <button v-if="gameStore.mySeat !== null" id="leave-seat-btn" class="btn danger" @click="leaveSeat">
           Leave Seat
-        </button>
-        <button 
-          v-if="gameStore.mySeat !== null" 
-          id="ready-btn" 
-          class="btn success" 
-          :class="{ active: gameStore.myPlayer?.ready }"
-          @click="toggleReady"
-        >
-          {{ gameStore.myPlayer?.ready ? '✓ Ready' : 'Ready Up' }}
-        </button>
-        
-        <!-- Video Controls -->
-        <button 
-          v-if="gameStore.mySeat !== null && !videoManager?.value?.isVideoEnabled" 
-          id="enable-video-btn" 
-          class="btn info" 
-          @click="enableVideo"
-        >
-          📹 Enable Video
-        </button>
-        <button 
-          v-if="gameStore.mySeat !== null && videoManager?.value?.isVideoEnabled" 
-          id="disable-video-btn" 
-          class="btn warning" 
-          @click="disableVideo"
-        >
-          📹 Disable Video
         </button>
         
         <button 
@@ -115,8 +88,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[2])"
               :profile-picture="gameStore.lobbyState.players[2].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 2"
-              :video-stream="videoManager?.value?.remoteStreams?.get(2) || (2 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="(videoManager?.value?.activeVideoSeats?.has && videoManager?.value?.activeVideoSeats?.has(2)) || (2 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="remoteStreams.get(2) || (2 === gameStore.mySeat ? localStream : null)"
+              :show-video="activeVideoSeats.has(2) || (2 === gameStore.mySeat && isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
@@ -141,8 +114,8 @@
               :player-name="getPlayerName(gameStore.lobbyState.players[3])"
               :profile-picture="gameStore.lobbyState.players[3].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 3"
-              :video-stream="videoManager?.value?.remoteStreams?.get(3) || (3 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.has(3) || (3 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="remoteStreams.get(3) || (3 === gameStore.mySeat ? localStream : null)"
+              :show-video="activeVideoSeats.has(3) || (3 === gameStore.mySeat && isVideoEnabled)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
@@ -210,12 +183,36 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 import PlayerAvatar from './PlayerAvatar.vue'
 
 const gameStore = useGameStore()
 const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat, videoManager } = useSocket()
+
+// Computed properties to properly unwrap video manager refs
+// Note: Vue auto-unwraps nested refs in reactive objects, so videoManager.value.isVideoEnabled is already the boolean
+const isVideoEnabled = computed(() => {
+  const enabled = videoManager.value?.isVideoEnabled ?? false
+  console.log('🎬 LobbyView computed isVideoEnabled:', enabled)
+  return enabled
+})
+const localStream = computed(() => {
+  const stream = videoManager.value?.localStream ?? null
+  console.log('🎬 LobbyView computed localStream:', stream)
+  return stream
+})
+const activeVideoSeats = computed(() => {
+  const seats = videoManager.value?.activeVideoSeats ?? new Set()
+  console.log('🎬 LobbyView computed activeVideoSeats:', seats)
+  return seats
+})
+const remoteStreams = computed(() => {
+  const streams = videoManager.value?.remoteStreams ?? new Map()
+  console.log('🎬 LobbyView computed remoteStreams:', streams)
+  return streams
+})
 
 function getPlayerName(player) {
   if (!player) return 'Unknown'
@@ -276,10 +273,6 @@ function leaveSeat() {
     // Leave current seat
     emitLeaveSeat()
   }
-}
-
-function toggleReady() {
-  emitToggleReady()
 }
 
 function addBotToSeat(seatIndex) {
