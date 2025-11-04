@@ -87,6 +87,14 @@ export const useGameStore = defineStore('game', () => {
     if (updatedState.trickCompleted) {
       delete updatedState.trickCompleted
     }
+    
+    // Reset hasPassed when entering a new passing phase
+    if (newState.state === 'passing' && lobbyState.value?.state !== 'passing') {
+      console.log('🃏 Entering new passing phase - resetting hasPassed and selectedCards')
+      hasPassed.value = false
+      selectedCards.value = []
+    }
+    
     lobbyState.value = updatedState
     console.log('🎮 Store: Updated lobbyState to:', lobbyState.value)
   }
