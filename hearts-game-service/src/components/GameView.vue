@@ -75,8 +75,8 @@
             :player-name="getMyPlayerName()"
             :profile-picture="gameStore.myPlayer?.profilePicture"
             :is-lobby-leader="false"
-            :video-stream="videoManager?.localStream?.value"
-            :show-video="videoManager?.isVideoEnabled?.value"
+            :video-stream="localStream"
+            :show-video="isVideoEnabled"
             size="xlarge"
           />
           <div class="my-name">{{ getPlayerFirstName(getMyPlayerName()) }}</div>
@@ -152,6 +152,20 @@ import PlayerAvatar from './PlayerAvatar.vue'
 
 const gameStore = useGameStore()
 const { emitPassCards, emitPlayCard, emitStopGame, videoManager } = useSocket()
+
+// Computed properties to properly unwrap video manager refs
+const isVideoEnabled = computed(() => {
+  return videoManager.value?.isVideoEnabled ?? false
+})
+const localStream = computed(() => {
+  return videoManager.value?.localStream ?? null
+})
+const activeVideoSeats = computed(() => {
+  return videoManager.value?.activeVideoSeats ?? new Set()
+})
+const remoteStreams = computed(() => {
+  return videoManager.value?.remoteStreams ?? new Map()
+})
 
 function getPlayerFirstName(fullName) {
   if (!fullName) return 'Unknown'

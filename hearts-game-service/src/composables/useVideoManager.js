@@ -33,8 +33,26 @@ export function useVideoManager(socket) {
       socketIdToSeat.value.set(data.socketId, data.seat)
       await createPeerConnection(data.seat, data.socketId, isVideoEnabled.value)
       
-      // If we're not the initiator, let the other peer know we're ready for their offer
-      if (!isVideoEnabled.value) {
+      // If we have video enabled, we should initiate the connection
+      if (isVideoEnabled.value) {
+        console.log(`We have video enabled, creating offer for seat ${data.seat}`)
+        const pc = peerConnections.value.get(data.seat)
+        if (pc) {
+          try {
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            
+            socketInstance.emit('webrtc-offer', {
+              offer: offer,
+              toSocketId: data.socketId,
+              fromSeat: gameStore.mySeat
+            })
+          } catch (error) {
+            console.error('Error creating offer for new peer:', error)
+          }
+        }
+      } else {
+        // If we don't have video enabled, let them know we're ready for their offer
         console.log(`Notifying seat ${data.seat} that we're ready for offer`)
         socketInstance.emit('ready-for-offer', { 
           toSocketId: data.socketId, 
@@ -85,17 +103,29 @@ export function useVideoManager(socket) {
     // WebRTC signaling events
     socketInstance.on('webrtc-offer', async (data) => {
       console.log('Received WebRTC offer from seat:', data.fromSeat)
-      await handleWebRTCOffer(data)
+      if (data.fromSeat !== null && data.fromSeat !== undefined) {
+        await handleWebRTCOffer(data)
+      } else {
+        console.error('Received WebRTC offer with null fromSeat:', data)
+      }
     })
     
     socketInstance.on('webrtc-answer', async (data) => {
       console.log('Received WebRTC answer from seat:', data.fromSeat)
-      await handleWebRTCAnswer(data)
+      if (data.fromSeat !== null && data.fromSeat !== undefined) {
+        await handleWebRTCAnswer(data)
+      } else {
+        console.error('Received WebRTC answer with null fromSeat:', data)
+      }
     })
     
     socketInstance.on('webrtc-ice-candidate', async (data) => {
       console.log('Received ICE candidate from seat:', data.fromSeat)
-      await handleICECandidate(data)
+      if (data.fromSeat !== null && data.fromSeat !== undefined) {
+        await handleICECandidate(data)
+      } else {
+        console.error('Received ICE candidate with null fromSeat:', data)
+      }
     })
   }
   
@@ -273,9 +303,19 @@ export function useVideoManager(socket) {
   // Handle WebRTC offer
   async function handleWebRTCOffer(data) {
     try {
-      const pc = peerConnections.value.get(data.fromSeat)
+      let pc = peerConnections.value.get(data.fromSeat)
       if (!pc) {
-        console.error('No peer connection found for seat:', data.fromSeat)
+        console.log(`Creating peer connection for offer from seat ${data.fromSeat}`)
+        // Create peer connection if it doesn't exist
+        const targetSocketId = data.fromSocketId || socketIdToSeat.value.get(data.fromSeat)
+        if (targetSocketId) {
+          await createPeerConnection(data.fromSeat, targetSocketId, false)
+          pc = peerConnections.value.get(data.fromSeat)
+        }
+      }
+      
+      if (!pc) {
+        console.error('Still no peer connection found for seat:', data.fromSeat)
         return
       }
       
@@ -283,15 +323,8 @@ export function useVideoManager(socket) {
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
       
-      // Find socket ID for this seat
-      let targetSocketId = null
-      for (let [socketId, seat] of socketIdToSeat.value.entries()) {
-        if (seat === data.fromSeat) {
-          targetSocketId = socketId
-          break
-        }
-      }
-      
+      // Use the fromSocketId provided by the backend
+      const targetSocketId = data.fromSocketId
       if (targetSocketId) {
         const socketInstance = socket.value || socket
         socketInstance.emit('webrtc-answer', {
@@ -299,6 +332,8 @@ export function useVideoManager(socket) {
           toSocketId: targetSocketId,
           fromSeat: gameStore.mySeat
         })
+      } else {
+        console.error('No target socket ID available for answer')
       }
     } catch (error) {
       console.error('Error handling WebRTC offer:', error)

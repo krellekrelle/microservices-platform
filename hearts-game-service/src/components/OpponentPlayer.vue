@@ -12,8 +12,8 @@
       :player-name="getPlayerName(player)"
       :profile-picture="player.profilePicture"
       :is-lobby-leader="false"
-      :video-stream="videoManager?.remoteStreams?.value?.get(seatIndex)"
-      :show-video="videoManager?.activeVideoSeats?.value?.has(seatIndex) && !player.isBot"
+      :video-stream="remoteStream"
+      :show-video="showVideo"
       size="large"
     />
     
@@ -51,6 +51,17 @@ const { videoManager } = useSocket()
 const player = computed(() => {
   if (props.seatIndex === null || props.seatIndex === undefined) return null
   return gameStore.lobbyState?.players?.[props.seatIndex]
+})
+
+// Computed properties for video
+const remoteStream = computed(() => {
+  return videoManager.value?.remoteStreams?.get(props.seatIndex) ?? null
+})
+
+const showVideo = computed(() => {
+  const hasVideo = videoManager.value?.activeVideoSeats?.has(props.seatIndex) ?? false
+  const isNotBot = player.value && !player.value.isBot
+  return hasVideo && isNotBot
 })
 
 function getPlayerName(player) {
