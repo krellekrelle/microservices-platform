@@ -223,18 +223,19 @@ function getHistoricalScores() {
 function getOpponentSeat(position) {
   // Get the seat index for opponents relative to my position
   // In a 4-player Hearts game, seats are arranged as:
-  // 0 (top), 1 (right), 2 (bottom), 3 (left) if I'm seat 0
-  // We need to map positions relative to my seat
+  // 0 (top), 1 (right), 2 (bottom), 3 (left) - this is the lobby layout
+  // We need to map positions relative to my seat to match the lobby visually
   
   const mySeat = gameStore.mySeat
   if (mySeat === null || mySeat === undefined) return null
   
   // Calculate opponent positions relative to my seat
+  // Fixed mapping to resolve the mirroring issue: swap left/right from original
   const seatMappings = {
-    0: { upper: 2, left: 3, right: 1 },  // If I'm seat 0 (bottom)
-    1: { upper: 3, left: 0, right: 2 },  // If I'm seat 1 (right) 
-    2: { upper: 0, left: 1, right: 3 },  // If I'm seat 2 (top)
-    3: { upper: 1, left: 2, right: 0 }   // If I'm seat 3 (left)
+    0: { upper: 2, left: 1, right: 3 },  // If I'm seat 0: across=2, left=1, right=3 (swapped from original)
+    1: { upper: 3, left: 2, right: 0 },  // If I'm seat 1: across=3, left=2, right=0 (swapped from original)
+    2: { upper: 0, left: 3, right: 1 },  // If I'm seat 2: across=0, left=3, right=1 (swapped from original)
+    3: { upper: 1, left: 0, right: 2 }   // If I'm seat 3: across=1, left=0, right=2 (swapped from original)
   }
   
   return seatMappings[mySeat]?.[position] ?? null
