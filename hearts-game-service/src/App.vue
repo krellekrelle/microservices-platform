@@ -20,7 +20,7 @@
       <GameView />
     </div>
 
-    <div v-else-if="gameStore.lobbyState.state === 'game-ended'" class="game-ended-container">
+    <div v-else-if="gameStore.lobbyState.state === 'finished' || gameStore.lobbyState.state === 'game-ended'" class="game-ended-container">
       <GameEndedView />
     </div>
 
