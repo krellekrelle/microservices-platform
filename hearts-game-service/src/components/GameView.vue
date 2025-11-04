@@ -242,44 +242,39 @@ function getOpponentSeat(position) {
 }
 
 function getTrickCardPosition(seatIndex) {
-  // Position cards closer to the player who played them from the center
+  // Position cards based on the mathematical seat relationships
+  // This converts absolute seat numbers from trick data to relative visual positions
   const mySeat = gameStore.mySeat
   if (mySeat === null || mySeat === undefined) return {}
   
-  // Define positions relative to absolute center with proper offsets
-  // All positions use position: absolute with top: 50%, left: 50% as base
-  const positions = {
-    // If I'm in seat 0 (bottom), opponents are positioned as:
-    0: {
-      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // My card (bottom)
-      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // Right opponent  
-      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // Top opponent
-      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' }   // Left opponent
-    },
-    // If I'm in seat 1 (right), adjust positions accordingly
-    1: {
-      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' },  // Left of me
-      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // My card (right)
-      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom  
-      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' }   // Top
-    },
-    // If I'm in seat 2 (top), adjust positions accordingly  
-    2: {
-      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom
-      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' },  // Left
-      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // My card (top)
-      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' }    // Right
-    },
-    // If I'm in seat 3 (left), adjust positions accordingly
-    3: {
-      0: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },   // Right
-      1: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },   // Bottom
-      2: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },  // Top  
-      3: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' }   // My card (left)
-    }
+  // Calculate relative positions using mathematical relationships
+  const leftSeat = (mySeat + 1) % 4      // Left of me: +1
+  const rightSeat = (mySeat - 1 + 4) % 4 // Right of me: -1 (with wrap-around)
+  const oppositeSeat = (mySeat + 2) % 4  // Opposite of me: +2
+  
+  // Determine visual position based on seat relationships
+  let visualPosition = 'center' // fallback
+  
+  if (seatIndex === mySeat) {
+    visualPosition = 'bottom'           // My card comes from bottom
+  } else if (seatIndex === leftSeat) {
+    visualPosition = 'left'             // Left player's card comes from left
+  } else if (seatIndex === rightSeat) {
+    visualPosition = 'right'            // Right player's card comes from right  
+  } else if (seatIndex === oppositeSeat) {
+    visualPosition = 'top'              // Opposite player's card comes from top
   }
   
-  return positions[mySeat]?.[seatIndex] || { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+  // Define card positions for each visual direction
+  const cardPositions = {
+    bottom: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 20px)' },
+    top: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -80px)' },
+    left: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-80px, -50%)' },
+    right: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(20px, -50%)' },
+    center: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+  }
+  
+  return cardPositions[visualPosition] || cardPositions.center
 }
 
 function passSelectedCards() {
