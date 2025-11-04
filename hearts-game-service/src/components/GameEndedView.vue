@@ -118,6 +118,75 @@
       </div>
     </div>
 
+    <!-- Round-by-Round Scoreboard -->
+    <div class="scoreboard-section" v-if="gameStore.lobbyState?.scores?.historical?.length">
+      <h3 class="scoreboard-title">📊 Round-by-Round Scoreboard</h3>
+      <div class="scoreboard-container">
+        <table class="scoreboard-table">
+          <thead>
+            <tr>
+              <th class="round-header">Round</th>
+              <th 
+                v-for="player in sortedPlayers" 
+                :key="player.seatIndex"
+                class="player-header"
+                :class="{ 'winner-column': player.seatIndex === winnerIndex }"
+              >
+                <div class="player-header-content">
+                  <img 
+                    v-if="player.profilePicture"
+                    :src="player.profilePicture" 
+                    class="header-avatar"
+                  >
+                  <div v-else class="header-avatar-placeholder">
+                    {{ getPlayerInitials(player.name) }}
+                  </div>
+                  <div class="header-name">{{ getPlayerFirstName(player.name) }}</div>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr 
+              v-for="(round, roundIndex) in gameStore.lobbyState?.scores?.historical || []" 
+              :key="roundIndex"
+              class="round-row"
+              :style="{ animationDelay: `${4 + roundIndex * 0.1}s` }"
+            >
+              <td class="round-number">{{ round.round || (roundIndex + 1) }}</td>
+              <td 
+                v-for="player in sortedPlayers"
+                :key="player.seatIndex"
+                class="score-cell"
+                :class="{ 
+                  'winner-column': player.seatIndex === winnerIndex,
+                  'high-score': (round.scores?.[player.seatIndex] || 0) >= 20,
+                  'perfect-round': (round.scores?.[player.seatIndex] || 0) === 0
+                }"
+              >
+                {{ round.scores?.[player.seatIndex] || 0 }}
+              </td>
+            </tr>
+            <!-- Final Totals Row -->
+            <tr class="totals-row">
+              <td class="round-number total-label">TOTAL</td>
+              <td 
+                v-for="player in sortedPlayers"
+                :key="player.seatIndex"
+                class="total-score"
+                :class="{ 
+                  'winner-total': player.seatIndex === winnerIndex,
+                  'loser-total': player.seatIndex === loserIndex
+                }"
+              >
+                {{ player.totalScore || 0 }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="game-statistics" v-if="gameStore.lobbyState">
       <h3>Game Statistics</h3>
       <div class="stats-grid">
@@ -140,10 +209,6 @@
       <button class="return-lobby-btn" @click="returnToLobby">
         🏠 Return to Lobby
       </button>
-      
-      <button class="new-game-btn" @click="startNewGame" v-if="gameStore.isLobbyLeader">
-        🎮 Start New Game
-      </button>
     </div>
 
     <div class="celebration-animation" ref="celebration"></div>
@@ -151,26 +216,154 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 
 const gameStore = useGameStore()
 const { emitJoinLobby, emitStartGame } = useSocket()
 
+// API-fetched game data as fallback
+const apiGameData = ref(null)
+const isLoadingGameData = ref(false)
+
+// Fetch game data from API if needed
+const fetchGameData = async (gameId) => {
+  if (!gameId || isLoadingGameData.value) return
+  
+  try {
+    isLoadingGameData.value = true
+    console.log('🏆 DEBUG: Fetching game data from API for gameId:', gameId)
+    
+    const response = await fetch(`/hearts/api/history/${gameId}`)
+    if (!response.ok) throw new Error(`API request failed: ${response.status}`)
+    
+    const data = await response.json()
+    console.log('🏆 DEBUG: API response:', data)
+    apiGameData.value = data
+  } catch (error) {
+    console.error('🏆 ERROR: Failed to fetch game data:', error)
+  } finally {
+    isLoadingGameData.value = false
+  }
+}
+
+// Try to fetch game data on mount if we have a gameId
+onMounted(() => {
+  const gameId = gameStore.lobbyState?.gameId
+  if (gameId && gameStore.lobbyState?.state === 'finished') {
+    fetchGameData(gameId)
+  }
+})
+
 const sortedPlayers = computed(() => {
-  if (!gameStore.lobbyState?.players || !gameStore.lobbyState?.scores?.totals) {
+  console.log('🏆 DEBUG: sortedPlayers computed called')
+  console.log('🏆 DEBUG: gameStore.lobbyState:', gameStore.lobbyState)
+  console.log('🏆 DEBUG: apiGameData.value:', apiGameData.value)
+  
+  // First try to use game state data (handle both array and object formats)
+  let playersData = null
+  let scoresData = null
+  
+  if (gameStore.lobbyState?.players && gameStore.lobbyState?.scores?.total) {
+    const players = gameStore.lobbyState.players
+    
+    // Handle both array and object formats for players
+    if (Array.isArray(players)) {
+      playersData = players
+    } else if (typeof players === 'object') {
+      // Convert object to array (players is {0: {...}, 1: {...}, etc.})
+      playersData = Object.keys(players)
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .map(key => ({ ...players[key], seatIndex: parseInt(key) }))
+    }
+    
+    scoresData = gameStore.lobbyState.scores.total
+    console.log('🏆 DEBUG: Using game state data - players:', playersData, 'scores:', scoresData)
+  }
+  
+  // Fallback to API data if game state data is not available
+  if ((!playersData || !scoresData) && apiGameData.value) {
+    console.log('🏆 DEBUG: Falling back to API data')
+    playersData = apiGameData.value.players?.map(p => ({
+      ...p,
+      userName: p.name,
+      seatIndex: p.seat
+    })) || []
+    
+    scoresData = apiGameData.value.finalScores || {}
+    console.log('🏆 DEBUG: Using API data - players:', playersData, 'scores:', scoresData)
+  }
+  
+  if (!playersData || !scoresData) {
+    console.log('🏆 DEBUG: No data available, returning empty array')
     return []
   }
 
-  return gameStore.lobbyState.players
-    .map((player, index) => ({
+  console.log('🏆 DEBUG: Processing players with scores')
+  return playersData
+    .map((player) => ({
       ...player,
-      seatIndex: index,
-      totalScore: gameStore.lobbyState.scores.totals[index] || 0
+      seatIndex: player.seatIndex ?? player.seat ?? 0,
+      totalScore: scoresData[player.seatIndex ?? player.seat ?? 0] ?? player.finalScore ?? player.totalScore ?? 0,
+      name: player.userName ?? player.name ?? 'Unknown'
     }))
-    .filter(player => player.name)
+    .filter(player => player && player.name)
     .sort((a, b) => a.totalScore - b.totalScore) // Lower score wins in Hearts
+})
+
+const activePlayers = computed(() => {
+  // Use the same data as sortedPlayers but without sorting
+  let playersData = null
+  
+  if (gameStore.lobbyState?.players) {
+    const players = gameStore.lobbyState.players
+    
+    // Handle both array and object formats for players
+    if (Array.isArray(players)) {
+      playersData = players
+    } else if (typeof players === 'object') {
+      // Convert object to array (players is {0: {...}, 1: {...}, etc.})
+      playersData = Object.keys(players)
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .map(key => ({ ...players[key], seatIndex: parseInt(key) }))
+    }
+  }
+  
+  // Fallback to API data
+  if (!playersData && apiGameData.value) {
+    playersData = apiGameData.value.players?.map(p => ({
+      ...p,
+      userName: p.name,
+      seatIndex: p.seat
+    })) || []
+  }
+  
+  if (!playersData) return []
+  
+  return playersData
+    .map(player => ({
+      ...player,
+      seatIndex: player.seatIndex ?? player.seat ?? 0,
+      name: player.userName ?? player.name ?? 'Unknown'
+    }))
+    .filter(player => player && player.name)
+})
+
+const winnerIndex = computed(() => {
+  if (!sortedPlayers.value.length) return -1
+  
+  // sortedPlayers is already sorted by score (lowest first), so first player is winner
+  const winner = sortedPlayers.value[0]
+  return winner?.seatIndex ?? -1
+})
+
+const loserIndex = computed(() => {
+  if (!sortedPlayers.value.length) return -1
+  
+  // sortedPlayers is already sorted by score (lowest first), so last player is loser
+  const loser = sortedPlayers.value[sortedPlayers.value.length - 1]
+  return loser?.seatIndex ?? -1
 })
 
 const totalTricks = computed(() => {
@@ -199,12 +392,6 @@ function getPlayerInitials(fullName) {
 
 function returnToLobby() {
   emitJoinLobby()
-}
-
-function startNewGame() {
-  if (gameStore.isLobbyLeader) {
-    emitStartGame()
-  }
 }
 
 function getConfettiStyle(index) {
@@ -707,6 +894,157 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* Scoreboard Styles */
+.scoreboard-section {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2rem;
+  margin: 3rem auto;
+  max-width: 900px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.scoreboard-title {
+  color: #FFD700;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+  animation: slideInFromTop 1s ease-out 3.5s both;
+}
+
+.scoreboard-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.scoreboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1rem;
+}
+
+.scoreboard-table th,
+.scoreboard-table td {
+  padding: 1rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.scoreboard-table thead {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.round-header {
+  color: #FFD700;
+  font-weight: bold;
+  background: rgba(255, 215, 0, 0.1) !important;
+}
+
+.player-header {
+  color: #fff;
+  font-weight: bold;
+  min-width: 120px;
+}
+
+.winner-column {
+  background: rgba(255, 215, 0, 0.15) !important;
+  border-left: 2px solid #FFD700;
+  border-right: 2px solid #FFD700;
+}
+
+.player-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-avatar, .header-avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.header-avatar-placeholder {
+  background: linear-gradient(45deg, #666, #888);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+  font-size: 0.8rem;
+}
+
+.header-name {
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.round-row {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+  transition: background-color 0.3s ease;
+}
+
+.round-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.round-number {
+  color: #FFD700;
+  font-weight: bold;
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.score-cell {
+  color: #fff;
+  font-weight: 500;
+}
+
+.high-score {
+  background: rgba(244, 67, 54, 0.2) !important;
+  color: #ff6b6b !important;
+  font-weight: bold;
+}
+
+.perfect-round {
+  background: rgba(76, 175, 80, 0.2) !important;
+  color: #4caf50 !important;
+  font-weight: bold;
+}
+
+.totals-row {
+  background: rgba(255, 255, 255, 0.1);
+  border-top: 2px solid rgba(255, 215, 0, 0.5);
+  font-weight: bold;
+}
+
+.total-label {
+  color: #FFD700;
+  font-size: 1.1rem;
+}
+
+.total-score {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.winner-total {
+  background: rgba(255, 215, 0, 0.3) !important;
+  color: #FFD700 !important;
+  font-size: 1.2rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.loser-total {
+  background: rgba(244, 67, 54, 0.3) !important;
+  color: #ff6b6b !important;
+}
+
 .return-controls {
   display: flex;
   justify-content: center;
@@ -714,10 +1052,10 @@ onMounted(() => {
   flex-wrap: wrap;
   margin-top: 3rem;
   opacity: 0;
-  animation: fadeInUp 1s ease-out 3s forwards;
+  animation: fadeInUp 1s ease-out 5s forwards;
 }
 
-.return-lobby-btn, .new-game-btn {
+.return-lobby-btn {
   padding: 1.5rem 3rem;
   border: none;
   border-radius: 15px;
@@ -727,26 +1065,17 @@ onMounted(() => {
   font-size: 1.2rem;
   position: relative;
   overflow: hidden;
-}
-
-.return-lobby-btn {
   background: linear-gradient(45deg, #667eea, #764ba2);
   color: white;
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-.new-game-btn {
-  background: linear-gradient(45deg, #4ECDC4, #44A08D);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.return-lobby-btn:hover, .new-game-btn:hover {
+.return-lobby-btn:hover {
   transform: translateY(-5px) scale(1.05);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
 
-.return-lobby-btn:active, .new-game-btn:active {
+.return-lobby-btn:active {
   transform: translateY(-2px) scale(1.02);
 }
 
@@ -786,11 +1115,35 @@ onMounted(() => {
     display: none;
   }
   
+  .scoreboard-section {
+    padding: 1rem;
+    margin: 2rem 0.5rem;
+  }
+  
+  .scoreboard-title {
+    font-size: 1.5rem;
+  }
+  
+  .scoreboard-table th,
+  .scoreboard-table td {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .header-avatar, .header-avatar-placeholder {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .header-name {
+    font-size: 0.8rem;
+  }
+  
   .return-controls {
     gap: 1rem;
   }
   
-  .return-lobby-btn, .new-game-btn {
+  .return-lobby-btn {
     padding: 1rem 2rem;
     font-size: 1rem;
   }
