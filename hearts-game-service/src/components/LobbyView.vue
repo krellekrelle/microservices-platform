@@ -269,7 +269,16 @@ function handleSeatClick(seatIndex) {
 }
 
 function leaveSeat() {
+  console.log('🚪 leaveSeat() called, mySeat:', gameStore.mySeat)
   if (gameStore.mySeat !== null) {
+    // Disable video before leaving seat
+    if (videoManager?.value) {
+      console.log('📹 Disabling video when leaving seat... isVideoEnabled:', videoManager.value.isVideoEnabled?.value)
+      videoManager.value.disableVideo()
+    } else {
+      console.log('⚠️ videoManager not available')
+    }
+    
     // Leave current seat
     emitLeaveSeat()
   }
@@ -492,7 +501,7 @@ function testDisableVideo() {
   align-items: center;
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   padding-bottom: 36px;
   padding-top: 12px;
 }
@@ -515,7 +524,9 @@ function testDisableVideo() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .player-name {

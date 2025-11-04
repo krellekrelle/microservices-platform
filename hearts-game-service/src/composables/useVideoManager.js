@@ -167,14 +167,27 @@ export function useVideoManager(socket) {
   function disableVideo() {
     console.log('🎥 Disabling video...')
     
-    // Stop local stream
+    // Stop local stream tracks explicitly
     if (localStream.value) {
-      localStream.value.getTracks().forEach(track => track.stop())
+      console.log('📹 Stopping all tracks in localStream...')
+      const tracks = localStream.value.getTracks()
+      console.log(`📹 Found ${tracks.length} tracks to stop`)
+      
+      tracks.forEach(track => {
+        console.log(`📹 Stopping track: ${track.kind}, enabled: ${track.enabled}, readyState: ${track.readyState}`)
+        track.stop()
+        console.log(`📹 Track stopped, new readyState: ${track.readyState}`)
+      })
+      
       localStream.value = null
+      console.log('📹 localStream cleared')
+    } else {
+      console.log('⚠️ No localStream to stop')
     }
     
     // Close all peer connections
     peerConnections.value.forEach((pc, seat) => {
+      console.log(`🔌 Closing peer connection for seat ${seat}`)
       pc.close()
     })
     peerConnections.value.clear()
@@ -186,6 +199,16 @@ export function useVideoManager(socket) {
     if (gameStore.mySeat !== null) {
       activeVideoSeats.value.delete(gameStore.mySeat)
       console.log(`📹 Removed own seat ${gameStore.mySeat} from activeVideoSeats`)
+    }
+    
+    // Clear video element srcObject to fully release the stream
+    if (gameStore.mySeat !== null) {
+      const videoElement = document.getElementById(`video-${gameStore.mySeat}`)
+      if (videoElement) {
+        console.log(`📹 Clearing video element for seat ${gameStore.mySeat}`)
+        videoElement.srcObject = null
+        videoElement.load() // Force reload to ensure stream is released
+      }
     }
     
     // Notify other players

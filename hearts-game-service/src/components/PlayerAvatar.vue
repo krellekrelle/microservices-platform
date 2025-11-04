@@ -240,8 +240,9 @@ export default {
 
 .player-video {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   object-fit: cover;
   z-index: 100;

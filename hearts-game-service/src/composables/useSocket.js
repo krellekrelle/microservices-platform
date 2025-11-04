@@ -138,6 +138,10 @@ export function useSocket() {
         const detectedSeat = findMySeatByUserId(data)
         if (detectedSeat !== null) {
           gameStore.setMySeat(detectedSeat)
+        } else if (gameStore.mySeat !== null) {
+          // User was previously seated but is no longer in any seat - clear mySeat
+          console.log('🚪 User left seat, clearing mySeat')
+          gameStore.setMySeat(null)
         }
       }
     })
