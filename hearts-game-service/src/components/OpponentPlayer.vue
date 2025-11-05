@@ -93,7 +93,7 @@ function getTricksWon(seatIndex) {
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   transition: all 0.3s ease;
-  min-height: 120px;
+  min-height: 180px;
   width: 100%;
   max-width: 200px;
 }

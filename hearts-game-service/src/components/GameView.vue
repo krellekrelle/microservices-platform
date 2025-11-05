@@ -6,9 +6,11 @@
         class="pass-cards-btn"
         :disabled="gameStore.selectedCards.length !== 3"
         @click="passSelectedCards"
+        :title="`Pass ${gameStore.selectedCards.length}/3 cards ${getPassDirection()}`"
       >
-        Pass {{ gameStore.selectedCards.length }}/3 Cards
-        <span v-if="gameStore.selectedCards.length === 3">→</span>
+        <span class="pass-arrow" :class="`direction-${getPassDirection()}`">
+          {{ getPassDirectionArrow() }}
+        </span>
       </button>
     </div>
 
@@ -65,6 +67,17 @@
 
       <!-- Bottom: My Hand and Avatar -->
       <div class="game-seat game-seat-hand">
+        <!-- My Hand -->
+        <div class="my-hand-area">
+          <PlayerHand
+            v-if="gameStore.myPlayer?.hand"
+            :hand="gameStore.myPlayer.hand"
+            :cardSize="'xlarge'"
+            :overlapAmount="35"
+            @cardClick="handleCardClick"
+          />
+        </div>
+
         <!-- My Avatar/Profile -->
         <div 
           class="my-player-info"
@@ -77,24 +90,13 @@
             :is-lobby-leader="false"
             :video-stream="localStream"
             :show-video="isVideoEnabled"
-            size="xlarge"
+            size="large"
           />
           <div class="my-name">{{ getPlayerFirstName(getMyPlayerName()) }}</div>
           <div class="my-stats">
             Cards: {{ gameStore.myPlayer?.hand?.length || 0 }} | 
             Tricks: {{ getTricksWon(gameStore.mySeat) }}
           </div>
-        </div>
-
-        <!-- My Hand -->
-        <div class="my-hand-area">
-          <PlayerHand
-            v-if="gameStore.myPlayer?.hand"
-            :hand="gameStore.myPlayer.hand"
-            :cardSize="'xlarge'"
-            :overlapAmount="35"
-            @cardClick="handleCardClick"
-          />
         </div>
       </div>
     </div>
@@ -277,6 +279,21 @@ function getTrickCardPosition(seatIndex) {
   return cardPositions[visualPosition] || cardPositions.center
 }
 
+function getPassDirection() {
+  return gameStore.lobbyState?.passDirection || 'left'
+}
+
+function getPassDirectionArrow() {
+  const direction = getPassDirection()
+  const arrows = {
+    'left': '←',
+    'right': '→', 
+    'across': '↑',
+    'none': ''
+  }
+  return arrows[direction] || '→'
+}
+
 function passSelectedCards() {
   if (gameStore.selectedCards.length === 3) {
     emitPassCards(gameStore.selectedCards)
@@ -304,28 +321,71 @@ function handleCardClick(card) {
 
 .pass-controls {
   position: absolute;
-  top: 1rem;
+  top: 35%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-30%, -50%);
   z-index: 10;
 }
 
 .pass-cards-btn {
-  background: linear-gradient(45deg, #4caf50, #66bb6a);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  padding: 1rem;
+  border-radius: 50%;
+  width: 4rem;
+  height: 4rem;
   font-weight: bold;
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.3s ease;
+  font-size: 1.8rem;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pass-cards-btn:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, #555 0%, #777 100%);
+  color: rgba(255, 255, 255, 0.4);
   cursor: not-allowed;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transform: scale(0.95);
+}
+
+.pass-cards-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.6);
+}
+
+.pass-cards-btn:active:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.pass-arrow {
+  font-size: 1em;
+  font-weight: 900;
+  transition: all 0.3s ease;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.pass-cards-btn:hover:not(:disabled) .pass-arrow {
+  transform: scale(1.2);
+}
+
+.direction-left {
+  color: #ffd700 !important;
+  filter: drop-shadow(0 0 8px #ffd700);
+}
+
+.direction-right {
+  color: #ff6b35 !important;
+  filter: drop-shadow(0 0 8px #ff6b35);
+}
+
+.direction-across {
+  color: #ff1744 !important;
+  filter: drop-shadow(0 0 8px #ff1744);
 }
 
 /* Scoreboard overlay */
@@ -387,15 +447,15 @@ function handleCardClick(card) {
   padding-bottom: 4px;
 }
 
-/* 3x3 Grid Layout for Hearts Table - Fixed Size */
+/* 3x3 Grid Layout for Hearts Table - Balanced Sizing */
 .game-seats-container {
   display: grid;
   grid-template-areas: 
     ".    upper    ."
     "left center right"
-    "hand hand hand";
-  grid-template-columns: 200px 400px 200px;
-  grid-template-rows: 150px 250px 200px;
+    ".    hand     .";
+  grid-template-columns: 180px 440px 180px;
+  grid-template-rows: 140px 280px 140px;
   gap: 1rem;
   width: 800px;
   height: 600px;
@@ -408,7 +468,7 @@ function handleCardClick(card) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
 .game-seat-upper {
@@ -421,7 +481,7 @@ function handleCardClick(card) {
 
 .game-seat-center {
   grid-area: center;
-  background: rgba(255, 255, 255, 0.1);
+  /* background: rgba(255, 255, 255, 0.1); */
   border-radius: 12px;
   min-height: 200px;
 }
@@ -438,15 +498,17 @@ function handleCardClick(card) {
 
 .my-player-info {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem;
+  margin: 0;
   border: 2px solid transparent;
   transition: all 0.3s ease;
+  max-width: 400px;
+  margin: 0 auto 1rem auto;
 }
 
 .my-player-info.my-turn {
@@ -469,16 +531,30 @@ function handleCardClick(card) {
 .my-name {
   font-weight: bold;
   color: #ffeb3b;
+  font-size: 1rem;
 }
 
 .my-stats {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+
+.my-player-info .player-avatar-container {
+  flex-shrink: 0;
+}
+
+.my-player-info > div:not(.player-avatar-container) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .my-hand-area {
   display: flex;
   justify-content: center;
+  margin-bottom: 1rem;
 }
 
 .game-board {

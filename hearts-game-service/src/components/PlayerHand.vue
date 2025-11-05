@@ -93,5 +93,6 @@ function handleCardClick(card) {
   align-items: flex-end;
   margin: 1rem auto;
   min-height: 120px;
+  padding-top: 2rem
 }
 </style>
