@@ -94,8 +94,7 @@
           />
           <div class="my-name">{{ getPlayerFirstName(getMyPlayerName()) }}</div>
           <div class="my-stats">
-            Cards: {{ gameStore.myPlayer?.hand?.length || 0 }} | 
-            Tricks: {{ getTricksWon(gameStore.mySeat) }}
+            <TrickStack :trick-count="getTricksWon(gameStore.mySeat)" />
           </div>
         </div>
       </div>
@@ -151,6 +150,7 @@ import PlayerCard from './PlayerCard.vue'
 import PlayerHand from './PlayerHand.vue'
 import OpponentPlayer from './OpponentPlayer.vue'
 import PlayerAvatar from './PlayerAvatar.vue'
+import TrickStack from './TrickStack.vue'
 
 const gameStore = useGameStore()
 const { emitPassCards, emitPlayCard, emitStopGame, videoManager } = useSocket()
@@ -538,6 +538,9 @@ function handleCardClick(card) {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.8);
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .my-player-info .player-avatar-container {

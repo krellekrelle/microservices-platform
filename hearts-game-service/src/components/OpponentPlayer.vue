@@ -20,8 +20,7 @@
     <div class="opponent-info">
       <div class="opponent-name">{{ getPlayerFirstName(getPlayerName(player)) }}</div>
       <div class="opponent-stats">
-        Cards: {{ getPlayerHandSize(seatIndex) }} | 
-        Tricks: {{ getTricksWon(seatIndex) }}
+        <TrickStack :trick-count="getTricksWon(seatIndex)" />
       </div>
       <div v-if="player.isBot" class="bot-indicator">🤖 Bot</div>
     </div>
@@ -37,6 +36,7 @@ import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 import PlayerAvatar from './PlayerAvatar.vue'
+import TrickStack from './TrickStack.vue'
 
 const props = defineProps({
   seatIndex: {
@@ -144,6 +144,9 @@ function getTricksWon(seatIndex) {
 .opponent-stats {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-opponent {
