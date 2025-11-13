@@ -239,16 +239,10 @@ export default {
 }
 
 .player-video {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   object-fit: cover;
-  z-index: 100;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  background: transparent;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1;
 }
 
 .player-video.video-debugging {
