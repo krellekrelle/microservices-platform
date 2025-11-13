@@ -27,6 +27,9 @@ COPY lib/ ./lib/
 # Install dependencies (this will install the local garmin-connect)
 RUN npm install
 
+# Build the garmin-connect TypeScript library
+RUN cd lib/garmin-connect && npm install && npm run build
+
 # Copy application files
 COPY . .
 

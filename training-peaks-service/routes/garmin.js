@@ -743,9 +743,9 @@ router.post('/full-pipeline', async (req, res) => {
                 );
 
                 if (workoutResult.success) {
-                    // Auto-push to enabled devices using the same pattern as create-workout
+                    // Schedule workout to Garmin calendar for the session date
                     try {
-                        console.log(`🔄 [PIPELINE] Auto-pushing workout ${workoutResult.workoutId} to enabled devices`);
+                        console.log(`� [PIPELINE] Scheduling workout ${workoutResult.workoutId} to calendar for ${sessionData.session_date}`);
                         
                         // Extract the actual ID if workoutId is an object
                         let actualWorkoutId = workoutResult.workoutId;
@@ -753,25 +753,14 @@ router.post('/full-pipeline', async (req, res) => {
                             actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
                         }
                         
-                        // Get enabled devices
-                        const enabledDevices = await garminService.getEnabledDevicesForUser(userId);
+                        // Schedule the workout to the calendar
                         const client = garminService.client;
+                        const scheduleResult = await client.scheduleWorkout(
+                            { workoutId: actualWorkoutId.toString() },
+                            sessionData.session_date
+                        );
                         
-                        const deviceResults = [];
-                        for (const device of enabledDevices) {
-                            try {
-                                console.log(`🔄 [PIPELINE] Pushing workout ${actualWorkoutId} to device ${device.device_name}`);
-                                const syncResult = await client.pushWorkoutToDevice(
-                                    { workoutId: actualWorkoutId.toString() },
-                                    device.device_id,
-                                );
-                                console.log(`✅ [PIPELINE] Successfully pushed to ${device.device_name}`);
-                                deviceResults.push({ device: device.device_name, status: 'success' });
-                            } catch (deviceError) {
-                                console.error(`❌ [PIPELINE] Failed to push to ${device.device_name}:`, deviceError);
-                                deviceResults.push({ device: device.device_name, status: 'failed', error: deviceError.message });
-                            }
-                        }
+                        console.log(`✅ [PIPELINE] Successfully scheduled to calendar with schedule ID: ${scheduleResult.workoutScheduleId}`);
                         
                         // Mark the session as synced in the database
                         await storageService.markTrainingSessionGarminSynced(session.id, actualWorkoutId.toString());
@@ -780,19 +769,20 @@ router.post('/full-pipeline', async (req, res) => {
                             session: sessionData.title,
                             date: sessionData.session_date,
                             workoutId: actualWorkoutId,
+                            scheduleId: scheduleResult.workoutScheduleId,
                             status: 'success',
-                            deviceResults: deviceResults
+                            method: 'scheduled_to_calendar'
                         });
                         
                         console.log(`✅ [PIPELINE] Successfully processed session: ${sessionData.title}`);
-                    } catch (pushError) {
-                        console.log(`⚠️ [PIPELINE] Workout created but device push failed: ${pushError.message}`);
+                    } catch (scheduleError) {
+                        console.log(`⚠️ [PIPELINE] Workout created but calendar scheduling failed: ${scheduleError.message}`);
                         workoutResults.push({
                             session: sessionData.title,
                             date: sessionData.session_date,
                             workoutId: workoutResult.workoutId,
-                            status: 'workout_created_push_failed',
-                            error: pushError.message
+                            status: 'workout_created_schedule_failed',
+                            error: scheduleError.message
                         });
                     }
                 } else {
