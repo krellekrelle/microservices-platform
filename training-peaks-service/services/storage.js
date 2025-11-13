@@ -571,17 +571,47 @@ class StorageService {
         }
     }
 
+    // Get unsynced training sessions for a user (optionally filtered by date range)
+    async getUnsyncedTrainingSessions(userId, startDate = null, endDate = null) {
+        try {
+            let query = `
+                SELECT id, date as session_date, type, workout_name, description, duration, distance, workout_id
+                FROM training_sessions 
+                WHERE user_id = $1 
+                AND (garmin_synced IS NULL OR garmin_synced = false)
+            `;
+            
+            const params = [userId];
+            
+            if (startDate && endDate) {
+                query += ` AND date >= $2 AND date <= $3`;
+                params.push(startDate, endDate);
+            }
+            
+            query += ` ORDER BY date ASC`;
+            
+            const result = await db.query(query, params);
+            console.log(`📊 Found ${result.rows.length} unsynced training sessions for user ${userId}`);
+            return result.rows;
+        } catch (error) {
+            console.error('❌ Error getting unsynced training sessions:', error);
+            throw error;
+        }
+    }
+
     // Mark training session as Garmin synced
-    async markTrainingSessionGarminSynced(sessionId) {
+    async markTrainingSessionGarminSynced(sessionId, garminWorkoutId = null) {
         try {
             const query = `
                 UPDATE training_sessions 
-                SET garmin_synced = true, garmin_sync_attempted = NOW()
+                SET garmin_synced = true, 
+                    garmin_sync_attempted = NOW(),
+                    workout_id = COALESCE($2, workout_id)
                 WHERE id = $1
             `;
             
-            await db.query(query, [sessionId]);
-            console.log(`✅ Marked session ${sessionId} as Garmin synced`);
+            await db.query(query, [sessionId, garminWorkoutId]);
+            console.log(`✅ Marked session ${sessionId} as Garmin synced${garminWorkoutId ? ` with workout ID ${garminWorkoutId}` : ''}`);
         } catch (error) {
             console.error('❌ Error marking session as Garmin synced:', error);
             throw error;

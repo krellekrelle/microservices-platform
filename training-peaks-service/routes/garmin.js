@@ -676,7 +676,34 @@ router.post('/full-pipeline', async (req, res) => {
             await storageService.logScrapingAttempt(userId, 'pipeline', 'success', 'Pipeline scraping successful', allWorkouts.length);
         }
 
-        // Step 7: Authenticate with Garmin once for all operations
+        // Step 7: Get only unsynced sessions from the database to avoid duplicates
+        // Calculate the date range for the week
+        const weekStart = new Date(mondayDate);
+        const weekEnd = new Date(mondayDate);
+        weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+        
+        const unsyncedSessions = await storageService.getUnsyncedTrainingSessions(
+            userId,
+            mondayDate,
+            weekEnd.toISOString().split('T')[0]
+        );
+
+        console.log(`🔍 [PIPELINE] Found ${unsyncedSessions.length} unsynced sessions out of ${allWorkouts.length} total sessions`);
+        
+        if (unsyncedSessions.length === 0) {
+            console.log(`✅ [PIPELINE] All training sessions already synced to Garmin. No duplicates created.`);
+            await scraper.cleanup();
+            return res.json({
+                success: true,
+                message: 'All training sessions already synced to Garmin',
+                scraped: allWorkouts.length,
+                newWorkouts: 0,
+                alreadySynced: allWorkouts.length,
+                workoutResults: []
+            });
+        }
+
+        // Step 8: Authenticate with Garmin once for all operations
         console.log(`🔐 [PIPELINE] Authenticating with Garmin Connect`);
         const authSuccess = await garminService.authenticate(
             garminCredentials.username, 
@@ -690,19 +717,29 @@ router.post('/full-pipeline', async (req, res) => {
             });
         }
 
-        // Step 8: Process each actual training session - create workout and push to devices
+        // Step 9: Process only unsynced training sessions - create workout and push to devices
         const workoutResults = [];
         
-        for (let i = 0; i < allWorkouts.length; i++) {
-            const session = allWorkouts[i];
-            console.log(`🏃 [PIPELINE] Processing training session ${i + 1}/${allWorkouts.length}: "${session.title}"`);
+        for (let i = 0; i < unsyncedSessions.length; i++) {
+            const session = unsyncedSessions[i];
+            console.log(`🏃 [PIPELINE] Processing unsynced session ${i + 1}/${unsyncedSessions.length}: "${session.workout_name || 'Untitled'}"`);
+            
+            // Map database session fields to match the old structure
+            const sessionData = {
+                title: session.workout_name,
+                description: session.description,
+                session_date: session.session_date,
+                type: session.type,
+                duration: session.duration,
+                distance: session.distance
+            };
 
             try {
                 // Create workout using AI parsing
                 const workoutResult = await garminService.createWorkoutFromDescription(
-                    session.description,
-                    session.session_date,
-                    session.title
+                    sessionData.description,
+                    sessionData.session_date,
+                    sessionData.title
                 );
 
                 if (workoutResult.success) {
@@ -736,30 +773,33 @@ router.post('/full-pipeline', async (req, res) => {
                             }
                         }
                         
+                        // Mark the session as synced in the database
+                        await storageService.markTrainingSessionGarminSynced(session.id, actualWorkoutId.toString());
+                        
                         workoutResults.push({
-                            session: session.title,
-                            date: session.session_date,
+                            session: sessionData.title,
+                            date: sessionData.session_date,
                             workoutId: actualWorkoutId,
                             status: 'success',
                             deviceResults: deviceResults
                         });
                         
-                        console.log(`✅ [PIPELINE] Successfully processed session: ${session.title}`);
+                        console.log(`✅ [PIPELINE] Successfully processed session: ${sessionData.title}`);
                     } catch (pushError) {
                         console.log(`⚠️ [PIPELINE] Workout created but device push failed: ${pushError.message}`);
                         workoutResults.push({
-                            session: session.title,
-                            date: session.session_date,
+                            session: sessionData.title,
+                            date: sessionData.session_date,
                             workoutId: workoutResult.workoutId,
                             status: 'workout_created_push_failed',
                             error: pushError.message
                         });
                     }
                 } else {
-                    console.log(`❌ [PIPELINE] Failed to create workout for session: ${session.title}`);
+                    console.log(`❌ [PIPELINE] Failed to create workout for session: ${sessionData.title}`);
                     workoutResults.push({
-                        session: session.title,
-                        date: session.session_date,
+                        session: sessionData.title,
+                        date: sessionData.session_date,
                         status: 'workout_creation_failed',
                         error: workoutResult.error
                     });
@@ -772,42 +812,47 @@ router.post('/full-pipeline', async (req, res) => {
                     'create_workout',
                     workoutResult.success,
                     workoutResult.error || null,
-                    { description: session.description, title: session.title, date: session.session_date },
+                    { description: sessionData.description, title: sessionData.title, date: sessionData.session_date },
                     workoutResult
                 );
 
             } catch (sessionError) {
-                console.error(`❌ [PIPELINE] Error processing session ${session.title}:`, sessionError);
+                console.error(`❌ [PIPELINE] Error processing session ${sessionData.title}:`, sessionError);
                 workoutResults.push({
-                    session: session.title,
-                    date: session.session_date,
+                    session: sessionData.title,
+                    date: sessionData.session_date,
                     status: 'processing_error',
                     error: sessionError.message
                 });
             }
         }
 
-        // Step 9: Close scraper
+        // Step 10: Close scraper
         await scraper.cleanup();
 
-        // Step 10: Return comprehensive results
+        // Step 11: Return comprehensive results
         const successfulWorkouts = workoutResults.filter(r => r.status === 'success').length;
-        const totalWorkouts = allWorkouts.length;
+        const totalScraped = allWorkouts.length;
+        const alreadySynced = totalScraped - unsyncedSessions.length;
 
-        console.log(`🎉 [PIPELINE] Pipeline completed: ${successfulWorkouts}/${totalWorkouts} training sessions successfully processed`);
+        console.log(`🎉 [PIPELINE] Pipeline completed: ${successfulWorkouts}/${unsyncedSessions.length} new sessions synced (${alreadySynced} already synced)`);
 
         res.json({
             success: true,
-            message: `Pipeline completed: ${successfulWorkouts}/${totalWorkouts} training sessions processed successfully`,
+            message: `Pipeline completed: ${successfulWorkouts}/${unsyncedSessions.length} new sessions processed, ${alreadySynced} already synced`,
             weekStartDate: mondayDate,
             scrapedDays: scrapedSessions.length,
-            actualTrainingSessions: totalWorkouts,
+            actualTrainingSessions: totalScraped,
+            newWorkouts: unsyncedSessions.length,
+            alreadySynced: alreadySynced,
             workoutResults: workoutResults,
             summary: {
-                totalTrainingSessions: totalWorkouts,
+                totalScraped: totalScraped,
+                newSessions: unsyncedSessions.length,
+                alreadySynced: alreadySynced,
                 successfulWorkouts,
-                failedWorkouts: totalWorkouts - successfulWorkouts,
-                completionRate: totalWorkouts > 0 ? Math.round((successfulWorkouts / totalWorkouts) * 100) : 0
+                failedWorkouts: unsyncedSessions.length - successfulWorkouts,
+                completionRate: unsyncedSessions.length > 0 ? Math.round((successfulWorkouts / unsyncedSessions.length) * 100) : 0
             }
         });
 
