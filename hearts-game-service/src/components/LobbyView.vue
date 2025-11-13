@@ -2,7 +2,7 @@
   <div class="lobby-view">
     <div class="lobby-header">
       <h1>🚀 VUE.JS HEARTS LOBBY - NEW VERSION! 🚀</h1>
-      <p v-if="gameStore.lobbyState">
+      <p class="room-info">
         Room: <strong>{{ gameStore.lobbyState.roomId || 'Main Lobby' }}</strong>
       </p>
     </div>
@@ -18,10 +18,8 @@
             <PlayerAvatar
               :seat="0"
               :player-name="getPlayerName(gameStore.lobbyState.players[0])"
-              :profile-picture="gameStore.lobbyState.players[0].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 0"
-              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream : null"
-              :show-video="0 === gameStore.mySeat && videoManager?.value?.isVideoEnabled"
+              :video-stream="0 === gameStore.mySeat ? videoManager?.value?.localStream?.value : videoManager?.value?.remoteStreams?.get(0)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
@@ -44,10 +42,8 @@
             <PlayerAvatar
               :seat="1"
               :player-name="getPlayerName(gameStore.lobbyState.players[1])"
-              :profile-picture="gameStore.lobbyState.players[1].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 1"
-              :video-stream="videoManager?.value?.remoteStreams?.get(1) || (1 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.has(1) || (1 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="1 === gameStore.mySeat ? videoManager?.value?.localStream?.value : videoManager?.value?.remoteStreams?.get(1)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
@@ -77,7 +73,7 @@
         
         <!-- Video Controls -->
         <button 
-          v-if="gameStore.mySeat !== null && !videoManager?.value?.isVideoEnabled" 
+          v-if="gameStore.mySeat !== null && !videoManager?.value?.isVideoEnabled?.value" 
           id="enable-video-btn" 
           class="btn info" 
           @click="enableVideo"
@@ -85,7 +81,7 @@
           📹 Enable Video
         </button>
         <button 
-          v-if="gameStore.mySeat !== null && videoManager?.value?.isVideoEnabled" 
+          v-if="gameStore.mySeat !== null && videoManager?.value?.isVideoEnabled?.value" 
           id="disable-video-btn" 
           class="btn warning" 
           @click="disableVideo"
@@ -113,10 +109,8 @@
             <PlayerAvatar
               :seat="2"
               :player-name="getPlayerName(gameStore.lobbyState.players[2])"
-              :profile-picture="gameStore.lobbyState.players[2].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 2"
-              :video-stream="videoManager?.value?.remoteStreams?.get(2) || (2 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="(videoManager?.value?.activeVideoSeats?.has && videoManager?.value?.activeVideoSeats?.has(2)) || (2 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="2 === gameStore.mySeat ? videoManager?.value?.localStream?.value : videoManager?.value?.remoteStreams?.get(2)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
@@ -139,10 +133,8 @@
             <PlayerAvatar
               :seat="3"
               :player-name="getPlayerName(gameStore.lobbyState.players[3])"
-              :profile-picture="gameStore.lobbyState.players[3].profilePicture"
               :is-lobby-leader="gameStore.lobbyState.lobbyLeader === 3"
-              :video-stream="videoManager?.value?.remoteStreams?.get(3) || (3 === gameStore.mySeat ? videoManager?.value?.localStream : null)"
-              :show-video="videoManager?.value?.activeVideoSeats?.has(3) || (3 === gameStore.mySeat && videoManager?.value?.isVideoEnabled)"
+              :video-stream="3 === gameStore.mySeat ? videoManager?.value?.localStream?.value : videoManager?.value?.remoteStreams?.get(3)"
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
@@ -258,14 +250,6 @@ function handleSeatClick(seatIndex) {
     // Take the specific seat
     emitTakeSeat(seatIndex)
     console.log('✅ Take-seat event emitted');
-    
-    // Automatically enable video when taking a seat
-    setTimeout(() => {
-      if (videoManager?.value && !videoManager.value.isVideoEnabled?.value) {
-        console.log('📹 Auto-enabling video after taking seat...');
-        videoManager.value.enableVideo();
-      }
-    }, 500);
   } else {
     console.log('❌ Cannot take seat - either occupied or user already has seat');
   }
@@ -310,20 +294,24 @@ function toggleVideo() {
 }
 
 function enableVideo() {
+  console.log('🔥 URGENT DEBUG: enableVideo() called!')
   if (!videoManager || !videoManager.value) {
     console.warn('Video manager not available yet')
     return
   }
   
+  console.log('🔥 URGENT DEBUG: About to call videoManager.value.enableVideo()')
   videoManager.value.enableVideo()
 }
 
 function disableVideo() {
+  console.log('🔥 URGENT DEBUG: disableVideo() called!')
   if (!videoManager || !videoManager.value) {
     console.warn('Video manager not available yet')
     return
   }
   
+  console.log('🔥 URGENT DEBUG: About to call videoManager.value.disableVideo()')
   videoManager.value.disableVideo()
 }
 

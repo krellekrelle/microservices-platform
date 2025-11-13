@@ -1,50 +1,46 @@
 <template>
-  <div class="player-avatar-container" :class="`size-${size}`" :data-seat="seat">
-    <!-- Profile Picture -->
-    <img 
-      v-if="profilePicture && !showVideo"
-      :src="profilePicture" 
-      :alt="`${playerName} profile`"
-      class="player-avatar"
-      @error="onImageError"
-    />
-    
-    <!-- Avatar Placeholder -->
-    <div 
-      v-else-if="!showVideo" 
-      class="player-avatar-placeholder"
-    >
-      {{ playerInitial }}
-    </div>
-    
-    <!-- Video Element -->
+  <div class="video-player" :class="`size-${size}`" :data-seat="seat">
+    <!-- ALWAYS render vid    // Watch    // Watch for video stream changes - ONLY after mounting, NO immediate flag
+    watch(() => props.videoStream, (newStream) => {
+      console.log(`🔥 URGENT DEBUG: PlayerAvatar seat ${props.seat}: Video stream changed:`, newStream)
+      attachVideoStream(newStream)
+    })video stream changes and apply legacy pattern (NO immediate flag)
+    watch(() => props.videoStream, (newStream) => {
+      console.log(`🎬 PlayerAvatar seat ${props.seat}: Video stream changed:`, newStream)
+      attachVideoStream(newStream)
+    })
+
+    onMounted(() => {
+      console.log(`🏗️ PlayerAvatar mounted for seat ${props.seat}`)
+      // Attach any existing stream after mounting
+      if (props.videoStream) {
+        attachVideoStream(props.videoStream)
+      }
+    }) but hide when no stream -->
     <video
-      v-if="showVideo"
       :id="`video-${seat}`"
+      ref="videoElement"
       class="player-video"
       autoplay
       muted
       playsinline
-      :class="{ 'video-enabled': showVideo, 'video-debugging': true }"
+      style="width: 100%; height: 100%;"
+      :style="{ display: videoStream ? 'block' : 'none' }"
     ></video>
     
-    <!-- Dummy Test Video - Always Visible -->
-    <div 
-      v-if="seat === 0"
-      class="dummy-video-test"
-    >
-      DUMMY VIDEO
+    <!-- No Video Placeholder - show when no stream -->
+    <div v-if="!videoStream" class="no-video-placeholder">
+      <div class="player-initial">{{ playerName ? playerName.charAt(0).toUpperCase() : '?' }}</div>
+      <div class="player-name">{{ playerName || 'Empty Seat' }}</div>
     </div>
     
     <!-- Lobby Leader Crown -->
-    <div v-if="isLobbyLeader" class="lobby-leader-crown">
-      👑
-    </div>
+    <div v-if="isLobbyLeader" class="lobby-leader-crown">👑</div>
   </div>
 </template>
 
 <script>
-import { computed, watch, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 
 export default {
   name: 'PlayerAvatar',
@@ -57,107 +53,101 @@ export default {
       type: String,
       default: ''
     },
-    profilePicture: {
-      type: String,
-      default: null
-    },
     isLobbyLeader: {
       type: Boolean,
       default: false
     },
     videoStream: {
-      type: MediaStream,
+      type: [Object, null],
       default: null
-    },
-    showVideo: {
-      type: Boolean,
-      default: false
     },
     size: {
       type: String,
-      default: 'large', // 'small', 'medium', 'large', 'xlarge'
+      default: 'large',
       validator: (value) => ['small', 'medium', 'large', 'xlarge'].includes(value)
     }
   },
   setup(props) {
-    // Debug props on every update
-    watch(() => props, (newProps) => {
-      console.log(`🔍 PlayerAvatar seat ${newProps.seat} props:`, {
-        showVideo: newProps.showVideo,
-        hasVideoStream: !!newProps.videoStream,
-        playerName: newProps.playerName,
-        size: newProps.size
-      })
-    }, { immediate: true, deep: true })
-    
-    const playerInitial = computed(() => {
-      return props.playerName ? props.playerName.charAt(0).toUpperCase() : '?'
-    })
-    
-    // Watch for video stream changes and update video element
-    watch(() => [props.videoStream, props.showVideo], async () => {
-      console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!props.videoStream}`)
+    const videoElement = ref(null)
+    const isMounted = ref(false)
+
+    // Apply the EXACT working legacy pattern
+    const attachVideoStream = (stream) => {
+      console.log(`🔥 URGENT DEBUG: PlayerAvatar seat ${props.seat}: Attaching video stream using legacy pattern:`, stream)
+      console.log(`🔥 URGENT DEBUG: isMounted.value = ${isMounted.value}`)
+      console.log(`🔥 URGENT DEBUG: videoElement.value = `, videoElement.value)
       
-      if (props.showVideo && props.videoStream) {
-        console.log(`🎬 Attempting to set video stream for seat ${props.seat}`)
-        await nextTick()
-        
-        const videoElement = document.getElementById(`video-${props.seat}`)
-        console.log(`🎬 Video element found for seat ${props.seat}:`, !!videoElement)
-        
-        if (videoElement) {
-          console.log(`🎬 Setting video stream for seat ${props.seat} using working pattern`)
-          
-          // WORKING PATTERN FROM OLD CODE:
-          // 1. Force display properties IMMEDIATELY
-          videoElement.style.display = 'block'
-          videoElement.style.visibility = 'visible'
-          videoElement.style.opacity = '1'
-          
-          // 2. Clear srcObject first
-          videoElement.srcObject = null
-          
-          // 3. Use setTimeout to reassign
-          setTimeout(() => {
-            videoElement.srcObject = props.videoStream
-            
-            // 4. Force display again after stream attachment
-            videoElement.style.display = 'block'
-            videoElement.style.visibility = 'visible'
-            videoElement.style.opacity = '1'
-            
-            console.log(`🎬 Stream attached to video element:`, props.videoStream)
-            console.log(`🎬 Video element srcObject:`, videoElement.srcObject)
-            
-            videoElement.onloadedmetadata = () => {
-              console.log(`🎬 Video loaded for seat ${props.seat}`)
-              videoElement.play().catch(error => {
-                console.error(`❌ Video play failed for seat ${props.seat}:`, error)
-              })
-            }
-          }, 50)
-        } else {
-          console.error(`❌ Video element not found for seat ${props.seat}`)
-        }
-      } else {
-        console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!props.videoStream}`)
-        
-        // Hide video when not needed
-        const videoElement = document.getElementById(`video-${props.seat}`)
-        if (videoElement) {
-          videoElement.style.display = 'none'
-          videoElement.srcObject = null
-        }
+      if (!isMounted.value) {
+        console.log(`⏳ Component not mounted yet for seat ${props.seat}, skipping attachment`)
+        return
       }
-    }, { immediate: true })
-    
-    function onImageError(event) {
-      console.warn('Failed to load profile image:', event.target.src)
+      
+      if (!videoElement.value) {
+        console.log(`❌ No video element ref for seat ${props.seat}`)
+        return
+      }
+
+      if (!stream) {
+        console.log(`🛑 Clearing video for seat ${props.seat}`)
+        videoElement.value.srcObject = null
+        videoElement.value.style.display = 'none'
+        return
+      }
+
+      // EXACT LEGACY PATTERN: Force display styles IMMEDIATELY
+      videoElement.value.style.display = 'block'
+      videoElement.value.style.visibility = 'visible' 
+      videoElement.value.style.opacity = '1'
+      
+      // EXACT LEGACY PATTERN: Clear first
+      videoElement.value.srcObject = null
+      
+      // EXACT LEGACY PATTERN: Use setTimeout with 50ms delay
+      setTimeout(() => {
+        if (videoElement.value && stream) {
+          console.log(`📹 Setting srcObject for seat ${props.seat}`)
+          videoElement.value.srcObject = stream
+          
+          // EXACT LEGACY PATTERN: Force display again after stream attachment
+          videoElement.value.style.display = 'block'
+          videoElement.value.style.visibility = 'visible'
+          videoElement.value.style.opacity = '1'
+          
+          // EXACT LEGACY PATTERN: Add event listeners
+          videoElement.value.onloadedmetadata = () => {
+            console.log(`🎬 Video loaded for seat ${props.seat} - ${videoElement.value.videoWidth}x${videoElement.value.videoHeight}`)
+            videoElement.value.play().catch(error => {
+              console.error(`❌ Video play failed for seat ${props.seat}:`, error)
+            })
+          }
+          
+          videoElement.value.onplay = () => {
+            console.log(`▶️ Video playing for seat ${props.seat}`)
+          }
+          
+          console.log(`📹 Stream attached to seat ${props.seat}:`, videoElement.value.srcObject)
+        }
+      }, 50) // EXACT same 50ms delay as legacy
     }
-    
+
+    // Watch for video stream changes and apply legacy pattern
+    watch(() => props.videoStream, (newStream) => {
+      console.log(`� PlayerAvatar seat ${props.seat}: Video stream changed:`, newStream)
+      attachVideoStream(newStream)
+    }, { immediate: true })
+
+    onMounted(() => {
+      console.log(`🔥 URGENT DEBUG: PlayerAvatar MOUNTED for seat ${props.seat}`)
+      isMounted.value = true
+      // Attach any existing stream after mounting
+      if (props.videoStream) {
+        console.log(`🔥 URGENT DEBUG: Found existing videoStream on mount for seat ${props.seat}:`, props.videoStream)
+        attachVideoStream(props.videoStream)
+      }
+    })
+
     return {
-      playerInitial,
-      onImageError
+      videoElement
     }
   }
 }
@@ -245,15 +235,17 @@ export default {
 }
 
 .player-video {
-  position: absolute;
-  top: 2px;
-  left: 2px;
   border-radius: 50%;
   object-fit: cover;
   z-index: 100;
   border: 2px solid rgba(255, 255, 255, 0.8);
   background: transparent;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  /* FORCE DISPLAY STYLES - matching legacy exactly */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  /* Position and size will be set by JavaScript */
 }
 
 .player-video.video-debugging {
