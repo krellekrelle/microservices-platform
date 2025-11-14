@@ -4,6 +4,7 @@ const StorageService = require('../services/storage');
 const TrainingPeaksScraper = require('../services/scraper-with-session');
 const EmailNotificationService = require('../services/email');
 const deviceSyncService = require('../services/deviceSyncService');
+const metrics = require('../services/metrics');
 
 const storageService = new StorageService();
 const emailService = new EmailNotificationService();
@@ -372,6 +373,17 @@ router.post('/test-scraping', async (req, res) => {
             error: 'Test scraping failed',
             details: error.message 
         });
+    }
+});
+
+// Get metrics
+router.get('/metrics', async (req, res) => {
+    try {
+        const metricsData = await metrics.getMetrics();
+        res.json(metricsData);
+    } catch (error) {
+        console.error('Error getting metrics:', error);
+        res.status(500).json({ error: 'Failed to get metrics' });
     }
 });
 

@@ -235,6 +235,24 @@
             display: none;
         }
         
+        /* Metrics Styles */
+        .metric-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
         /* Training Session List Styles */
         .training-session {
             border: 1px solid #e0e0e0;
@@ -448,6 +466,37 @@
         <!-- Status Messages -->
         <div id="status-message" class="hidden"></div>
 
+        <!-- Metrics Section -->
+        <div class="card">
+            <h2>📊 Automation Metrics (Last 4 Weeks)</h2>
+            <div id="metrics-loading">Loading metrics...</div>
+            <div id="metrics-content" class="hidden">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="metric-box">
+                        <div class="metric-value" id="metric-scrapes">0</div>
+                        <div class="metric-label">Scrapes</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value" id="metric-skipped">0</div>
+                        <div class="metric-label">Skipped</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value" id="metric-workouts">0</div>
+                        <div class="metric-label">Workouts</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value" id="metric-scheduled">0</div>
+                        <div class="metric-label">Scheduled</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value" id="metric-errors">0</div>
+                        <div class="metric-label">Errors</div>
+                    </div>
+                </div>
+                <canvas id="metricsChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+
         <!-- Credentials Section -->
         <div class="card">
             <h2>⚙️ TrainingPeaks Credentials</h2>
@@ -596,14 +645,17 @@
 
     </div>
 
-
+    <!-- Chart.js for metrics visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <script>
         let hasCredentials = false;
+        let metricsChart = null;
 
         // Load initial status
         document.addEventListener('DOMContentLoaded', function() {
             loadCredentialsStatus();
+            loadMetrics();
         });
 
         // Load credentials status
@@ -1452,6 +1504,94 @@
                 setTimeout(() => {
                     statusDiv.classList.add('hidden');
                 }, 5000);
+            }
+        }
+
+        // Load and display metrics
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/training/api/metrics');
+                const data = await response.json();
+                
+                // Hide loading, show content
+                document.getElementById('metrics-loading').style.display = 'none';
+                document.getElementById('metrics-content').classList.remove('hidden');
+                
+                // Update total metrics
+                document.getElementById('metric-scrapes').textContent = data.totals.scrapes_performed;
+                document.getElementById('metric-skipped').textContent = data.totals.scrapes_skipped;
+                document.getElementById('metric-workouts').textContent = data.totals.workouts_created;
+                document.getElementById('metric-scheduled').textContent = data.totals.workouts_scheduled;
+                document.getElementById('metric-errors').textContent = data.totals.errors;
+                
+                // Prepare chart data
+                const weeks = data.weekly.map(w => w.week);
+                const scrapesData = data.weekly.map(w => w.scrapes_performed);
+                const skippedData = data.weekly.map(w => w.scrapes_skipped);
+                const workoutsData = data.weekly.map(w => w.workouts_scheduled);
+                
+                // Create or update chart
+                const ctx = document.getElementById('metricsChart').getContext('2d');
+                
+                if (metricsChart) {
+                    metricsChart.destroy();
+                }
+                
+                metricsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: weeks,
+                        datasets: [
+                            {
+                                label: 'Scrapes Performed',
+                                data: scrapesData,
+                                backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Scrapes Skipped',
+                                data: skippedData,
+                                backgroundColor: 'rgba(76, 175, 80, 0.7)',
+                                borderColor: 'rgba(76, 175, 80, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Workouts Scheduled',
+                                data: workoutsData,
+                                backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                                borderColor: 'rgba(255, 193, 7, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Weekly Automation Activity'
+                            }
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+                document.getElementById('metrics-loading').textContent = 'Failed to load metrics';
             }
         }
     </script>

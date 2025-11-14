@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const axios = require('axios');
+const metrics = require('./metrics');
 
 class PipelineScheduler {
     constructor() {
@@ -166,6 +167,7 @@ class PipelineScheduler {
         const existingWorkouts = await this.checkWeekHasWorkouts(userId, mondayDate);
         if (existingWorkouts > 0) {
             console.log(`✅ [SCHEDULER] Week ${mondayDate} already has ${existingWorkouts} workout(s) in database - SKIPPING SCRAPE`);
+            await metrics.recordSkippedScrape();
             
             // Still check for any unsynced sessions for this week
             const unsyncedSessions = await storageService.getUnsyncedTrainingSessions(userId);
@@ -199,10 +201,12 @@ class PipelineScheduler {
 
         if (!scrapedSessions || scrapedSessions.length === 0) {
             console.log(`ℹ️ [SCHEDULER] No training sessions found for user ${userId} for week ${mondayDate}`);
+            await metrics.recordScrape(); // Still count as a scrape attempt
             return { scraped: 0, synced: 0, skipped: false };
         }
 
         console.log(`📊 [SCHEDULER] Found ${scrapedSessions.length} training session(s) for week ${mondayDate}`);
+        await metrics.recordScrape(); // Record successful scrape
 
         // Step 5: Store sessions in database
         await storageService.storeTrainingSessions(userId, scrapedSessions, mondayDate);
@@ -280,6 +284,7 @@ class PipelineScheduler {
 
                 const actualWorkoutId = createdWorkout.workoutId;
                 console.log(`✅ [SCHEDULER] Workout created with ID: ${actualWorkoutId}`);
+                await metrics.recordWorkoutCreated();
 
                 // Schedule to calendar
                 const scheduleResult = await client.scheduleWorkout(
@@ -288,6 +293,7 @@ class PipelineScheduler {
                 );
 
                 console.log(`✅ [SCHEDULER] Workout scheduled to calendar for ${session.date}`);
+                await metrics.recordWorkoutScheduled();
 
                 // Mark as synced
                 await storageService.markSessionAsSynced(session.id, actualWorkoutId);
@@ -295,6 +301,7 @@ class PipelineScheduler {
 
             } catch (error) {
                 console.error(`❌ [SCHEDULER] Failed to sync session ${session.id}:`, error.message);
+                await metrics.recordError();
             }
         }
 
