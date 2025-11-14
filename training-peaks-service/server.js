@@ -14,6 +14,7 @@ const db = require('./db/database');
 const TrainingPeaksScraper = require('./services/scraper');
 const StorageService = require('./services/storage');
 const EmailNotificationService = require('./services/email');
+const scheduler = require('./services/scheduler');
 
 // Initialize services
 const scraper = new TrainingPeaksScraper();
@@ -30,6 +31,10 @@ async function initializeApp() {
         // Setup routes and middleware after initialization
         setupApp();
         // startCronJobs(); // Disabled for now - no automatic scraping
+        
+        // Start automated pipeline scheduler
+        scheduler.start();
+        
         startServer();
     } catch (error) {
         console.error('❌ Failed to initialize app:', error);

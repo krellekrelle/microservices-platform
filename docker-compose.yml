@@ -135,6 +135,8 @@ services:
       - EMAIL_APP_PASSWORD=${EMAIL_APP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - TZ=Europe/Copenhagen
+      - PIPELINE_SCHEDULE=0 6 * * *;0 20 * * 0
     volumes:
       - ./training-peaks-service/data:/app/data
     depends_on:
