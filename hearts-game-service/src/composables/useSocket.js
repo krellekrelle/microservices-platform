@@ -51,12 +51,12 @@ export function useSocket() {
       return null
     }
 
-    console.log('🔍 Looking for my seat. Current user ID:', currentUser.id)
+    // console.log('🔍 Looking for my seat. Current user ID:', currentUser.id)
     
     for (let seat = 0; seat < 4; seat++) {
       const player = lobbyData.players[seat]
       if (player && String(player.userId) === String(currentUser.id)) {
-        console.log('🪑 Found my seat:', seat, 'Player:', player)
+        // console.log('🪑 Found my seat:', seat, 'Player:', player)
         return seat
       }
     }
@@ -118,6 +118,12 @@ export function useSocket() {
       if (data.state === 'lobby') {
         gameStore.updateLobbyState(data)
         
+        // If we receive lobby state, clear the end game view
+        // This handles the case where players return to lobby after game ends
+        if (gameStore.endGameShown) {
+          gameStore.setEndGameShown(false)
+        }
+        
         // Check if we have a pending seat from a recent take-seat action
         if (socket.value._pendingSeat !== undefined) {
           const pendingSeat = socket.value._pendingSeat
@@ -154,7 +160,6 @@ export function useSocket() {
       // Restore video streams after game start
       setTimeout(() => {
         if (videoManager.value) {
-          console.log('🎥 Restoring video streams after game start')
           videoManager.value.restoreVideoStreams()
         }
       }, 500)
@@ -200,11 +205,19 @@ export function useSocket() {
       // Show the completed trick with all 4 cards for 1.5 seconds
       // The server will send updated game-state after TRICK_DISPLAY_MS to clear it
       gameStore.setTrickCompleted(data)
+      
+      // Check if game ended
+      if (data.gameEnded) {
+        console.log('🏁 Game ended! Showing overlay')
+        gameStore.setEndGameShown(true)
+      }
     })
 
     socket.value.on('game-ended', (data) => {
       console.log('🏁 Game ended:', data)
       gameStore.updateLobbyState(data)
+      // Show the end game overlay
+      gameStore.setEndGameShown(true)
     })
 
     // User events
@@ -279,12 +292,6 @@ export function useSocket() {
       console.log('🔄 Game reset to lobby:', data)
       gameStore.setEndGameShown(false)
       toastStore.showSuccess('Game returned to lobby!')
-    })
-
-    // Handle waiting for other players to return
-    socket.value.on('waiting-for-players', (data) => {
-      console.log('⏳ Waiting for other players:', data)
-      toastStore.showInfo(data.message || 'Waiting for other players...')
     })
   }
 

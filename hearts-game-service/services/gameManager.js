@@ -788,29 +788,30 @@ class GameManager {
             // Mark player as ready to return
             const allReady = game.markPlayerReadyToReturn(seat);
 
+            // Get lobby state BEFORE resetting (so frontend can see ready status)
+            const lobbyState = this.getLobbyState(game);
+            
+            // DEBUG: Log what we're actually sending
+            console.log(`🔍 DEBUG returnToLobby - allReady: ${allReady}, state: ${game.state}`);
+            console.log(`🔍 DEBUG lobbyState players:`, JSON.stringify(lobbyState.players, null, 2));
+
             if (allReady) {
                 // All players ready - reset the game to lobby
                 game.resetToLobby();
                 
                 console.log(`All players ready - game ${gameId} reset to lobby`);
-                
-                return {
-                    success: true,
-                    allReturned: true,
-                    gameId: gameId,
-                    lobbyState: this.getLobbyState(game)
-                };
             } else {
-                // Not all players ready yet
-                console.log(`Player at seat ${seat} marked ready to return, waiting for others`);
-                
-                return {
-                    success: true,
-                    allReturned: false,
-                    gameId: gameId,
-                    waitingForPlayers: true
-                };
+                // Not all players ready yet, but still return lobby state
+                console.log(`Player at seat ${seat} marked ready to return`);
             }
+            
+            // Return lobby state from BEFORE reset (shows ready status correctly)
+            return {
+                success: true,
+                allReturned: allReady,
+                gameId: gameId,
+                lobbyState: lobbyState
+            };
         } catch (error) {
             console.error('Error in returnToLobby:', error);
             return { error: error.message };

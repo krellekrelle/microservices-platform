@@ -74,12 +74,12 @@ export default {
   setup(props) {
     // Debug props on every update
     watch(() => props, (newProps) => {
-      console.log(`🔍 PlayerAvatar seat ${newProps.seat} props:`, {
-        showVideo: newProps.showVideo,
-        hasVideoStream: !!newProps.videoStream,
-        playerName: newProps.playerName,
-        size: newProps.size
-      })
+      // console.log(`🔍 PlayerAvatar seat ${newProps.seat} props:`, {
+      //   showVideo: newProps.showVideo,
+      //   hasVideoStream: !!newProps.videoStream,
+      //   playerName: newProps.playerName,
+      //   size: newProps.size
+      // })
     }, { immediate: true, deep: true })
     
     const playerInitial = computed(() => {
@@ -90,17 +90,17 @@ export default {
     watch(() => [props.videoStream, props.showVideo], async () => {
       // Handle both ref and raw MediaStream
       const stream = props.videoStream?.value ?? props.videoStream
-      console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!stream}`)
+      // console.log(`🎬 PlayerAvatar seat ${props.seat}: showVideo=${props.showVideo}, hasStream=${!!stream}`)
       
       if (props.showVideo && stream) {
-        console.log(`🎬 Attempting to set video stream for seat ${props.seat}`)
+        // console.log(`🎬 Attempting to set video stream for seat ${props.seat}`)
         await nextTick()
         
         const videoElement = document.getElementById(`video-${props.seat}`)
-        console.log(`🎬 Video element found for seat ${props.seat}:`, !!videoElement)
+        // console.log(`🎬 Video element found for seat ${props.seat}:`, !!videoElement)
         
         if (videoElement) {
-          console.log(`🎬 Setting video stream for seat ${props.seat} using working pattern`)
+          // console.log(`🎬 Setting video stream for seat ${props.seat} using working pattern`)
           
           // WORKING PATTERN FROM OLD CODE:
           // 1. Force display properties IMMEDIATELY
@@ -120,11 +120,11 @@ export default {
             videoElement.style.visibility = 'visible'
             videoElement.style.opacity = '1'
             
-            console.log(`🎬 Stream attached to video element:`, stream)
-            console.log(`🎬 Video element srcObject:`, videoElement.srcObject)
+            // console.log(`🎬 Stream attached to video element:`, stream)
+            // console.log(`🎬 Video element srcObject:`, videoElement.srcObject)
             
             videoElement.onloadedmetadata = () => {
-              console.log(`🎬 Video loaded for seat ${props.seat}`)
+              // console.log(`🎬 Video loaded for seat ${props.seat}`)
               videoElement.play().catch(error => {
                 console.error(`❌ Video play failed for seat ${props.seat}:`, error)
               })
@@ -134,7 +134,7 @@ export default {
           console.error(`❌ Video element not found for seat ${props.seat}`)
         }
       } else {
-        console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!stream}`)
+        // console.log(`🎬 Not setting video for seat ${props.seat} - showVideo: ${props.showVideo}, hasStream: ${!!stream}`)
         
         // Hide video when not needed
         const videoElement = document.getElementById(`video-${props.seat}`)

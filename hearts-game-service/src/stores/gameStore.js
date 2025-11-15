@@ -62,7 +62,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function setMySeat(seat) {
-    console.log('🪑 setMySeat called with:', seat)
+    // console.log('🪑 setMySeat called with:', seat)
     mySeat.value = seat
   }
 

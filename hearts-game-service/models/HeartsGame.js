@@ -622,8 +622,9 @@ class HeartsGame {
         this.state = 'finished';
         this.finishedAt = new Date();
         
-        // Mark all bots as ready to return immediately
+        // Clear isReady flags and mark bots as ready to return
         for (const [seat, player] of this.players) {
+            player.isReady = false; // Clear old lobby ready status
             if (player.isBot) {
                 player.readyToReturn = true;
             }
@@ -868,20 +869,22 @@ class HeartsGame {
         this.trickLeader = null;
         this.tricksWon.clear();
         this.roundScores.clear();
+        this.totalScores.clear(); // Clear total scores for new game
+        this.historicalRounds = []; // IMPORTANT: Clear historical rounds for fresh game!
         
         // Reset player states but keep them in their seats
         for (const [seat, player] of this.players) {
             player.hand = [];
             player.roundScore = 0;
-            player.isReady = false; // Players need to ready up again
+            player.totalScore = 0; // Reset total score for new game
+            player.isReady = true; // Mark everyone as ready to start next game immediately!
             player.readyToReturn = false; // Reset the return flag
-            // Keep totalScore for historical tracking if desired
         }
         
         // Keep lobby leader and players in their seats
         // Keep spectators intact
         
-        console.log(`Game ${this.id} reset to lobby state`);
+        console.log(`Game ${this.id} reset to lobby state - all players ready for next game`);
     }
 }
 

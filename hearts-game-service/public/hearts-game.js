@@ -456,11 +456,11 @@ class VideoManager {
                 console.log(`🎬 Using fallback video element (no visible container found)`);
             }
             
-            console.log(`🎬 Local video element found:`, videoElement);
+            // console.log(`🎬 Local video element found:`, videoElement);
             
             if (videoElement) {
                 // Force re-attach the stream even if it's already attached
-                console.log(`🎬 Force re-attaching stream to video element`);
+                // console.log(`🎬 Force re-attaching stream to video element`);
                 
                 // Set display to block IMMEDIATELY before any other operations
                 videoElement.style.display = 'block';
@@ -739,10 +739,10 @@ class VideoManager {
         // Fallback to first element if no visible container found
         if (!videoElement && allVideoElements.length > 0) {
             videoElement = allVideoElements[0];
-            console.log(`🎬 Using fallback video element for seat ${seat} (no visible container found)`);
+            // console.log(`🎬 Using fallback video element for seat ${seat} (no visible container found)`);
         }
         
-        console.log(`🎬 Video element found:`, videoElement);
+        // console.log(`🎬 Video element found:`, videoElement);
         
         if (videoElement) {
             videoElement.srcObject = stream;
@@ -753,14 +753,14 @@ class VideoManager {
             
             // Add video event listeners
             videoElement.onloadedmetadata = () => {
-                console.log(`🎬 Remote video loaded for seat ${seat} - ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                // console.log(`🎬 Remote video loaded for seat ${seat} - ${videoElement.videoWidth}x${videoElement.videoHeight}`);
                 videoElement.play().catch(error => {
                     console.error(`❌ Remote video play failed for seat ${seat}:`, error);
                 });
             };
             
             videoElement.onplay = () => {
-                console.log(`▶️ Remote video playing for seat ${seat}`);
+                // console.log(`▶️ Remote video playing for seat ${seat}`);
             };
             
             // Hide avatar image and fallback for this seat, but keep container visible

@@ -392,6 +392,9 @@ function getPlayerInitials(fullName) {
 
 function returnToLobby() {
   console.log('🏠 Player clicked Return to Lobby')
+  // Immediately hide the end game view for this player
+  gameStore.setEndGameShown(false)
+  // Emit the return event to the server
   emitReturnToLobby()
 }
 

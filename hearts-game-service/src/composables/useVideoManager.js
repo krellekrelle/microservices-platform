@@ -29,13 +29,11 @@ export function useVideoManager(socket) {
     
     // Listen for other players enabling/disabling video
     socketInstance.on('peer-video-enabled', async (data) => {
-      console.log('Peer enabled video:', data)
       socketIdToSeat.value.set(data.socketId, data.seat)
       await createPeerConnection(data.seat, data.socketId, isVideoEnabled.value)
       
       // If we have video enabled, we should initiate the connection
       if (isVideoEnabled.value) {
-        console.log(`We have video enabled, creating offer for seat ${data.seat}`)
         const pc = peerConnections.value.get(data.seat)
         if (pc) {
           try {
@@ -53,7 +51,6 @@ export function useVideoManager(socket) {
         }
       } else {
         // If we don't have video enabled, let them know we're ready for their offer
-        console.log(`Notifying seat ${data.seat} that we're ready for offer`)
         socketInstance.emit('ready-for-offer', { 
           toSocketId: data.socketId, 
           fromSeat: gameStore.mySeat 
@@ -62,18 +59,15 @@ export function useVideoManager(socket) {
     })
     
     socketInstance.on('peer-video-disabled', (data) => {
-      console.log('Peer disabled video:', data)
       closePeerConnection(data.seat)
       hideVideoForSeat(data.seat)
     })
     
     socketInstance.on('peer-ready-for-offer', async (data) => {
-      console.log('Peer ready for offer from seat:', data.fromSeat)
       if (isVideoEnabled.value) {
         const pc = peerConnections.value.get(data.fromSeat)
         if (pc) {
           try {
-            console.log(`Sending offer to seat ${data.fromSeat}`)
             const offer = await pc.createOffer()
             await pc.setLocalDescription(offer)
             
@@ -102,7 +96,6 @@ export function useVideoManager(socket) {
     
     // WebRTC signaling events
     socketInstance.on('webrtc-offer', async (data) => {
-      console.log('Received WebRTC offer from seat:', data.fromSeat)
       if (data.fromSeat !== null && data.fromSeat !== undefined) {
         await handleWebRTCOffer(data)
       } else {
@@ -111,7 +104,6 @@ export function useVideoManager(socket) {
     })
     
     socketInstance.on('webrtc-answer', async (data) => {
-      console.log('Received WebRTC answer from seat:', data.fromSeat)
       if (data.fromSeat !== null && data.fromSeat !== undefined) {
         await handleWebRTCAnswer(data)
       } else {
@@ -120,7 +112,6 @@ export function useVideoManager(socket) {
     })
     
     socketInstance.on('webrtc-ice-candidate', async (data) => {
-      console.log('Received ICE candidate from seat:', data.fromSeat)
       if (data.fromSeat !== null && data.fromSeat !== undefined) {
         await handleICECandidate(data)
       } else {
@@ -132,13 +123,11 @@ export function useVideoManager(socket) {
   // Enable video stream
   async function enableVideo() {
     try {
-      console.log('🎥 Enabling video...')
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('getUserMedia is not supported in this browser')
       }
       
-      console.log('🎬 Requesting camera access...')
       
       localStream.value = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -150,11 +139,7 @@ export function useVideoManager(socket) {
         audio: false
       })
       
-      console.log('✅ Camera access granted!')
-      console.log('📹 Local stream:', localStream.value)
-      console.log('📹 Stream tracks:', localStream.value.getTracks())
       isVideoEnabled.value = true
-      console.log('📹 isVideoEnabled set to:', isVideoEnabled.value)
       
       // Add our stream to any existing peer connections
       peerConnections.value.forEach((pc, seat) => {
@@ -171,11 +156,9 @@ export function useVideoManager(socket) {
       // Add our own seat to active video seats so our avatar shows video
       if (gameStore.mySeat !== null) {
         activeVideoSeats.value.add(gameStore.mySeat)
-        console.log(`📹 Added own seat ${gameStore.mySeat} to activeVideoSeats`)
       }
       
       toastStore.showSuccess('Camera enabled successfully!')
-      console.log('✅ Video enabled successfully')
       
     } catch (error) {
       console.error('❌ Failed to enable video:', error)
@@ -195,22 +178,16 @@ export function useVideoManager(socket) {
   
   // Disable video stream
   function disableVideo() {
-    console.log('🎥 Disabling video...')
     
     // Stop local stream tracks explicitly
     if (localStream.value) {
-      console.log('📹 Stopping all tracks in localStream...')
       const tracks = localStream.value.getTracks()
-      console.log(`📹 Found ${tracks.length} tracks to stop`)
       
       tracks.forEach(track => {
-        console.log(`📹 Stopping track: ${track.kind}, enabled: ${track.enabled}, readyState: ${track.readyState}`)
         track.stop()
-        console.log(`📹 Track stopped, new readyState: ${track.readyState}`)
       })
       
       localStream.value = null
-      console.log('📹 localStream cleared')
     } else {
       console.log('⚠️ No localStream to stop')
     }
@@ -228,14 +205,12 @@ export function useVideoManager(socket) {
     // Remove our own seat from active video seats
     if (gameStore.mySeat !== null) {
       activeVideoSeats.value.delete(gameStore.mySeat)
-      console.log(`📹 Removed own seat ${gameStore.mySeat} from activeVideoSeats`)
     }
     
     // Clear video element srcObject to fully release the stream
     if (gameStore.mySeat !== null) {
       const videoElement = document.getElementById(`video-${gameStore.mySeat}`)
       if (videoElement) {
-        console.log(`📹 Clearing video element for seat ${gameStore.mySeat}`)
         videoElement.srcObject = null
         videoElement.load() // Force reload to ensure stream is released
       }
@@ -250,7 +225,6 @@ export function useVideoManager(socket) {
   
   // Create peer connection
   async function createPeerConnection(remoteSeat, remoteSocketId, isInitiator) {
-    console.log(`Creating peer connection for seat ${remoteSeat}, initiator: ${isInitiator}`)
     
     const pc = new RTCPeerConnection(rtcConfig)
     peerConnections.value.set(remoteSeat, pc)
@@ -264,7 +238,6 @@ export function useVideoManager(socket) {
     
     // Handle remote stream
     pc.ontrack = (event) => {
-      console.log(`Received remote stream from seat ${remoteSeat}`)
       const remoteStream = event.streams[0]
       remoteStreams.value.set(remoteSeat, remoteStream)
       showVideoForSeat(remoteSeat, remoteStream)
@@ -305,7 +278,6 @@ export function useVideoManager(socket) {
     try {
       let pc = peerConnections.value.get(data.fromSeat)
       if (!pc) {
-        console.log(`Creating peer connection for offer from seat ${data.fromSeat}`)
         // Create peer connection if it doesn't exist
         const targetSocketId = data.fromSocketId || socketIdToSeat.value.get(data.fromSeat)
         if (targetSocketId) {
@@ -377,7 +349,6 @@ export function useVideoManager(socket) {
   
   // Show video for a specific seat
   function showVideoForSeat(seat, stream) {
-    console.log(`🎬 Showing video for seat ${seat}`)
     activeVideoSeats.value.add(seat)
     // The actual video display is handled by the avatar components
     // They will reactively update when activeVideoSeats changes
@@ -385,7 +356,6 @@ export function useVideoManager(socket) {
   
   // Hide video for a specific seat
   function hideVideoForSeat(seat) {
-    console.log(`🎬 Hiding video for seat ${seat}`)
     activeVideoSeats.value.delete(seat)
     remoteStreams.value.delete(seat)
   }

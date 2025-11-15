@@ -565,6 +565,10 @@ class SocketHandler {
                                                         this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                                         // Wait for clients to display trick
                                                         await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                                        // If game ended, give frontend extra time to process
+                                                        if (playResult.gameEnded) {
+                                                            await new Promise(r => setTimeout(r, 500));
+                                                        }
                                                         // Now broadcast updated game-state (which will clear the trick)
                                                         this.broadcastGameStateToRoom(gameId, 0);
                                                     } else {
@@ -635,6 +639,10 @@ class SocketHandler {
                                             this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                             // Wait for clients to display trick
                                             await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                            // If game ended, give frontend extra time to process
+                                            if (playResult.gameEnded) {
+                                                await new Promise(r => setTimeout(r, 500));
+                                            }
                                             this.broadcastGameStateToRoom(gameId, 0);
                                         } else {
                                             this.broadcastGameStateToRoom(gameId, 0);
@@ -706,16 +714,23 @@ class SocketHandler {
                     trickCompletedPayload.gameEnded = result.gameEnded;
                     trickCompletedPayload.nextRound = result.nextRound;
                 }
-                                        // Persist trick and scores before emitting so DB reflects client-visible state
-                                        try {
-                                            await this.persistTrickAndScores(result.gameId, trickCompletedPayload);
-                                        } catch (e) {
-                                            console.error('Error persisting trick before emit (human play):', e);
-                                        }
-                                        console.log('🎯 Emitting trick-completed event:', JSON.stringify(trickCompletedPayload, null, 2));
-                                        this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
+                // Persist trick and scores before emitting so DB reflects client-visible state
+                try {
+                    await this.persistTrickAndScores(result.gameId, trickCompletedPayload);
+                } catch (e) {
+                    console.error('Error persisting trick before emit (human play):', e);
+                }
+                console.log('🎯 Emitting trick-completed event:', JSON.stringify(trickCompletedPayload, null, 2));
+                this.io.to(`game-${result.gameId}`).emit('trick-completed', trickCompletedPayload);
+                
+                // Wait for trick display duration
                 await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
-                console.log('🎯 Trick display timeout completed, broadcasting game-state');
+                
+                // If game ended, give frontend extra time to process the gameEnded flag before sending new state
+                if (result.gameEnded) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                
                 this.broadcastGameStateToRoom(result.gameId, 0);
             } else {
                 // No trick completed, broadcast immediately
@@ -760,6 +775,10 @@ class SocketHandler {
                                             this.io.to(`game-${gameId}`).emit('trick-completed', trickCompletedPayload);
                                         // Wait for clients to display trick before broadcasting state
                                         await new Promise(r => setTimeout(r, TRICK_DISPLAY_MS));
+                                        // If game ended, give frontend extra time to process
+                                        if (playResult.gameEnded) {
+                                            await new Promise(r => setTimeout(r, 500));
+                                        }
                                         this.broadcastGameStateToRoom(gameId, 0);
                                     } else {
                                         this.broadcastGameStateToRoom(gameId, 0);
@@ -1071,20 +1090,22 @@ class SocketHandler {
             
             if (result.allReturned) {
                 // All players have returned - game has been reset to lobby
-                console.log(`All players returned - broadcasting lobby state for game ${result.gameId}`);
+                console.log(`All players returned - game ${result.gameId} reset to lobby, all marked ready`);
                 
-                // Broadcast the new lobby state to all players in the room
-                this.sendToLobby(result.gameId, 'lobby-updated', result.lobbyState);
-                
-                // Also emit game-ended-reset to let clients know to clear end game view
+                // Emit game-ended-reset to let clients know to dismiss the overlay
                 this.sendToLobby(result.gameId, 'game-ended-reset', {
                     message: 'All players returned to lobby'
                 });
+                
+                // Broadcast the fresh lobby state - everyone is ready to start next game!
+                const game = gameManager.activeGames.get(result.gameId);
+                if (game) {
+                    const freshLobbyState = gameManager.getLobbyState(game);
+                    this.sendToLobby(result.gameId, 'lobby-updated', freshLobbyState);
+                }
             } else {
-                // This player is ready but waiting for others
-                socket.emit('waiting-for-players', {
-                    message: 'Waiting for other players to return to lobby'
-                });
+                // Not everyone returned yet - broadcast current state
+                this.sendToLobby(result.gameId, 'lobby-updated', result.lobbyState);
             }
             
         } catch (error) {

@@ -20,8 +20,11 @@
       <GameView />
     </div>
 
-    <div v-else-if="gameStore.lobbyState.state === 'finished' || gameStore.lobbyState.state === 'game-ended'" class="game-ended-container">
-      <GameEndedView />
+    <!-- Show lobby when game is finished (but with overlay on top if not dismissed) -->
+    <div v-else-if="gameStore.lobbyState.state === 'finished' || gameStore.lobbyState.state === 'game-ended'" class="lobby-container">
+      <LobbyView />
+      <!-- Show overlay on top if player hasn't dismissed it yet -->
+      <GameEndedOverlay v-if="gameStore.endGameShown !== false" />
     </div>
 
     <!-- Toast notifications -->
@@ -39,6 +42,7 @@ import DisconnectCountdown from './components/DisconnectCountdown.vue'
 import LobbyView from './components/LobbyView.vue'
 import GameView from './components/GameView.vue'
 import GameEndedView from './components/GameEndedView.vue'
+import GameEndedOverlay from './components/GameEndedOverlay.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const gameStore = useGameStore()

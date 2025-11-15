@@ -25,7 +25,7 @@
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[0]) }}</div>
-            <div v-if="gameStore.lobbyState.players[0].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="isPlayerReady(gameStore.lobbyState.players[0])" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[0].isBot" class="bot-status">🤖 Bot</div>
           </div>
           <div v-else class="empty-seat">Click to sit</div>
@@ -51,7 +51,7 @@
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[1]) }}</div>
-            <div v-if="gameStore.lobbyState.players[1].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="isPlayerReady(gameStore.lobbyState.players[1])" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[1].isBot" class="bot-status">🤖 Bot</div>
           </div>
           <div v-else class="empty-seat">Click to sit</div>
@@ -93,7 +93,7 @@
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[2]) }}</div>
-            <div v-if="gameStore.lobbyState.players[2].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="isPlayerReady(gameStore.lobbyState.players[2])" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[2].isBot" class="bot-status">🤖 Bot</div>
           </div>
           <div v-else class="empty-seat">Click to sit</div>
@@ -119,7 +119,7 @@
               size="xlarge"
             />
             <div class="player-name">{{ getPlayerDisplayName(gameStore.lobbyState.players[3]) }}</div>
-            <div v-if="gameStore.lobbyState.players[3].ready" class="ready-indicator">✓ Ready</div>
+            <div v-if="isPlayerReady(gameStore.lobbyState.players[3])" class="ready-indicator">✓ Ready</div>
             <div v-if="gameStore.lobbyState.players[3].isBot" class="bot-status">🤖 Bot</div>
           </div>
           <div v-else class="empty-seat">Click to sit</div>
@@ -144,22 +144,18 @@ const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat,
 // Note: Vue auto-unwraps nested refs in reactive objects, so videoManager.value.isVideoEnabled is already the boolean
 const isVideoEnabled = computed(() => {
   const enabled = videoManager.value?.isVideoEnabled ?? false
-  console.log('🎬 LobbyView computed isVideoEnabled:', enabled)
   return enabled
 })
 const localStream = computed(() => {
   const stream = videoManager.value?.localStream ?? null
-  console.log('🎬 LobbyView computed localStream:', stream)
   return stream
 })
 const activeVideoSeats = computed(() => {
   const seats = videoManager.value?.activeVideoSeats ?? new Set()
-  console.log('🎬 LobbyView computed activeVideoSeats:', seats)
   return seats
 })
 const remoteStreams = computed(() => {
   const streams = videoManager.value?.remoteStreams ?? new Map()
-  console.log('🎬 LobbyView computed remoteStreams:', streams)
   return streams
 })
 
@@ -193,10 +189,20 @@ function getSeatClasses(seatIndex) {
   }
 }
 
+function isPlayerReady(player) {
+  if (!player) return false
+  // When game is finished, check readyToReturn; otherwise check isReady
+  if (gameStore.lobbyState?.state === 'finished') {
+    console.log(`🔍 Checking ready for ${player.userName}: readyToReturn=${player.readyToReturn}, isReady=${player.isReady}, state=${gameStore.lobbyState?.state}`)
+    return player.readyToReturn === true
+  }
+  return player.isReady === true
+}
+
 function handleSeatClick(seatIndex) {
-  console.log(`🪑 Clicked seat ${seatIndex}`);
-  console.log('🎮 Current mySeat:', gameStore.mySeat);
-  console.log('👤 Seat occupied?', gameStore.lobbyState?.players[seatIndex]);
+  // console.log(`🪑 Clicked seat ${seatIndex}`);
+  // console.log('🎮 Current mySeat:', gameStore.mySeat);
+  // console.log('👤 Seat occupied?', gameStore.lobbyState?.players[seatIndex]);
   
   // Only allow sitting if seat is empty and user doesn't have a seat
   if (!gameStore.lobbyState?.players[seatIndex] && gameStore.mySeat == null) {
