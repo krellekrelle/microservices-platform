@@ -131,12 +131,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
+import { useToastStore } from '../stores/toastStore'
 import PlayerAvatar from './PlayerAvatar.vue'
 
 const gameStore = useGameStore()
+const toastStore = useToastStore()
 const { emitToggleReady, emitAddBot, emitRemoveBot, emitStartGame, emitTakeSeat, emitLeaveSeat, videoManager } = useSocket()
 
 // Computed properties to properly unwrap video manager refs

@@ -1,7 +1,7 @@
 <template>
   <div id="hearts-game-app" class="hearts-container">
     <!-- Connection status indicator -->
-    <ConnectionStatus />
+    <ConnectionStatus @show-history="showHistory = true" />
     
     <!-- Disconnect countdown timer -->
     <DisconnectCountdown />
@@ -29,11 +29,14 @@
 
     <!-- Toast notifications -->
     <ToastContainer />
+    
+    <!-- Game History Overlay -->
+    <GameHistoryOverlay v-if="showHistory" @close="showHistory = false" />
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from './stores/gameStore'
 import { useSocket } from './composables/useSocket'
 
@@ -43,11 +46,14 @@ import LobbyView from './components/LobbyView.vue'
 import GameView from './components/GameView.vue'
 import GameEndedView from './components/GameEndedView.vue'
 import GameEndedOverlay from './components/GameEndedOverlay.vue'
+import GameHistoryOverlay from './components/GameHistoryOverlay.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const gameStore = useGameStore()
 const { socket, initializeSocket, cleanup } = useSocket()
 
+// Show/hide game history overlay
+const showHistory = ref(false)
 onMounted(() => {
   console.log('🎮 Hearts Game App mounted, initializing socket...')
   initializeSocket()

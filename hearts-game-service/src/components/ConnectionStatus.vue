@@ -15,6 +15,15 @@
       {{ isVideoEnabled ? '📹' : '📷' }}
     </button>
     
+    <!-- Game History button -->
+    <button 
+      class="history-toggle-btn"
+      @click="showHistory"
+      title="View Game History"
+    >
+      📊
+    </button>
+    
     <!-- Stop Game button for lobby leader during game -->
     <button 
       v-if="gameStore.isLobbyLeader && isInGame"
@@ -32,6 +41,8 @@ import { computed } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 
+const emit = defineEmits(['show-history'])
+
 const gameStore = useGameStore()
 const { emitStopGame, videoManager } = useSocket()
 
@@ -41,6 +52,10 @@ const isInGame = computed(() => {
 
 // Computed property to properly unwrap isVideoEnabled ref
 const isVideoEnabled = computed(() => videoManager.value?.isVideoEnabled ?? false)
+
+function showHistory() {
+  emit('show-history')
+}
 
 function stopGame() {
   if (confirm('Are you sure you want to stop the current game?')) {
@@ -153,6 +168,30 @@ function toggleVideo() {
   background: linear-gradient(45deg, #0056b3, #003d82);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+/* History toggle button styles */
+.history-toggle-btn {
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(45deg, #9c27b0, #7b1fa2);
+  box-shadow: 0 2px 8px rgba(156, 39, 176, 0.3);
+}
+
+.history-toggle-btn:hover {
+  background: linear-gradient(45deg, #7b1fa2, #6a1b9a);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
 }
 
 @keyframes pulse {
