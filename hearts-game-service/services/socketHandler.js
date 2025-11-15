@@ -218,6 +218,7 @@ class SocketHandler {
         // Game management events
         socket.on('stop-game', (data) => this.handleStopGame(socket, data));
         socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
+        socket.on('return-to-lobby', () => this.handleReturnToLobby(socket));
 
         // Admin events (lobby leader only)
         socket.on('kick-player', (data) => this.handleKickPlayer(socket, data));
@@ -1050,6 +1051,45 @@ class SocketHandler {
         } catch (error) {
             console.error('Error stopping game:', error);
             socket.emit('error', { message: 'Failed to stop game' });
+        }
+    }
+
+    // Handle player returning to lobby after game ends
+    async handleReturnToLobby(socket) {
+        const userId = socket.user.id;
+        const userName = socket.user.name || socket.user.email;
+        
+        try {
+            const result = await gameManager.returnToLobby(userId);
+            
+            if (result.error) {
+                socket.emit('error', { message: result.error });
+                return;
+            }
+            
+            console.log(`Player ${userName} returned to lobby`);
+            
+            if (result.allReturned) {
+                // All players have returned - game has been reset to lobby
+                console.log(`All players returned - broadcasting lobby state for game ${result.gameId}`);
+                
+                // Broadcast the new lobby state to all players in the room
+                this.sendToLobby(result.gameId, 'lobby-updated', result.lobbyState);
+                
+                // Also emit game-ended-reset to let clients know to clear end game view
+                this.sendToLobby(result.gameId, 'game-ended-reset', {
+                    message: 'All players returned to lobby'
+                });
+            } else {
+                // This player is ready but waiting for others
+                socket.emit('waiting-for-players', {
+                    message: 'Waiting for other players to return to lobby'
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error in handleReturnToLobby:', error);
+            socket.emit('error', { message: 'Failed to return to lobby' });
         }
     }
 

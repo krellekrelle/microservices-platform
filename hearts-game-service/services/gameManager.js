@@ -623,7 +623,9 @@ class GameManager {
                     userName: player.userName,
                     isReady: player.isReady,
                     isConnected: player.isConnected,
-                    isBot: player.isBot
+                    isBot: player.isBot,
+                    readyToReturn: player.readyToReturn || false,
+                    profilePicture: player.profilePicture || null
                 };
             } else {
                 players[seat] = null;
@@ -731,7 +733,9 @@ class GameManager {
     removeFinishedGames() {
         const toRemove = [];
         for (const [gameId, game] of this.activeGames) {
-            if (game.state === 'finished' || game.state === 'abandoned') {
+            // Don't remove the lobby game even if it's finished - it will be reset
+            if ((game.state === 'finished' || game.state === 'abandoned') && 
+                (!this.lobbyGame || gameId !== this.lobbyGame.id)) {
                 toRemove.push(gameId);
             }
         }
@@ -747,6 +751,70 @@ class GameManager {
         }
 
         return toRemove.length;
+    }
+
+    // Handle player returning to lobby after game ends
+    async returnToLobby(userId) {
+        // Find the game the user is in
+        const gameId = this.playerToGame.get(userId);
+        if (!gameId) {
+            return { error: 'You are not in any game' };
+        }
+
+        const game = this.activeGames.get(gameId);
+        if (!game) {
+            return { error: 'Game not found' };
+        }
+
+        // Only works for finished games
+        if (game.state !== 'finished') {
+            return { error: 'Game is not finished yet' };
+        }
+
+        // Find the player's seat
+        let seat = null;
+        for (const [seatNum, player] of game.players) {
+            if (player && String(player.userId) === String(userId)) {
+                seat = seatNum;
+                break;
+            }
+        }
+
+        if (seat === null) {
+            return { error: 'Player not found in game' };
+        }
+
+        try {
+            // Mark player as ready to return
+            const allReady = game.markPlayerReadyToReturn(seat);
+
+            if (allReady) {
+                // All players ready - reset the game to lobby
+                game.resetToLobby();
+                
+                console.log(`All players ready - game ${gameId} reset to lobby`);
+                
+                return {
+                    success: true,
+                    allReturned: true,
+                    gameId: gameId,
+                    lobbyState: this.getLobbyState(game)
+                };
+            } else {
+                // Not all players ready yet
+                console.log(`Player at seat ${seat} marked ready to return, waiting for others`);
+                
+                return {
+                    success: true,
+                    allReturned: false,
+                    gameId: gameId,
+                    waitingForPlayers: true
+                };
+            }
+        } catch (error) {
+            console.error('Error in returnToLobby:', error);
+            return { error: error.message };
+        }
     }
 
     // Stop and save current game (lobby leader only)

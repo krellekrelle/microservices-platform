@@ -273,11 +273,33 @@ export function useSocket() {
       
       toastStore.showSuccess('Returned to lobby')
     })
+
+    // Handle game ended reset (when all players return to lobby)
+    socket.value.on('game-ended-reset', (data) => {
+      console.log('🔄 Game reset to lobby:', data)
+      gameStore.setEndGameShown(false)
+      toastStore.showSuccess('Game returned to lobby!')
+    })
+
+    // Handle waiting for other players to return
+    socket.value.on('waiting-for-players', (data) => {
+      console.log('⏳ Waiting for other players:', data)
+      toastStore.showInfo(data.message || 'Waiting for other players...')
+    })
   }
 
   function emitJoinLobby(options = {}) {
     if (socket.value) {
       socket.value.emit('join-lobby', options)
+    }
+  }
+
+  function emitReturnToLobby() {
+    if (socket.value) {
+      console.log('🏠 Emitting return-to-lobby event')
+      socket.value.emit('return-to-lobby')
+    } else {
+      console.error('❌ Cannot emit return-to-lobby: socket not connected')
     }
   }
 
@@ -428,6 +450,7 @@ export function useSocket() {
     videoManager,
     initializeSocket,
     emitJoinLobby,
+    emitReturnToLobby,
     emitTakeSeat,
     emitLeaveSeat,
     emitToggleReady,

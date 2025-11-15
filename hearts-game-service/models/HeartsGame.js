@@ -622,6 +622,13 @@ class HeartsGame {
         this.state = 'finished';
         this.finishedAt = new Date();
         
+        // Mark all bots as ready to return immediately
+        for (const [seat, player] of this.players) {
+            if (player.isBot) {
+                player.readyToReturn = true;
+            }
+        }
+        
         // Find winner (lowest score)
         let winner = null;
         let lowestScore = Infinity;
@@ -818,7 +825,34 @@ class HeartsGame {
         return game;
     }
 
-    // Reset game back to lobby state after saving
+    // Mark a player as ready to return to lobby after game ends
+    markPlayerReadyToReturn(seat) {
+        if (this.state !== 'finished') {
+            throw new Error('Can only mark ready to return when game is finished');
+        }
+        
+        const player = this.players.get(seat);
+        if (!player) {
+            throw new Error('Player not found');
+        }
+        
+        player.readyToReturn = true;
+        console.log(`Player at seat ${seat} ready to return to lobby`);
+        
+        // Check if all players are ready to return
+        return this.checkAllPlayersReadyToReturn();
+    }
+    
+    // Check if all players have marked ready to return
+    checkAllPlayersReadyToReturn() {
+        const allReady = Array.from(this.players.values())
+            .filter(p => !p.isBot) // Don't wait for bots
+            .every(p => p.readyToReturn === true);
+        
+        return allReady;
+    }
+
+    // Reset game back to lobby state after all players return
     resetToLobby() {
         // Reset game state
         this.state = 'lobby';
@@ -840,9 +874,11 @@ class HeartsGame {
             player.hand = [];
             player.roundScore = 0;
             player.isReady = false; // Players need to ready up again
+            player.readyToReturn = false; // Reset the return flag
+            // Keep totalScore for historical tracking if desired
         }
         
-        // Keep lobby leader and total scores intact
+        // Keep lobby leader and players in their seats
         // Keep spectators intact
         
         console.log(`Game ${this.id} reset to lobby state`);

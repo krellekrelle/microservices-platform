@@ -221,7 +221,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useSocket } from '../composables/useSocket'
 
 const gameStore = useGameStore()
-const { emitJoinLobby, emitStartGame } = useSocket()
+const { emitReturnToLobby, emitStartGame } = useSocket()
 
 // API-fetched game data as fallback
 const apiGameData = ref(null)
@@ -391,7 +391,8 @@ function getPlayerInitials(fullName) {
 }
 
 function returnToLobby() {
-  emitJoinLobby()
+  console.log('🏠 Player clicked Return to Lobby')
+  emitReturnToLobby()
 }
 
 function getConfettiStyle(index) {
