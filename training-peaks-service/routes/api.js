@@ -5,6 +5,7 @@ const TrainingPeaksScraper = require('../services/scraper-with-session');
 const EmailNotificationService = require('../services/email');
 const deviceSyncService = require('../services/deviceSyncService');
 const metrics = require('../services/metrics');
+const scheduler = require('../services/scheduler');
 
 const storageService = new StorageService();
 const emailService = new EmailNotificationService();
@@ -384,6 +385,26 @@ router.get('/metrics', async (req, res) => {
     } catch (error) {
         console.error('Error getting metrics:', error);
         res.status(500).json({ error: 'Failed to get metrics' });
+    }
+});
+
+// Manual trigger for scheduler (for testing)
+router.post('/trigger-scheduler', async (req, res) => {
+    try {
+        console.log('🔧 [API] Manual scheduler trigger requested');
+        
+        // Run scheduler in background
+        scheduler.triggerNow().catch(err => {
+            console.error('❌ Scheduler run failed:', err);
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Scheduler triggered. Check logs for progress.' 
+        });
+    } catch (error) {
+        console.error('Error triggering scheduler:', error);
+        res.status(500).json({ error: 'Failed to trigger scheduler' });
     }
 });
 

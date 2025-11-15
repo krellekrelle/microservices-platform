@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const GarminConnectService = require('../services/garminService');
 const StorageService = require('../services/storage');
+const metricsService = require('../services/metrics');
 const crypto = require('crypto');
 
 // Initialize services
@@ -617,6 +618,9 @@ router.post('/full-pipeline', async (req, res) => {
         const week = req.body.week || 'current'; // Default to current week
         console.log(`🚀 [PIPELINE] Starting full pipeline for user ${userId} - ${week} week`);
 
+        // Track that a scrape was initiated (manual trigger)
+        await metricsService.recordScrape(false); // false = not skipped
+
         // Step 1: Get Monday of specified week (current or next)
         const mondayDate = getWeekMonday(week);
         console.log(`📅 [PIPELINE] ${week === 'next' ? 'Next' : 'Current'} week Monday: ${mondayDate}`);
@@ -743,9 +747,12 @@ router.post('/full-pipeline', async (req, res) => {
                 );
 
                 if (workoutResult.success) {
+                    // Track workout creation
+                    await metricsService.recordWorkoutCreated();
+                    
                     // Schedule workout to Garmin calendar for the session date
                     try {
-                        console.log(`� [PIPELINE] Scheduling workout ${workoutResult.workoutId} to calendar for ${sessionData.session_date}`);
+                        console.log(`📅 [PIPELINE] Scheduling workout ${workoutResult.workoutId} to calendar for ${sessionData.session_date}`);
                         
                         // Extract the actual ID if workoutId is an object
                         let actualWorkoutId = workoutResult.workoutId;
@@ -759,6 +766,9 @@ router.post('/full-pipeline', async (req, res) => {
                             { workoutId: actualWorkoutId.toString() },
                             sessionData.session_date
                         );
+                        
+                        // Track workout scheduling
+                        await metricsService.recordWorkoutScheduled();
                         
                         console.log(`✅ [PIPELINE] Successfully scheduled to calendar with schedule ID: ${scheduleResult.workoutScheduleId}`);
                         

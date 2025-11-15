@@ -113,7 +113,7 @@ class PipelineScheduler {
      */
     async getUsersWithCredentials() {
         const db = require('../db/database');
-        const pool = db.getPool();
+        const pool = db.pool;
 
         try {
             // Query users who have both credential types
@@ -122,11 +122,11 @@ class PipelineScheduler {
                 FROM users u
                 WHERE EXISTS (
                     SELECT 1 FROM training_peaks_credentials tpc 
-                    WHERE tpc.user_id = u.id AND tpc.encrypted_username IS NOT NULL
+                    WHERE tpc.user_id = u.id AND tpc.username_encrypted IS NOT NULL
                 )
                 AND EXISTS (
                     SELECT 1 FROM garmin_credentials gc 
-                    WHERE gc.user_id = u.id AND gc.encrypted_email IS NOT NULL
+                    WHERE gc.user_id = u.id AND gc.username IS NOT NULL
                 )
                 ORDER BY u.id;
             `;
@@ -232,7 +232,7 @@ class PipelineScheduler {
      */
     async checkWeekHasWorkouts(userId, mondayDate) {
         const db = require('../db/database');
-        const pool = db.getPool();
+        const pool = db.pool;
 
         try {
             // Calculate week end date (Sunday)

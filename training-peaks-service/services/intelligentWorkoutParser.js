@@ -1,6 +1,7 @@
 const Groq = require('groq-sdk');
 const fs = require('fs').promises;
 const path = require('path');
+const metricsService = require('./metrics');
 
 /**
  * Intelligent Workout Parser using Groq AI to convert Danish training descriptions
@@ -239,6 +240,9 @@ class IntelligentWorkoutParser {
                 // max_tokens: 4000, // Increased for more complex workouts with repeats
                 response_format: { type: 'json_object' }
             });
+            
+            // Track AI prompt usage
+            await metricsService.recordAIPrompt();
 
             // console.log('Completion object:', completion); // Debug log to inspect the full response
             
