@@ -359,10 +359,6 @@ class GameManager {
         // Clean up any finished games first
         this.removeFinishedGames();
         
-        if (!this.lobbyGame || this.lobbyGame.state !== 'lobby') {
-            await this.createLobbyGame();
-        }
-
         // Check if user is already in a game
         if (this.playerToGame.has(userId)) {
             const existingGameId = this.playerToGame.get(userId);
@@ -427,6 +423,23 @@ class GameManager {
                     };
                 }
             }
+        }
+
+        // At this point, the user is not part of any existing game
+        // Check if lobbyGame exists and its state
+        if (!this.lobbyGame) {
+            // No lobby exists at all - create a new one
+            await this.createLobbyGame();
+        } else if (this.lobbyGame.state !== 'lobby') {
+            // A game is in progress (passing/playing/finished) - new players cannot join
+            // They must wait until the game returns to lobby state
+            return {
+                gameId: this.lobbyGame.id,
+                seat: null,
+                lobbyState: this.getLobbyState(this.lobbyGame),
+                spectatorMode: true,
+                message: 'A game is currently in progress. You can watch as a spectator.'
+            };
         }
 
         return {
@@ -854,6 +867,18 @@ class GameManager {
             
             // Update database with saved state
             await this.saveGameToDatabase(game);
+            
+            // Clear player mappings for this game
+            for (const [seat, player] of game.players) {
+                if (player && player.userId) {
+                    this.playerToGame.delete(player.userId);
+                }
+            }
+            
+            // If this was the lobbyGame, clear it
+            if (this.lobbyGame && this.lobbyGame.id === gameId) {
+                this.lobbyGame = null;
+            }
             
             // Remove the game from active games
             this.activeGames.delete(gameId);

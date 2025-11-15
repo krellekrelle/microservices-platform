@@ -1,12 +1,11 @@
 <template>
   <div class="lobby-view">
-    <div class="lobby-header">
-      <h1>🚀 VUE.JS HEARTS LOBBY - NEW VERSION! 🚀</h1>
-      <p v-if="gameStore.lobbyState">
-        Room: <strong>{{ gameStore.lobbyState.roomId || 'Main Lobby' }}</strong>
-      </p>
+    <!-- Spectator Mode Banner -->
+    <div v-if="gameStore.lobbyState?.state !== 'lobby'" class="spectator-banner">
+      <p>🎮 Game in Progress - Spectator Mode</p>
+      <p class="spectator-subtext">You can watch but cannot join until the game finishes</p>
     </div>
-
+    
         <div class="seats-container" v-if="gameStore.lobbyState">
       <!-- Seat 0 (Top) -->
       <div class="seat seat-upper" 
@@ -203,6 +202,16 @@ function handleSeatClick(seatIndex) {
   // console.log(`🪑 Clicked seat ${seatIndex}`);
   // console.log('🎮 Current mySeat:', gameStore.mySeat);
   // console.log('👤 Seat occupied?', gameStore.lobbyState?.players[seatIndex]);
+  
+  // Don't allow taking seats if game is not in lobby state (spectator mode)
+  if (gameStore.lobbyState?.state !== 'lobby') {
+    toastStore.addToast({
+      message: 'Cannot join - a game is currently in progress',
+      type: 'warning',
+      duration: 3000
+    })
+    return
+  }
   
   // Only allow sitting if seat is empty and user doesn't have a seat
   if (!gameStore.lobbyState?.players[seatIndex] && gameStore.mySeat == null) {
@@ -558,5 +567,41 @@ function disableVideo() {
 
 .game-info li:last-child {
   border-bottom: none;
+}
+
+/* Spectator Mode Banner */
+.spectator-banner {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.9), rgba(255, 193, 7, 0.9));
+  border: 2px solid rgba(255, 193, 7, 0.5);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.spectator-banner p {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.spectator-subtext {
+  font-size: 0.9rem !important;
+  font-weight: normal !important;
+  opacity: 0.9;
+  margin-top: 0.5rem !important;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 25px rgba(255, 152, 0, 0.6);
+  }
 }
 </style>

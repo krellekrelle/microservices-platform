@@ -1062,10 +1062,13 @@ class SocketHandler {
                 savedAt: result.savedAt
             });
             
-            // Return players to lobby (they will emit join-lobby to get fresh state)
-            this.sendToGame(result.gameId, 'return-to-lobby', {
-                message: 'Game was stopped and saved. You can rejoin the lobby.'
-            });
+            // Create a new lobby automatically for players to rejoin
+            await gameManager.createLobbyGame();
+            console.log('Created new lobby after game stop:', gameManager.lobbyGame?.id);
+            
+            // Send fresh lobby state to all players who were in the stopped game
+            const freshLobbyState = gameManager.getLobbyState(gameManager.lobbyGame);
+            this.sendToGame(result.gameId, 'lobby-updated', freshLobbyState);
             
         } catch (error) {
             console.error('Error stopping game:', error);

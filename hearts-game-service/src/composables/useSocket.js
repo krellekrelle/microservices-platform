@@ -115,6 +115,16 @@ export function useSocket() {
     // Lobby events
     socket.value.on('lobby-updated', (data) => {
       console.log('🏛️ Lobby updated:', data)
+      
+      // Check if user is in spectator mode (game in progress, not a participant)
+      if (data.spectatorMode === true) {
+        toastStore.addToast({
+          message: data.message || 'A game is currently in progress. You cannot join until it finishes.',
+          type: 'warning',
+          duration: 5000
+        })
+      }
+      
       if (data.state === 'lobby') {
         gameStore.updateLobbyState(data)
         
