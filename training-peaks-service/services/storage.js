@@ -575,7 +575,7 @@ class StorageService {
     async getUnsyncedTrainingSessions(userId, startDate = null, endDate = null) {
         try {
             let query = `
-                SELECT id, date as session_date, type, workout_name, description, duration, distance, workout_id
+                SELECT id, date, type, workout_name, description, duration, distance, workout_id
                 FROM training_sessions 
                 WHERE user_id = $1 
                 AND (garmin_synced IS NULL OR garmin_synced = false)

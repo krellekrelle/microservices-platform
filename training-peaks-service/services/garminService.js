@@ -100,6 +100,17 @@ class GarminConnectService {
     }
 
     /**
+     * Get the Garmin Connect client instance
+     * @returns {GarminConnect|null} - The authenticated client or null
+     */
+    getClient() {
+        if (!this.isAuthenticated || !this.client) {
+            throw new Error('Not authenticated with Garmin Connect. Call authenticate() first.');
+        }
+        return this.client;
+    }
+
+    /**
      * Create a running workout using the library's built-in method
      * @param {Object} workoutData - Workout configuration
      * @returns {Promise<Object>} - Created workout data

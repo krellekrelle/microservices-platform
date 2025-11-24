@@ -261,11 +261,12 @@ class PipelineScheduler {
      */
     async syncWorkoutsToGarmin(userId, unsyncedSessions, garminCredentials, storageService) {
         const GarminConnectService = require('./garminService');
-        const garminService = new GarminConnectService(userId);
+        const garminService = new GarminConnectService();
 
-        await garminService.authenticateWithStoredTokens(
-            garminCredentials.email,
-            garminCredentials.password
+        await garminService.authenticate(
+            garminCredentials.username,
+            garminCredentials.decrypted_password,
+            userId
         );
 
         let syncedCount = 0;
@@ -273,20 +274,28 @@ class PipelineScheduler {
             try {
                 console.log(`📅 [SCHEDULER] Scheduling workout: ${session.workout_name} for ${session.date}`);
                 
-                // Create workout in Garmin
-                const workoutData = this.parseWorkoutFromSession(session);
-                const client = garminService.getClient();
-                const createdWorkout = await client.addWorkout(workoutData);
+                // Create workout using AI parsing
+                const workoutResult = await garminService.createWorkoutFromDescription(
+                    session.description,
+                    session.date,
+                    session.workout_name
+                );
                 
-                if (!createdWorkout || !createdWorkout.workoutId) {
-                    throw new Error('Failed to create workout in Garmin');
+                if (!workoutResult.success) {
+                    throw new Error(workoutResult.error || 'Failed to create workout');
                 }
-
-                const actualWorkoutId = createdWorkout.workoutId;
+                
+                // Extract workout ID
+                let actualWorkoutId = workoutResult.workoutId;
+                if (typeof workoutResult.workoutId === 'object' && workoutResult.workoutId !== null) {
+                    actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
+                }
+                
                 console.log(`✅ [SCHEDULER] Workout created with ID: ${actualWorkoutId}`);
                 await metrics.recordWorkoutCreated();
-
+                
                 // Schedule to calendar
+                const client = garminService.getClient();
                 const scheduleResult = await client.scheduleWorkout(
                     { workoutId: actualWorkoutId.toString() },
                     session.date
@@ -332,50 +341,6 @@ class PipelineScheduler {
         }
         
         return monday.toISOString().split('T')[0];
-    }
-
-    /**
-     * Parse session data into Garmin workout format
-     */
-    parseWorkoutFromSession(session) {
-        const workoutName = session.workout_name || 'Running Workout';
-        const description = session.description || '';
-        
-        return {
-            workoutName: workoutName,
-            description: description,
-            sport: { sportTypeId: 1, sportTypeKey: 'running' },
-            workoutProvider: null,
-            workoutSourceId: null,
-            updatedDate: new Date().toISOString(),
-            createdDate: new Date().toISOString(),
-            workoutSegments: [
-                {
-                    segmentOrder: 1,
-                    sportType: { sportTypeId: 1, sportTypeKey: 'running' },
-                    workoutSteps: [
-                        {
-                            type: 'ExecutableStepDTO',
-                            stepId: null,
-                            stepOrder: 1,
-                            stepType: {
-                                stepTypeId: 1,
-                                stepTypeKey: 'warmup'
-                            },
-                            endCondition: {
-                                conditionTypeKey: 'time',
-                                conditionTypeId: 2
-                            },
-                            endConditionValue: session.duration || 3600,
-                            targetType: {
-                                workoutTargetTypeId: 1,
-                                workoutTargetTypeKey: 'no.target'
-                            }
-                        }
-                    ]
-                }
-            ]
-        };
     }
 
     /**
