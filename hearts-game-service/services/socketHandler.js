@@ -145,6 +145,17 @@ class SocketHandler {
                         'UPDATE hearts_games SET game_state = $1, finished_at = NOW(), winner_id = $2, current_round = $3, current_trick = $4 WHERE id = $5',
                         ['finished', winnerUserId, game.currentRound, game.currentTrick, gameId]
                     );
+                    
+                    // Calculate fines for this game
+                    console.log(`💰 Calculating fines for game ${gameId}...`);
+                    try {
+                        const finesCalculator = require('./finesCalculator');
+                        const finesResult = await finesCalculator.calculateFinesForGame(gameId);
+                        console.log(`✅ Fines calculation result:`, finesResult);
+                    } catch (finesError) {
+                        console.error(`❌ Failed to calculate fines for game ${gameId}:`, finesError);
+                        // Don't throw - game should still be marked as finished
+                    }
                 } catch (e) {
                     console.error('Failed to persist final game results:', e.message || e);
                 }

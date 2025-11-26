@@ -477,6 +477,14 @@
                 buttons.push(`<button class="action-btn btn-demote" onclick="demoteUser('${user.email}')">Remove Admin</button>`);
             }
             
+            // Fine Club toggle
+            if (user.status === 'approved') {
+                const fineClubStatus = user.member_of_fineclub;
+                const fineClubClass = fineClubStatus ? 'btn-demote' : 'btn-promote';
+                const fineClubText = fineClubStatus ? '🏆 Remove from Fine Club' : '🎯 Add to Fine Club';
+                buttons.push(`<button class="action-btn ${fineClubClass}" onclick="toggleFineClub('${user.email}', ${!fineClubStatus})">${fineClubText}</button>`);
+            }
+            
             if (!isCurrentUser) {
                 buttons.push(`<button class="action-btn btn-delete" onclick="deleteUser('${user.email}')">Delete</button>`);
             }
@@ -585,6 +593,14 @@
             await performAction('delete', email, `Permanently delete user ${email}? This action cannot be undone.`);
         }
 
+        async function toggleFineClub(email, addToClub) {
+            const action = addToClub ? 'add-to-fineclub' : 'remove-from-fineclub';
+            const message = addToClub 
+                ? `Add ${email} to the Fine Club? They will receive fines for all Hearts games with 4 non-bot players.`
+                : `Remove ${email} from the Fine Club? They will no longer receive automatic fines.`;
+            await performAction(action, email, message);
+        }
+
         // Perform action with confirmation
         async function performAction(action, email, message) {
             pendingAction = { action, email };
@@ -617,6 +633,20 @@
                         break;
                     case 'delete':
                         response = await fetch(`/auth/admin/users/${email}`, { method: 'DELETE' });
+                        break;
+                    case 'add-to-fineclub':
+                        response = await fetch(`/auth/admin/fineclub/${email}`, { 
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ member: true })
+                        });
+                        break;
+                    case 'remove-from-fineclub':
+                        response = await fetch(`/auth/admin/fineclub/${email}`, { 
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ member: false })
+                        });
                         break;
                 }
                 

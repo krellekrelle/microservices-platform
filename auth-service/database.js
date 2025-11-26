@@ -288,6 +288,43 @@ class DatabaseService {
     }
   }
 
+  async updateFineClubMembership(email, member, changedBy = null) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get current user
+      const currentUser = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+      if (currentUser.rows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      const user = currentUser.rows[0];
+
+      // Update fine club membership
+      const updatedUser = await client.query(
+        'UPDATE users SET member_of_fineclub = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2 RETURNING *',
+        [member, email]
+      );
+
+      // Log the change
+      const reason = member ? 'Added to Fine Club' : 'Removed from Fine Club';
+      await client.query(
+        `INSERT INTO user_status_changes (user_id, old_status, new_status, changed_by, reason)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [user.id, user.member_of_fineclub ? 'fine_club_member' : 'non_member', member ? 'fine_club_member' : 'non_member', changedBy, reason]
+      );
+
+      await client.query('COMMIT');
+      return updatedUser.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   // Clean up method
   async close() {
     await this.pool.end();

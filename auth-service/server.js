@@ -553,6 +553,36 @@ async function initializeApp() {
       }
     });
 
+    // Update fine club membership (admin only)
+    app.post('/admin/fineclub/:email', authenticateJWT, requireAdmin, async (req, res) => {
+      try {
+        const { email } = req.params;
+        const { member } = req.body;
+        const adminId = req.user.id;
+        
+        if (typeof member !== 'boolean') {
+          return res.status(400).json({ error: 'Member status must be true or false' });
+        }
+        
+        const user = await db.updateFineClubMembership(email, member, adminId);
+        res.json({ 
+          message: member ? 'User added to Fine Club successfully' : 'User removed from Fine Club successfully', 
+          user: {
+            email: user.email,
+            name: user.name,
+            memberOfFineClub: user.member_of_fineclub
+          }
+        });
+      } catch (error) {
+        console.error('Error updating fine club membership:', error);
+        if (error.message === 'User not found') {
+          res.status(404).json({ error: 'User not found' });
+        } else {
+          res.status(500).json({ error: 'Failed to update fine club membership' });
+        }
+      }
+    });
+
     console.log('✅ Routes registered successfully');
 
     // Error handling middleware
