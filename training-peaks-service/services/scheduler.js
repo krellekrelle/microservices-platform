@@ -305,7 +305,7 @@ class PipelineScheduler {
                 await metrics.recordWorkoutScheduled();
 
                 // Mark as synced
-                await storageService.markSessionAsSynced(session.id, actualWorkoutId);
+                await storageService.markTrainingSessionGarminSynced(session.id, actualWorkoutId);
                 syncedCount++;
 
             } catch (error) {
