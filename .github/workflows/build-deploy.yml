@@ -70,15 +70,26 @@ jobs:
       contents: read
       packages: read
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      DEPLOY_DIR: /home/kl/deploy/microservices-platform
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
       - name: Prepare image owner
         id: prep
         run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Update deploy checkout
+        run: |
+          set -e
+          if [ ! -d "${DEPLOY_DIR}/.git" ]; then
+            git clone "${{ github.server_url }}/${{ github.repository }}.git" "${DEPLOY_DIR}"
+          fi
+
+          cd "${DEPLOY_DIR}"
+          git fetch origin
+          git checkout main
+          git pull --ff-only origin main
+          git submodule sync --recursive
+          git submodule update --init --recursive
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -89,8 +100,10 @@ jobs:
 
       - name: Pull new images
         run: |
+          cd "${DEPLOY_DIR}"
           GHCR_OWNER="${{ steps.prep.outputs.owner_lc }}" IMAGE_TAG=latest docker compose pull auth-service landing-page hello-world-app lol-tracking-service hearts-game-service training-peaks-service
 
       - name: Restart containers
         run: |
+          cd "${DEPLOY_DIR}"
           GHCR_OWNER="${{ steps.prep.outputs.owner_lc }}" IMAGE_TAG=latest docker compose up -d --remove-orphans --no-build
