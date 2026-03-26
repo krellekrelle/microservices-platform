@@ -34,6 +34,7 @@ services:
     restart: unless-stopped 
 
   auth-service:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-auth-service:${IMAGE_TAG:-latest}
     build: ./auth-service
     environment:
       - PORT=3001
@@ -55,6 +56,7 @@ services:
     restart: unless-stopped 
 
   landing-page:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-landing-page:${IMAGE_TAG:-latest}
     build: ./landing-page
     environment:
       - PORT=3000
@@ -73,6 +75,7 @@ services:
     restart: unless-stopped 
 
   hello-world-app:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-hello-world-app:${IMAGE_TAG:-latest}
     build: ./hello-world-app
     environment:
       - PORT=3002
@@ -89,6 +92,7 @@ services:
     restart: unless-stopped 
 
   lol-tracking-service:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-lol-tracking-service:${IMAGE_TAG:-latest}
     build: ./lol-tracking-service
     environment:
       - PORT=3003
@@ -105,6 +109,7 @@ services:
     restart: unless-stopped 
 
   hearts-game-service:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-hearts-game-service:${IMAGE_TAG:-latest}
     build: ./hearts-game-service
     environment:
       - PORT=3004
@@ -122,6 +127,7 @@ services:
     restart: unless-stopped  
 
   training-peaks-service:
+    image: ghcr.io/${GHCR_OWNER:-local}/microservices-platform-training-peaks-service:${IMAGE_TAG:-latest}
     build: ./training-peaks-service
     environment:
       - PORT=3005
