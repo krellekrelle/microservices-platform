@@ -139,3 +139,5 @@ auth-service/data/session.secret
 !auth-service/data/.gitkeep
 
 training-peaks-service/data/
+
+*/venv
