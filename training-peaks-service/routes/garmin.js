@@ -463,6 +463,89 @@ router.post('/create-workout', async (req, res) => {
 });
 
 /**
+ * Manual test creation of an AI-generated Garmin Workout and scheduling it
+ * POST /training/api/garmin/test-manual-workout
+ */
+router.post('/test-manual-workout', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { description, date } = req.body;
+        
+        if (!description) {
+            return res.status(400).json({ error: 'Training description is required' });
+        }
+
+        // Generate YYYY-MM-DD from session date
+        const dateObj = date ? new Date(date) : new Date();
+        const dateString = isNaN(dateObj.getTime()) 
+            ? new Date().toISOString().split('T')[0] 
+            : dateObj.toISOString().split('T')[0];
+
+        console.log(`🤖 [MANUAL TEST] Starting AI parsing and Garmin schedule for user ${userId}`);
+
+        // Get user's Garmin credentials
+        const credentials = await storageService.getGarminCredentials(userId);
+        if (!credentials) {
+            return res.status(400).json({ error: 'No Garmin credentials found.' });
+        }
+
+        // Authenticate with Garmin
+        const authSuccess = await garminService.authenticate(
+            credentials.username, 
+            credentials.decrypted_password,
+            userId
+        );
+
+        if (!authSuccess) {
+            return res.status(400).json({ error: 'Failed to authenticate with Garmin Connect.' });
+        }
+
+        // Create workout using AI parsing
+        const workoutResult = await garminService.createWorkoutFromDescription(
+            description,
+            dateString,
+            "Manual Test Workout"
+        );
+
+        if (!workoutResult.success) {
+            return res.status(400).json({
+                error: 'AI workout creation failed',
+                details: workoutResult.error || workoutResult.details
+            });
+        }
+
+        let actualWorkoutId = workoutResult.workoutId;
+        if (typeof workoutResult.workoutId === 'object' && workoutResult.workoutId !== null) {
+            actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
+        }
+
+        // Schedule to calendar
+        console.log(`📅 [MANUAL TEST] Scheduling workout ${actualWorkoutId} for ${dateString}`);
+        const client = garminService.client;
+        const scheduleResult = await client.scheduleWorkout(
+            { workoutId: actualWorkoutId.toString() },
+            dateString
+        );
+
+        res.json({
+            success: true,
+            message: 'Workout successfully created and scheduled!',
+            workoutId: actualWorkoutId,
+            scheduleId: scheduleResult?.workoutScheduleId,
+            date: dateString,
+            details: workoutResult.parsedWorkout
+        });
+
+    } catch (error) {
+        console.error('❌ Error during manual test workout creation:', error);
+        res.status(500).json({
+            error: 'Failed to manually test workout creation',
+            message: error.message
+        });
+    }
+});
+
+/**
  * Create workout from provided JSON data
  * POST /training/api/garmin/create-from-json
  */

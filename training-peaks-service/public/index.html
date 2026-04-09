@@ -468,7 +468,7 @@
 
         <!-- Metrics Section -->
         <div class="card">
-            <h2>📊 Automation Metrics (Last 4 Weeks)</h2>
+            <h2>📊 Automation Metrics (Last 4 Weeks) yay</h2>
             <div id="metrics-loading">Loading metrics...</div>
             <div id="metrics-content" class="hidden">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
@@ -555,6 +555,17 @@
                 <button id="delete-garmin-credentials" class="btn btn-danger hidden">Delete Credentials</button>
                 <button id="run-full-pipeline" class="btn btn-primary hidden" disabled>🚀 Run Full Pipeline</button>
                 <button id="run-next-week-pipeline" class="btn btn-primary hidden" disabled>📅 Run Next Week Pipeline</button>
+            </div>
+
+            <!-- Manual Test Pipeline -->
+            <div id="manual-pipeline-test" class="hidden" style="margin-top: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+                <h4 style="margin-top: 0;">🧪 Test Workout Pipeline</h4>
+                <p style="font-size: 14px; margin-bottom: 10px;">Quickly test the formatting and Garmin scheduling pipeline. (Bypasses TrainingPeaks)</p>
+                <div style="display: flex; gap: 10px; flex-direction: column;">
+                    <textarea id="manual-workout-desc" placeholder="Enter activity description (e.g. 50 min jog, easy effort)" rows="3" style="width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 8px;"></textarea>
+                    <input type="date" id="manual-workout-date" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px;" />
+                    <button id="run-manual-test-btn" class="btn" style="background-color: #28a745; color: white;">⚡ Handle Activity Description</button>
+                </div>
             </div>
 
             <!-- Garmin Status -->
@@ -1242,6 +1253,7 @@
             const deleteBtn = document.getElementById('delete-garmin-credentials');
             const pipelineBtn = document.getElementById('run-full-pipeline');
             const nextWeekPipelineBtn = document.getElementById('run-next-week-pipeline');
+            const manualPipelineTest = document.getElementById('manual-pipeline-test');
 
             if (status.hasCredentials) {
                 statusDiv.innerHTML = `
@@ -1259,6 +1271,7 @@
                 pipelineBtn.disabled = false;
                 nextWeekPipelineBtn.classList.remove('hidden');
                 nextWeekPipelineBtn.disabled = false;
+                if(manualPipelineTest) manualPipelineTest.classList.remove('hidden');
             } else {
                 statusDiv.innerHTML = `
                     <div class="status info">
@@ -1270,6 +1283,7 @@
                 deleteBtn.classList.add('hidden');
                 pipelineBtn.classList.add('hidden');
                 nextWeekPipelineBtn.classList.add('hidden');
+                if(manualPipelineTest) manualPipelineTest.classList.add('hidden');
             }
         }
 
@@ -1486,6 +1500,46 @@
             } catch (error) {
                 console.error('Error running next week pipeline:', error);
                 showMessage('❌ Next week pipeline failed: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+                this.textContent = originalText;
+            }
+        });
+
+        // Manual Test Pipeline Button Handler
+        document.getElementById('run-manual-test-btn').addEventListener('click', async function() {
+            const desc = document.getElementById('manual-workout-desc').value.trim();
+            const date = document.getElementById('manual-workout-date').value;
+
+            if (!desc) {
+                showMessage('Please enter a workout description to test.', 'error');
+                return;
+            }
+
+            this.disabled = true;
+            const originalText = this.textContent;
+            this.textContent = '⚡ Processing...';
+            showMessage('🧪 Running manual pipeline test (Parsing -> Creating -> Scheduling)...', 'info');
+
+            try {
+                const response = await fetch('/training/api/garmin/test-manual-workout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description: desc, date: date || undefined })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMessage(`✅ Test pipeline complete! Workout ID: ${result.workoutId} scheduled on ${result.date}`, 'success');
+                    console.log('Pipeline Test JSON details:', result.details);
+                } else {
+                    showMessage(`❌ Test pipeline failed: ${result.error || result.message || 'Unknown error'}`, 'error');
+                    console.error('Test pipeline error details:', result);
+                }
+            } catch (error) {
+                console.error('Error running manual test pipeline:', error);
+                showMessage('❌ Test pipeline failed: ' + error.message, 'error');
             } finally {
                 this.disabled = false;
                 this.textContent = originalText;
