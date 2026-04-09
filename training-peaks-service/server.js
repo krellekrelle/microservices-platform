@@ -62,6 +62,9 @@ function setupApp() {
         });
     });
 
+    // Public calendar subscription route (for external clients like Apple Calendar)
+    app.use('/api/public/calendar', require('./routes/public-calendar'));
+
     // Protected routes
     app.use(jwtMiddleware.authenticate, jwtMiddleware.requireApproved);
     app.use(express.static(path.join(__dirname, 'public')));

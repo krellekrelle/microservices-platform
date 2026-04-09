@@ -1,6 +1,7 @@
 
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const CalendarIntegrationService = require('../services/calendar-integration');
 const storage = require('../services/storage');
 const database = require('../db/database');
@@ -283,6 +284,36 @@ router.post('/sync', requireAuth, async (req, res) => {
             success: false,
             error: error.message
         });
+    }
+});
+
+/**
+ * GET /api/calendar/subscribe-url
+ * Get a permanent subscription URL for Apple Calendar
+ */
+router.get('/subscribe-url', requireAuth, (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'User ID missing' });
+        }
+        
+        // Generate a non-expiring JWT token
+        const token = jwt.sign({ id: userId, purpose: 'calendar_subscription' }, process.env.JWT_SECRET || 'your-jwt-secret-here');
+        
+        // Generate the URL 
+        const host = req.get('host');
+        // If behind proxy, use x-forwarded-proto or default to https
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const url = `${protocol}://${host}/training/api/public/calendar/subscribe?token=${token}`;
+        
+        res.json({
+            success: true,
+            url: url
+        });
+    } catch (error) {
+        console.error('Error generating subscription URL:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
