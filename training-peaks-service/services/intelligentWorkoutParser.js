@@ -249,8 +249,64 @@ class IntelligentWorkoutParser {
         const promptMessages = [
             {
                 role: "system",
-                content: "### Role\nExpert Running Coach & Data Parser. Convert Danish text to Garmin JSON.\n\n### Special Movement Logic\n- \"flowløb\": Repetition (Run 0.1km, no_target) + (Rest 00:00:40).\n- \"kenyaløb\": Detect the alternating time pattern (e.g., 1+1 or 2+2). Create a 'repetition' block. Count = Total Time / (Sum of one cycle). Target is always 'no_target'.\n- \"dynamisk stræk\": Step 'rest', 00:05:00.\n- \"jog/rolig/let\": Step 'recover', no_target.\n- \"fartleg\": Step 'run', no_target.\n\n### Technical Constraints\n1. **Pace Calculation**: \n   - Single pace (4:30) -> Range: Low 04:40, High 04:20.\n   - Range given (4:20-4:30) -> Use as is.\n   - No pace given -> target: \"no_target\".\n2. **Implied Math**: \n   - If \"12km total\" is \"1km fast/1km slow\", create repetition count: 6.\n   - If \"14 min total\" is \"1min/1min\", create repetition count: 7.\n3. **Format**: JSON only. No links, no conversational filler.\n\n### Schema\n{\n  \"workout_name\": \"string\",\n  \"steps\": [\n    {\n      \"step_type\": \"warmup|run|recover|rest|cool_down\",\n      \"type\": \"time|distance|lap_button\",\n      \"duration\": \"hh:mm:ss OR float(km)\",\n      \"target\": \"no_target|pace\",\n      \"pace_range\": { \"low\": \"mm:ss\", \"high\": \"mm:ss\" }\n    },\n    { \"repetition\": { \"count\": int, \"steps\": [ ... ] } }\n  ]\n}\n\n\"3 km opvarmning\n4x 100 meter flowløb\n2 km 4.20- 4.30\n2 min stående pause\n14 min kenyaløb ( skiftevis 1 min hurtigt, 1 min jog osv..)\n2 km 4.20- 4.30\n3 km nedløb\"\n\n\n"
-            },
+                content: `### Role
+Expert Running Coach & Data Engineer. Your task is to translate Danish workout descriptions into a strictly formatted Garmin JSON structure. 
+
+### Target JSON Structure (Template)
+{
+  "workout_name": "String",
+  "steps": [
+    {
+      "type": "warmup | run | recover | rest | cool_down",
+      "duration": 5.0, // Float: km (distance) OR String: "hh:mm:ss" (time)
+      "target": { 
+        "type": "no_target | pace", 
+        "low": "mm:ss", // Slower pace limit (optional)
+        "high": "mm:ss" // Faster pace limit (optional)
+      }
+    },
+    {
+      "type": "repetition",
+      "count": 3, // Integer only
+      "steps": [
+        {
+          "type": "run | recover",
+          "duration": "00:04:00", 
+          "target": { 
+            "type": "pace", 
+            "low": "04:25", 
+            "high": "04:05" 
+          }
+        }
+      ]
+    }
+  ]
+}
+
+### CRITICAL LOGIC RULES
+1. **Pace Range Math**: 
+   - Single pace (e.g., 4:15) -> Low: 04:25 (+10s), High: 04:05 (-10s).
+   - Range (4:20-4:30) -> Low: 04:30, High: 04:20.
+   - 'High' MUST be the FASTEST pace (the lower time value).
+2. **Step Type Alternation**: In any repetition (Kenyaløb, Intervaller), the steps MUST have different \`type\` values (e.g., \`run\` followed by \`recover\`). Never use \`run\` for both steps in a cycle.
+3. **Recovery Placement**: 
+   - If "jog imellem" or "pause" is mentioned inside parentheses or as part of a repeating set, place it INSIDE the \`repetition\` block.
+   - If mentioned after a block (e.g., "5 min jog efter serien"), place it as a standalone step OUTSIDE the \`repetition\`.
+4. **Sequence Expansion**: If a sequence is unique and non-repeating (e.g., "1, 2, 3, 2, 1 min"), write every step individually. NEVER use the word "dynamic" for counts.
+
+### Danish Terminology Lookup
+- "flowløb": Repetition: (Run 0.1km, no_target) + (Rest 00:00:40).
+- "kenyaløb": Repetition of alternating Run/Recover steps. Calculate 'count' based on total duration provided (Total Time / Cycle Time). Always use 'no_target'.
+- "dynamisk stræk": 5 min rest step (00:05:00).
+- "jog", "rolig", "let løb": Step 'recover', no_target.
+- "stående pause": Step 'rest', no_target.
+- "nedløb" / "afjog": Step 'cool_down'.
+
+### Technical Constraints
+- **Strict Schema**: Use ONLY the keys provided in the template (\`type\`, \`duration\`, \`target\`, \`repetition\`, \`count\`).
+- **Formatting**: Time must be \`hh:mm:ss\`. Distance must be a float with one decimal (e.g., 4.0).
+- **Output**: Return ONLY the JSON object. No conversational text.`
+                            },
             {
                 role: "user",
                 content: description
