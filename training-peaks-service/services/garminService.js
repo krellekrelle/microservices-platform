@@ -306,11 +306,15 @@ class GarminConnectService {
             console.log(`📅 Date: "${workoutDate || 'Current date'}"`);
 
             // Use AI to convert Danish description to Garmin workout JSON
-            const workoutJson = await this.workoutParser.parseTrainingDescription(
+            const parsedResponse = await this.workoutParser.parseTrainingDescription(
                 trainingDescription, 
                 workoutDate,
                 workoutName
             );
+            const workoutJson = parsedResponse.garminWorkout;
+            const promptMessages = parsedResponse.promptMessages;
+            const rawResponse = parsedResponse.rawResponse;
+
             // const workoutJson = {
             //     "workoutName": `[${this.incrementer++}] jog tirsdag 09/09`,
             //     "description": "50 min jog. Gælder om at komme så nemt igennem som muligt",
@@ -374,6 +378,8 @@ class GarminConnectService {
                 workoutName: workoutJson.workoutName,
                 originalDescription: trainingDescription,
                 parsedWorkout: workoutJson,
+                promptMessages,
+                rawResponse,
                 estimatedDistance: Math.round(workoutJson.estimatedDistanceInMeters/1000),
                 estimatedDuration: Math.round(workoutJson.estimatedDurationInSecs/60),
                 stepsCount: workoutJson.workoutSegments[0]?.workoutSteps?.length || 0

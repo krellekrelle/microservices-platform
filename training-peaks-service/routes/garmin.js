@@ -469,7 +469,7 @@ router.post('/create-workout', async (req, res) => {
 router.post('/test-manual-workout', async (req, res) => {
     try {
         const userId = req.user.id;
-        const { description, date } = req.body;
+        const { description, date, name } = req.body;
         
         if (!description) {
             return res.status(400).json({ error: 'Training description is required' });
@@ -481,7 +481,8 @@ router.post('/test-manual-workout', async (req, res) => {
             ? new Date().toISOString().split('T')[0] 
             : dateObj.toISOString().split('T')[0];
 
-        console.log(`🤖 [MANUAL TEST] Starting AI parsing and Garmin schedule for user ${userId}`);
+        const workoutName = name || "Manual Test Workout";
+        console.log(`🤖 [MANUAL TEST] Starting AI parsing for "${workoutName}"`);
 
         // Get user's Garmin credentials
         const credentials = await storageService.getGarminCredentials(userId);
@@ -504,13 +505,15 @@ router.post('/test-manual-workout', async (req, res) => {
         const workoutResult = await garminService.createWorkoutFromDescription(
             description,
             dateString,
-            "Manual Test Workout"
+            workoutName
         );
 
         if (!workoutResult.success) {
             return res.status(400).json({
                 error: 'AI workout creation failed',
-                details: workoutResult.error || workoutResult.details
+                details: workoutResult.error || workoutResult.details,
+                prompt: workoutResult.promptMessages,
+                rawResponse: workoutResult.rawResponse
             });
         }
 
@@ -533,7 +536,9 @@ router.post('/test-manual-workout', async (req, res) => {
             workoutId: actualWorkoutId,
             scheduleId: scheduleResult?.workoutScheduleId,
             date: dateString,
-            details: workoutResult.parsedWorkout
+            details: workoutResult.parsedWorkout,
+            prompt: workoutResult.promptMessages,
+            rawResponse: workoutResult.rawResponse
         });
 
     } catch (error) {

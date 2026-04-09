@@ -365,7 +365,11 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
             await this.saveAIResponse(description, dateToUse, promptMessages, result, garminWorkout, true);
             
             console.log(`🎉 [DEBUG] AI Parser - Successfully generated workout: "${garminWorkout.workoutName}"`);
-            return garminWorkout;
+            return {
+                garminWorkout,
+                promptMessages,
+                rawResponse: result
+            };
             
         } catch (error) {
             console.error('❌ [DEBUG] AI Parser - Parsing failed:', error.message);
