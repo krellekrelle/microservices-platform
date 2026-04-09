@@ -301,7 +301,7 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
    - 'High' MUST be the FASTEST pace (the lower time value).
 2. **Step Type Alternation**: In any repetition (Kenyaløb, Intervaller), the steps MUST have different \`type\` values (e.g., \`run\` followed by \`recover\`). Never use \`run\` for both steps in a cycle.
 3. **Recovery Placement**: 
-   - If "jog imellem" or "pause" is mentioned inside parentheses or as part of a repeating set, place it INSIDE the \`repetition\` block.
+   - If "jog imellem" or "pause" is mentioned either inside or outside parentheses or as part of a repeating set, place it INSIDE the \`repetition\` block.
    - If mentioned after a block (e.g., "5 min jog efter serien"), place it as a standalone step OUTSIDE the \`repetition\`.
 4. **Sequence Expansion**: If a sequence is unique and non-repeating (e.g., "1, 2, 3, 2, 1 min"), write every step individually. NEVER use the word "dynamic" for counts.
 
