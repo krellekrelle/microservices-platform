@@ -152,14 +152,13 @@ class IntelligentWorkoutParser {
                 conditionTypeId: isDistance ? 3 : 2
             },
             endConditionValue: durationValue || 0,
+            ...(isDistance && { preferredEndConditionUnit: { unitKey: "kilometer" } }),
             targetType: { 
                 workoutTargetTypeKey: targetTypeKey,
                 workoutTargetTypeId: targetTypeId
             },
             targetValueOne: targetValueOne,
-            targetValueTwo: targetValueTwo,
-            strokeType: { strokeTypeKey: "freestyle", strokeTypeId: 1 },
-            equipmentType: { equipmentTypeKey: "running_shoes", equipmentTypeId: 1 }
+            targetValueTwo: targetValueTwo
         };
     }
 
