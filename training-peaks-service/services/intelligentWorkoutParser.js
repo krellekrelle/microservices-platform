@@ -96,27 +96,30 @@ class IntelligentWorkoutParser {
      */
     createExecutableStep(step, order) {
         const typeMap = {
-            "run": "interval", 
-            "warmup": "warmup", 
-            "recover": "recovery", 
-            "rest": "rest", 
-            "cool_down": "cool.down", 
-            "interval": "interval"
+            "run": { key: "interval", id: 3 }, 
+            "warmup": { key: "warmup", id: 1 }, 
+            "recover": { key: "recovery", id: 4 }, 
+            "rest": { key: "rest", id: 5 }, 
+            "cool_down": { key: "cool.down", id: 2 }, 
+            "interval": { key: "interval", id: 3 }
         };
         
         // Read from step_type first, fallback to type
         const stepTypeInput = step.step_type || step.type || "interval";
+        const stepTypeObj = typeMap[stepTypeInput] || typeMap["interval"];
+        
         const isDistance = step.type === 'distance' || typeof step.duration === 'number';
         const targetTypeInput = step.target || "no_target";
         
         // Map target
-        const targetType = targetTypeInput === "pace" ? "pace.zone" : "no.target";
+        const targetTypeKey = targetTypeInput === "pace" ? "pace.zone" : "no.target";
+        const targetTypeId = targetTypeKey === "pace.zone" ? 6 : 1;
         
         let targetValueOne = 0.0;
         let targetValueTwo = 0.0;
         
         // The new schema uses pace_range
-        if (targetType === "pace.zone") {
+        if (targetTypeKey === "pace.zone") {
             const range = step.pace_range || step.target || {};
             const highMs = this.paceToMs(range.high); // faster pace -> higher m/s
             const lowMs = this.paceToMs(range.low);   // slower pace -> lower m/s
@@ -140,14 +143,22 @@ class IntelligentWorkoutParser {
         return {
             type: "ExecutableStepDTO",
             stepOrder: order,
-            stepType: { stepTypeKey: typeMap[stepTypeInput] || "interval" },
-            endCondition: { conditionTypeKey: isDistance ? "distance" : "time" },
+            stepType: { 
+                stepTypeKey: stepTypeObj.key,
+                stepTypeId: stepTypeObj.id 
+            },
+            endCondition: { 
+                conditionTypeKey: isDistance ? "distance" : "time",
+                conditionTypeId: isDistance ? 3 : 2
+            },
             endConditionValue: durationValue || 0,
-            targetType: { workoutTargetTypeKey: targetType },
+            ...(isDistance && { preferredEndConditionUnit: { unitKey: "kilometer" } }),
+            targetType: { 
+                workoutTargetTypeKey: targetTypeKey,
+                workoutTargetTypeId: targetTypeId
+            },
             targetValueOne: targetValueOne,
-            targetValueTwo: targetValueTwo,
-            strokeType: { strokeTypeId: 0 },
-            equipmentType: { equipmentTypeId: 0 }
+            targetValueTwo: targetValueTwo
         };
     }
 
