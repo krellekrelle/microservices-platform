@@ -295,8 +295,8 @@ class GarminConnectService {
      * @param {string} workoutName - Optional workout name
      * @returns {Promise<Object>} - Workout creation result with ID
      */
-    async createWorkoutFromDescription(trainingDescription, workoutDate = null, workoutName = null) {
-        if (!this.isAuthenticated) {
+    async createWorkoutFromDescription(trainingDescription, workoutDate = null, workoutName = null, skipGarmin = false, reasoningEffort = "high") {
+        if (!this.isAuthenticated && !skipGarmin) {
             throw new Error('Must be authenticated with Garmin Connect first');
         }
 
@@ -306,11 +306,16 @@ class GarminConnectService {
             console.log(`📅 Date: "${workoutDate || 'Current date'}"`);
 
             // Use AI to convert Danish description to Garmin workout JSON
-            const workoutJson = await this.workoutParser.parseTrainingDescription(
+            const parsedResponse = await this.workoutParser.parseTrainingDescription(
                 trainingDescription, 
                 workoutDate,
-                workoutName
+                workoutName,
+                reasoningEffort
             );
+            const workoutJson = parsedResponse.garminWorkout;
+            const promptMessages = parsedResponse.promptMessages;
+            const rawResponse = parsedResponse.rawResponse;
+
             // const workoutJson = {
             //     "workoutName": `[${this.incrementer++}] jog tirsdag 09/09`,
             //     "description": "50 min jog. Gælder om at komme så nemt igennem som muligt",
@@ -364,21 +369,40 @@ class GarminConnectService {
             console.log(`🏃 Workout: ${workoutJson.workoutName}`);
             console.log(`📏 Estimated: ${Math.round(workoutJson.estimatedDistanceInMeters/1000)}km, ${Math.round(workoutJson.estimatedDurationInSecs/60)}min`);
 
+            if (skipGarmin) {
+                console.log('⏭️ Skipping Garmin creation because skipGarmin flag is set (Dry run mode)');
+                return {
+                    success: true,
+                    workoutId: 'dry-run-skipped',
+                    workoutName: workoutJson.workoutName,
+                    originalDescription: trainingDescription,
+                    parsedWorkout: workoutJson,
+                    promptMessages,
+                    rawResponse,
+                    estimatedDistance: Math.round(workoutJson.estimatedDistanceInMeters/1000),
+                    estimatedDuration: Math.round(workoutJson.estimatedDurationInSecs/60),
+                    stepsCount: workoutJson.workoutSegments[0]?.workoutSteps?.length || 0
+                };
+            }
+
             // Create the workout on Garmin Connect using the correct method
-            const workoutId = await this.client.addWorkout(workoutJson);
+            const workoutDetailObj = await this.client.addWorkout(workoutJson);
+            const workoutIdVal = workoutDetailObj.workoutId || workoutDetailObj;
 
             const result = {
                 success: true,
-                workoutId: workoutId,
+                workoutId: workoutIdVal,
                 workoutName: workoutJson.workoutName,
                 originalDescription: trainingDescription,
                 parsedWorkout: workoutJson,
+                promptMessages,
+                rawResponse,
                 estimatedDistance: Math.round(workoutJson.estimatedDistanceInMeters/1000),
                 estimatedDuration: Math.round(workoutJson.estimatedDurationInSecs/60),
                 stepsCount: workoutJson.workoutSegments[0]?.workoutSteps?.length || 0
             };
 
-            console.log(`🎉 Successfully created Garmin workout ID: ${workoutId}`);
+            console.log(`🎉 Successfully created Garmin workout ID: ${workoutIdVal}`);
             return result;
 
         } catch (error) {

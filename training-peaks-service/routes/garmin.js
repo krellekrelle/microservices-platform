@@ -463,6 +463,101 @@ router.post('/create-workout', async (req, res) => {
 });
 
 /**
+ * Manual test creation of an AI-generated Garmin Workout and scheduling it
+ * POST /training/api/garmin/test-manual-workout
+ */
+router.post('/test-manual-workout', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { description, date, name, skipGarmin } = req.body;
+        
+        if (!description) {
+            return res.status(400).json({ error: 'Training description is required' });
+        }
+
+        // Generate YYYY-MM-DD from session date
+        const dateObj = date ? new Date(date) : new Date();
+        const dateString = isNaN(dateObj.getTime()) 
+            ? new Date().toISOString().split('T')[0] 
+            : dateObj.toISOString().split('T')[0];
+
+        const workoutName = name || "Manual Test Workout";
+        console.log(`🤖 [MANUAL TEST] Starting AI parsing for "${workoutName}"`);
+
+        // Get user's Garmin credentials
+        const credentials = await storageService.getGarminCredentials(userId);
+        if (!credentials) {
+            return res.status(400).json({ error: 'No Garmin credentials found.' });
+        }
+
+        // Authenticate with Garmin
+        const authSuccess = await garminService.authenticate(
+            credentials.username, 
+            credentials.decrypted_password,
+            userId
+        );
+
+        if (!authSuccess) {
+            return res.status(400).json({ error: 'Failed to authenticate with Garmin Connect.' });
+        }
+
+        // Create workout using AI parsing
+        const workoutResult = await garminService.createWorkoutFromDescription(
+            description,
+            dateString,
+            workoutName,
+            skipGarmin
+        );
+
+        if (!workoutResult.success) {
+            return res.status(400).json({
+                error: 'AI workout creation failed',
+                details: workoutResult.error || workoutResult.details,
+                prompt: workoutResult.promptMessages,
+                rawResponse: workoutResult.rawResponse
+            });
+        }
+
+        let actualWorkoutId = workoutResult.workoutId;
+        if (typeof workoutResult.workoutId === 'object' && workoutResult.workoutId !== null) {
+            actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
+        }
+
+        let scheduleId = null;
+        if (!skipGarmin) {
+            // Schedule to calendar
+            console.log(`📅 [MANUAL TEST] Scheduling workout ${actualWorkoutId} for ${dateString}`);
+            const client = garminService.client;
+            const scheduleResult = await client.scheduleWorkout(
+                { workoutId: actualWorkoutId.toString() },
+                dateString
+            );
+            scheduleId = scheduleResult?.workoutScheduleId;
+        } else {
+            console.log(`⏭️ [MANUAL TEST] Skipping Garmin scheduling (Dry run mode)`);
+        }
+
+        res.json({
+            success: true,
+            message: skipGarmin ? 'Dry run complete! (Garmin skipped)' : 'Workout successfully created and scheduled!',
+            workoutId: actualWorkoutId,
+            scheduleId: scheduleId,
+            date: dateString,
+            details: workoutResult.parsedWorkout,
+            prompt: workoutResult.promptMessages,
+            rawResponse: workoutResult.rawResponse
+        });
+
+    } catch (error) {
+        console.error('❌ Error during manual test workout creation:', error);
+        res.status(500).json({
+            error: 'Failed to manually test workout creation',
+            message: error.message
+        });
+    }
+});
+
+/**
  * Create workout from provided JSON data
  * POST /training/api/garmin/create-from-json
  */
@@ -728,11 +823,17 @@ router.post('/full-pipeline', async (req, res) => {
             const session = unsyncedSessions[i];
             console.log(`🏃 [PIPELINE] Processing unsynced session ${i + 1}/${unsyncedSessions.length}: "${session.workout_name || 'Untitled'}"`);
             
+            // Generate YYYY-MM-DD from session date
+            const dateObj = new Date(session.date || session.session_date);
+            const dateString = isNaN(dateObj.getTime()) 
+                ? new Date().toISOString().split('T')[0] 
+                : dateObj.toISOString().split('T')[0];
+
             // Map database session fields to match the old structure
             const sessionData = {
                 title: session.workout_name,
                 description: session.description,
-                session_date: session.session_date,
+                session_date: dateString,
                 type: session.type,
                 duration: session.duration,
                 distance: session.distance
