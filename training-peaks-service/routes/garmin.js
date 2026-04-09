@@ -732,7 +732,7 @@ router.post('/full-pipeline', async (req, res) => {
             const sessionData = {
                 title: session.workout_name,
                 description: session.description,
-                session_date: session.session_date,
+                session_date: session.date,
                 type: session.type,
                 duration: session.duration,
                 distance: session.distance
