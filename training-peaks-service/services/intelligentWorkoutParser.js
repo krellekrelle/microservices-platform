@@ -313,6 +313,7 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
 - "jog", "rolig", "let løb": Step 'recover', no_target.
 - "stående pause": Step 'rest', no_target.
 - "nedløb" / "afjog": Step 'cool_down'.
+- "fuld pedal": step 'run', no target.
 
 ### Technical Constraints
 - **Strict Schema**: Use ONLY the keys provided in the template (\`type\`, \`duration\`, \`target\`, \`repetition\`, \`count\`).
