@@ -564,7 +564,13 @@
                 <div style="display: flex; gap: 10px; flex-direction: column;">
                     <input type="text" id="manual-workout-name" placeholder="Workout Name (Optional)" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px;" />
                     <textarea id="manual-workout-desc" placeholder="Enter activity description (e.g. 50 min jog, easy effort)" rows="3" style="width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 8px;"></textarea>
-                    <input type="date" id="manual-workout-date" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px;" />
+                    <div style="display: flex; gap: 10px;">
+                        <input type="date" id="manual-workout-date" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px; flex: 1;" />
+                        <select id="manual-workout-reasoning" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px; flex: 1;">
+                            <option value="medium">Medium Reasoning</option>
+                            <option value="high" selected>High Reasoning</option>
+                        </select>
+                    </div>
                     <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
                         <input type="checkbox" id="manual-workout-create-garmin" checked />
                         Create and schedule workout in Garmin Connect
@@ -1528,6 +1534,7 @@
             const desc = document.getElementById('manual-workout-desc').value.trim();
             const date = document.getElementById('manual-workout-date').value;
             const createGarmin = document.getElementById('manual-workout-create-garmin').checked;
+            const reasoningEffort = document.getElementById('manual-workout-reasoning').value;
 
             if (!desc) {
                 showMessage('Please enter a workout description to test.', 'error');
@@ -1552,7 +1559,8 @@
                         name: name || undefined, 
                         description: desc, 
                         date: date || undefined, 
-                        skipGarmin: !createGarmin 
+                        skipGarmin: !createGarmin,
+                        reasoningEffort
                     })
                 });
 
