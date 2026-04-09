@@ -728,11 +728,17 @@ router.post('/full-pipeline', async (req, res) => {
             const session = unsyncedSessions[i];
             console.log(`🏃 [PIPELINE] Processing unsynced session ${i + 1}/${unsyncedSessions.length}: "${session.workout_name || 'Untitled'}"`);
             
+            // Generate YYYY-MM-DD from session date
+            const dateObj = new Date(session.date || session.session_date);
+            const dateString = isNaN(dateObj.getTime()) 
+                ? new Date().toISOString().split('T')[0] 
+                : dateObj.toISOString().split('T')[0];
+
             // Map database session fields to match the old structure
             const sessionData = {
                 title: session.workout_name,
                 description: session.description,
-                session_date: session.session_date,
+                session_date: dateString,
                 type: session.type,
                 duration: session.duration,
                 distance: session.distance

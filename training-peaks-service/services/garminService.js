@@ -365,11 +365,12 @@ class GarminConnectService {
             console.log(`📏 Estimated: ${Math.round(workoutJson.estimatedDistanceInMeters/1000)}km, ${Math.round(workoutJson.estimatedDurationInSecs/60)}min`);
 
             // Create the workout on Garmin Connect using the correct method
-            const workoutId = await this.client.addWorkout(workoutJson);
+            const workoutDetailObj = await this.client.addWorkout(workoutJson);
+            const workoutIdVal = workoutDetailObj.workoutId || workoutDetailObj;
 
             const result = {
                 success: true,
-                workoutId: workoutId,
+                workoutId: workoutIdVal,
                 workoutName: workoutJson.workoutName,
                 originalDescription: trainingDescription,
                 parsedWorkout: workoutJson,
@@ -378,7 +379,7 @@ class GarminConnectService {
                 stepsCount: workoutJson.workoutSegments[0]?.workoutSteps?.length || 0
             };
 
-            console.log(`🎉 Successfully created Garmin workout ID: ${workoutId}`);
+            console.log(`🎉 Successfully created Garmin workout ID: ${workoutIdVal}`);
             return result;
 
         } catch (error) {
