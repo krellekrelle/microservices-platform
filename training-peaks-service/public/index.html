@@ -1242,7 +1242,11 @@
             
             // Set current date as default for workout date
             const today = new Date().toISOString().split('T')[0];
-            document.getElementById('workout-date').value = today;
+            const oldWorkoutDateRaw = document.getElementById('workout-date');
+            if (oldWorkoutDateRaw) oldWorkoutDateRaw.value = today;
+            
+            const manualWorkoutDateRaw = document.getElementById('manual-workout-date');
+            if (manualWorkoutDateRaw) manualWorkoutDateRaw.value = today;
         });
 
         // Load Garmin credentials status
