@@ -565,6 +565,10 @@
                     <input type="text" id="manual-workout-name" placeholder="Workout Name (Optional)" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px;" />
                     <textarea id="manual-workout-desc" placeholder="Enter activity description (e.g. 50 min jog, easy effort)" rows="3" style="width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 8px;"></textarea>
                     <input type="date" id="manual-workout-date" style="border: 1px solid #ccc; border-radius: 4px; padding: 8px;" />
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="manual-workout-create-garmin" checked />
+                        Create and schedule workout in Garmin Connect
+                    </label>
                     <button id="run-manual-test-btn" class="btn" style="background-color: #28a745; color: white;">⚡ Handle Activity Description</button>
                 </div>
                 <!-- Response Debug Section -->
@@ -1519,6 +1523,7 @@
             const name = document.getElementById('manual-workout-name').value.trim();
             const desc = document.getElementById('manual-workout-desc').value.trim();
             const date = document.getElementById('manual-workout-date').value;
+            const createGarmin = document.getElementById('manual-workout-create-garmin').checked;
 
             if (!desc) {
                 showMessage('Please enter a workout description to test.', 'error');
@@ -1533,13 +1538,18 @@
             this.disabled = true;
             const originalText = this.textContent;
             this.textContent = '⚡ Processing...';
-            showMessage('🧪 Running manual pipeline test (Parsing -> Creating -> Scheduling)...', 'info');
+            showMessage(createGarmin ? '🧪 Running manual pipeline test (Parsing -> Creating -> Scheduling)...' : '🧪 Running manual pipeline test (Parsing only, skipping Garmin)...', 'info');
 
             try {
                 const response = await fetch('/training/api/garmin/test-manual-workout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name || undefined, description: desc, date: date || undefined })
+                    body: JSON.stringify({ 
+                        name: name || undefined, 
+                        description: desc, 
+                        date: date || undefined, 
+                        skipGarmin: !createGarmin 
+                    })
                 });
 
                 const result = await response.json();
@@ -1556,7 +1566,11 @@
                 }
 
                 if (response.ok && result.success) {
-                    showMessage(`✅ Test pipeline complete! Workout ID: ${result.workoutId} scheduled on ${result.date}`, 'success');
+                    if (createGarmin) {
+                        showMessage(`✅ Test pipeline complete! Workout ID: ${result.workoutId} scheduled on ${result.date}`, 'success');
+                    } else {
+                        showMessage(`✅ Dry run complete! Parsing succeeded. (Garmin skipped)`, 'success');
+                    }
                     console.log('Pipeline Test JSON details:', result.details);
                 } else {
                     showMessage(`❌ Test pipeline failed: ${result.error || result.message || 'Unknown error'}`, 'error');

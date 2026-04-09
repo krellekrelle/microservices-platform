@@ -469,7 +469,7 @@ router.post('/create-workout', async (req, res) => {
 router.post('/test-manual-workout', async (req, res) => {
     try {
         const userId = req.user.id;
-        const { description, date, name } = req.body;
+        const { description, date, name, skipGarmin } = req.body;
         
         if (!description) {
             return res.status(400).json({ error: 'Training description is required' });
@@ -505,7 +505,8 @@ router.post('/test-manual-workout', async (req, res) => {
         const workoutResult = await garminService.createWorkoutFromDescription(
             description,
             dateString,
-            workoutName
+            workoutName,
+            skipGarmin
         );
 
         if (!workoutResult.success) {
@@ -522,19 +523,25 @@ router.post('/test-manual-workout', async (req, res) => {
             actualWorkoutId = workoutResult.workoutId.id || workoutResult.workoutId.workoutId || workoutResult.workoutId.workoutKey || String(workoutResult.workoutId);
         }
 
-        // Schedule to calendar
-        console.log(`📅 [MANUAL TEST] Scheduling workout ${actualWorkoutId} for ${dateString}`);
-        const client = garminService.client;
-        const scheduleResult = await client.scheduleWorkout(
-            { workoutId: actualWorkoutId.toString() },
-            dateString
-        );
+        let scheduleId = null;
+        if (!skipGarmin) {
+            // Schedule to calendar
+            console.log(`📅 [MANUAL TEST] Scheduling workout ${actualWorkoutId} for ${dateString}`);
+            const client = garminService.client;
+            const scheduleResult = await client.scheduleWorkout(
+                { workoutId: actualWorkoutId.toString() },
+                dateString
+            );
+            scheduleId = scheduleResult?.workoutScheduleId;
+        } else {
+            console.log(`⏭️ [MANUAL TEST] Skipping Garmin scheduling (Dry run mode)`);
+        }
 
         res.json({
             success: true,
-            message: 'Workout successfully created and scheduled!',
+            message: skipGarmin ? 'Dry run complete! (Garmin skipped)' : 'Workout successfully created and scheduled!',
             workoutId: actualWorkoutId,
-            scheduleId: scheduleResult?.workoutScheduleId,
+            scheduleId: scheduleId,
             date: dateString,
             details: workoutResult.parsedWorkout,
             prompt: workoutResult.promptMessages,
