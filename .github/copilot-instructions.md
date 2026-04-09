@@ -1,5 +1,8 @@
 # Microservices Platform - AI Agent Instructions
 
+> **⚠️ CRITICAL RULE FOR AI AGENT:**
+> **DO NOT manually update, rebuild, or restart the Docker containers in production or using `docker compose up -d`. All container deployments and updates are handled automatically by a CI/CD pipeline.**
+
 ## Architecture Overview
 
 This is a **centralized-auth microservices platform** running on Docker with Caddy reverse proxy. All authentication is handled by the `auth-service`, while individual services remain stateless.

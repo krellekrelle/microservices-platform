@@ -9,6 +9,11 @@ services:
       - caddy_config:/config
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     depends_on:
       - auth-service
       - landing-page
@@ -50,6 +55,11 @@ services:
       - ./auth-service/data:/app/data
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     depends_on:
       database:
         condition: service_healthy
@@ -72,6 +82,11 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   hello-world-app:
@@ -89,6 +104,11 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3002').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   lol-tracking-service:
@@ -106,6 +126,11 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3003').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   hearts-game-service:
@@ -124,6 +149,11 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3004').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped  
 
   training-peaks-service:
@@ -152,6 +182,11 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3005').then(()=>process.exit(0)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   prometheus:
@@ -168,6 +203,11 @@ services:
       - '--web.enable-lifecycle'
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   grafana:
@@ -186,6 +226,11 @@ services:
       - prometheus
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
   node-exporter:
@@ -201,6 +246,11 @@ services:
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9100/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped 
 
 networks:
