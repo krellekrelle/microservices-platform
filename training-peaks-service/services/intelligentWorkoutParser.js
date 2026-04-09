@@ -248,12 +248,8 @@ class IntelligentWorkoutParser {
 
         const promptMessages = [
             {
-                role: "user",
+                role: "system",
                 content: "### Role\nExpert Running Coach & Data Parser. Convert Danish text to Garmin JSON.\n\n### Special Movement Logic\n- \"flowløb\": Repetition (Run 0.1km, no_target) + (Rest 00:00:40).\n- \"kenyaløb\": Detect the alternating time pattern (e.g., 1+1 or 2+2). Create a 'repetition' block. Count = Total Time / (Sum of one cycle). Target is always 'no_target'.\n- \"dynamisk stræk\": Step 'rest', 00:05:00.\n- \"jog/rolig/let\": Step 'recover', no_target.\n- \"fartleg\": Step 'run', no_target.\n\n### Technical Constraints\n1. **Pace Calculation**: \n   - Single pace (4:30) -> Range: Low 04:40, High 04:20.\n   - Range given (4:20-4:30) -> Use as is.\n   - No pace given -> target: \"no_target\".\n2. **Implied Math**: \n   - If \"12km total\" is \"1km fast/1km slow\", create repetition count: 6.\n   - If \"14 min total\" is \"1min/1min\", create repetition count: 7.\n3. **Format**: JSON only. No links, no conversational filler.\n\n### Schema\n{\n  \"workout_name\": \"string\",\n  \"steps\": [\n    {\n      \"step_type\": \"warmup|run|recover|rest|cool_down\",\n      \"type\": \"time|distance|lap_button\",\n      \"duration\": \"hh:mm:ss OR float(km)\",\n      \"target\": \"no_target|pace\",\n      \"pace_range\": { \"low\": \"mm:ss\", \"high\": \"mm:ss\" }\n    },\n    { \"repetition\": { \"count\": int, \"steps\": [ ... ] } }\n  ]\n}\n\n\"3 km opvarmning\n4x 100 meter flowløb\n2 km 4.20- 4.30\n2 min stående pause\n14 min kenyaløb ( skiftevis 1 min hurtigt, 1 min jog osv..)\n2 km 4.20- 4.30\n3 km nedløb\"\n\n\n"
-            },
-            {
-                role: "assistant",
-                content: "{\"workout_name\":\"Custom Workout\",\"steps\":[{\"step_type\":\"warmup\",\"type\":\"distance\",\"duration\":3,\"target\":\"no_target\"},{\"repetition\":{\"count\":4,\"steps\":[{\"step_type\":\"run\",\"type\":\"distance\",\"duration\":0.1,\"target\":\"no_target\"},{\"step_type\":\"rest\",\"type\":\"time\",\"duration\":\"00:00:40\",\"target\":\"no_target\"}]}},{\"step_type\":\"run\",\"type\":\"distance\",\"duration\":2,\"target\":\"pace\",\"pace_range\":{\"low\":\"04:20\",\"high\":\"04:30\"}},{\"step_type\":\"rest\",\"type\":\"time\",\"duration\":\"00:02:00\",\"target\":\"no_target\"},{\"repetition\":{\"count\":7,\"steps\":[{\"step_type\":\"run\",\"type\":\"time\",\"duration\":\"00:01:00\",\"target\":\"no_target\"},{\"step_type\":\"recover\",\"type\":\"time\",\"duration\":\"00:01:00\",\"target\":\"no_target\"}]}},{\"step_type\":\"run\",\"type\":\"distance\",\"duration\":2,\"target\":\"pace\",\"pace_range\":{\"low\":\"04:20\",\"high\":\"04:30\"}},{\"step_type\":\"cool_down\",\"type\":\"distance\",\"duration\":3,\"target\":\"no_target\"}]}"
             },
             {
                 role: "user",
@@ -268,7 +264,7 @@ class IntelligentWorkoutParser {
                 model: "openai/gpt-oss-120b",
                 messages: promptMessages,
                 temperature: 0,
-                max_completion_tokens: 8192,
+                max_completion_tokens: 8192/2,
                 top_p: 1,
                 reasoning_effort: "medium",
                 stream: false,
