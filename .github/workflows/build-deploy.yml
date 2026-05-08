@@ -10,7 +10,31 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            auth-service: 'auth-service/**'
+            landing-page: 'landing-page/**'
+            hello-world-app: 'hello-world-app/**'
+            lol-tracking-service: 'lol-tracking-service/**'
+            hearts-game-service: 'hearts-game-service/**'
+            training-peaks-service: 'training-peaks-service/**'
+
   build-and-push:
+    needs: changes
+    if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,19 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - service: auth-service
-            context: ./auth-service
-          - service: landing-page
-            context: ./landing-page
-          - service: hello-world-app
-            context: ./hello-world-app
-          - service: lol-tracking-service
-            context: ./lol-tracking-service
-          - service: hearts-game-service
-            context: ./hearts-game-service
-          - service: training-peaks-service
-            context: ./training-peaks-service
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
 
     steps:
       - name: Checkout code
@@ -56,7 +68,7 @@ jobs:
       - name: Build and optionally push image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.context }}
+          context: ./${{ matrix.service }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.prep.outputs.owner_lc }}/microservices-platform-${{ matrix.service }}:latest
@@ -65,11 +77,9 @@ jobs:
 
   deploy:
     needs: build-and-push
+    # Allows deployment if build-and-push succeeded OR if it was skipped (because no services changed)
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped')
     runs-on: self-hosted
-    permissions:
-      contents: read
-      packages: read
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       DEPLOY_DIR: /home/kl/deploy/microservices-platform
     steps:
