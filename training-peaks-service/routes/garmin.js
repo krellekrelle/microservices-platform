@@ -469,7 +469,7 @@ router.post('/create-workout', async (req, res) => {
 router.post('/test-manual-workout', async (req, res) => {
     try {
         const userId = req.user.id;
-        const { description, date, name, skipGarmin, reasoningEffort } = req.body;
+        const { description, date, name, skipGarmin } = req.body;
         
         if (!description) {
             return res.status(400).json({ error: 'Training description is required' });
@@ -506,8 +506,7 @@ router.post('/test-manual-workout', async (req, res) => {
             description,
             dateString,
             workoutName,
-            skipGarmin,
-            reasoningEffort
+            skipGarmin
         );
 
         if (!workoutResult.success) {
