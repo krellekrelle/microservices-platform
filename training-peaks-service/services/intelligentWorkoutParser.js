@@ -302,9 +302,10 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
    - 'High' MUST be the FASTEST pace (the lower time value).
 2. **Step Type Alternation**: In any repetition (Kenyaløb, Intervaller), the steps MUST have different \`type\` values (e.g., \`run\` followed by \`recover\`). Never use \`run\` for both steps in a cycle.
 3. **Recovery Placement**: 
-3. **Recovery Placement**: 
    - If "jog imellem" or "pause" is mentioned either inside or outside parentheses or as part of a repeating set, place it INSIDE the \`repetition\` block. Be aware that the rest/recovery can be on the next line, but is still part of the \`repetition\` block.
-4. **Sequence Expansion**: If a sequence is unique and non-repeating (e.g., "1, 2, 3, 2, 1 min"), write every step individually. NEVER use the word "dynamic" for counts.
+4. **Sequence Expansion & Progressive**: 
+   - If a sequence is unique and non-repeating (e.g., "1, 2, 3, 2, 1 min"), write every step individually. NEVER use the word "dynamic" for counts.
+   - If "progressiv" has explicitly listed paces (e.g., "(4.00, 3.50, 3.40)"), create distinct 'run' steps for each pace explicitly.
 
 ### Danish Terminology Lookup
 - "flowløb": Repetition: (Run 0.1km, no_target) + (Rest 00:00:40).
@@ -333,7 +334,7 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
                 model: "openai/gpt-oss-120b",
                 messages: promptMessages,
                 temperature: 0,
-                max_completion_tokens: 8192/2,
+                max_completion_tokens: 4096,
                 top_p: 1,
                 reasoning_effort: reasoningEffort,
                 stream: false,
