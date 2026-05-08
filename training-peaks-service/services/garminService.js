@@ -295,7 +295,7 @@ class GarminConnectService {
      * @param {string} workoutName - Optional workout name
      * @returns {Promise<Object>} - Workout creation result with ID
      */
-    async createWorkoutFromDescription(trainingDescription, workoutDate = null, workoutName = null, skipGarmin = false, reasoningEffort = "high") {
+    async createWorkoutFromDescription(trainingDescription, workoutDate = null, workoutName = null, skipGarmin = false) {
         if (!this.isAuthenticated && !skipGarmin) {
             throw new Error('Must be authenticated with Garmin Connect first');
         }
@@ -309,8 +309,7 @@ class GarminConnectService {
             const parsedResponse = await this.workoutParser.parseTrainingDescription(
                 trainingDescription, 
                 workoutDate,
-                workoutName,
-                reasoningEffort
+                workoutName
             );
             const workoutJson = parsedResponse.garminWorkout;
             const promptMessages = parsedResponse.promptMessages;

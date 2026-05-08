@@ -249,12 +249,11 @@ class IntelligentWorkoutParser {
      * @param {string} workoutName - Optional workout name
      * @returns {Object} Garmin workout JSON
      */
-    async parseTrainingDescription(description, workoutDate = null, workoutName = null, reasoningEffort = "high") {
+    async parseTrainingDescription(description, workoutDate = null, workoutName = null) {
         console.log('🤖 [DEBUG] AI Parser - Starting parseTrainingDescription (Two-Step Approach)');
         console.log(`📝 [DEBUG] AI Parser - Description: "${description}"`);
         console.log(`📅 [DEBUG] AI Parser - Date: "${workoutDate || 'Current date'}"`);
         console.log(`🏷️ [DEBUG] AI Parser - Workout Name: "${workoutName || 'Auto-generated'}"`);
-        console.log(`🧠 [DEBUG] AI Parser - Reasoning Effort: "${reasoningEffort}"`);
         
         const dateToUse = workoutDate || new Date().toISOString().split('T')[0];
 
@@ -330,13 +329,13 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
         try {
             console.log('🚀 [DEBUG] AI Parser - Sending request to Groq API...');
 
+            // Used to use openai/gpt-oss-120b, changed to llama-3.3-70b-versatile for better strict JSON format consistency
             const completion = await this.groq.chat.completions.create({
-                model: "openai/gpt-oss-120b",
+                model: "llama-3.3-70b-versatile",
                 messages: promptMessages,
                 temperature: 0,
                 max_completion_tokens: 4096,
                 top_p: 1,
-                reasoning_effort: reasoningEffort,
                 stream: false,
                 response_format: { type: 'json_object' },
                 stop: null
