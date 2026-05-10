@@ -4,7 +4,7 @@ const path = require('path');
 const metricsService = require('./metrics');
 
 /**
- * Intelligent Workout Parser using Groq AI to convert Danish training descriptions
+ * Intelligent Workout Parser using Gemini AI to convert Danish training descriptions
  * into Garmin Connect workout JSON format using a two-step approach:
  * 1. AI -> simplified intermediate JSON
  * 2. Deterministic code -> Garmin DTO
@@ -169,7 +169,11 @@ class IntelligentWorkoutParser {
         // Build an elegant name if none was supplied
         let defaultName = aiWorkout.workout_name || "Træning";
         if (workoutDate) {
-            const dateObj = new Date(workoutDate);
+            // JS parses "YYYY-MM-DD" as UTC midnight. If queried in a timezone behind UTC (or if dates 
+            // arrived slightly offset), .getDate() can shift back to 23:00 on the previous day. 
+            // Appending T12:00:00 anchors the parsed Date to local noon, ensuring it stays on the target day.
+            const dateStr = workoutDate.includes('T') ? workoutDate : `${workoutDate}T12:00:00`;
+            const dateObj = new Date(dateStr);
             const ddmm = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
             const dayNames = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
             const dayName = dayNames[dateObj.getDay()];

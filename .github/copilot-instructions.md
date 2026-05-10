@@ -1,7 +1,9 @@
 # Microservices Platform - AI Agent Instructions
 
-> **⚠️ CRITICAL RULE FOR AI AGENT:**
-> **DO NOT manually update, rebuild, or restart the Docker containers in production or using `docker compose up -d`. All container deployments and updates are handled automatically by a CI/CD pipeline.**
+> **⚠️ CRITICAL RULE FOR AI AGENT - NO MANUAL DEPLOYMENTS:**
+> **NEVER manually build, pull, update, or restart Docker containers on the production deployment server (e.g., `/home/kl/deploy/microservices-platform`).**
+> **NEVER run `docker compose build` or `docker compose up -d` to bypass the CI/CD pipeline.**
+> All deployments, image builds, and container updates MUST be handled automatically by the GitHub Actions CI/CD pipeline triggered by a git push. If an image fails to deploy, you must debug the GitHub Actions pipeline, not force a local build.
 
 ## Architecture Overview
 
