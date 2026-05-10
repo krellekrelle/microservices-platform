@@ -75,6 +75,21 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.prep.outputs.owner_lc }}/microservices-platform-${{ matrix.service }}:${{ github.sha }}
           platforms: linux/arm64
 
+  # This job acts as a single status check for GitHub's Branch Protection Rules
+  # It evaluates to true if all builds succeed OR if they are skipped safely.
+  pr-checks-passed:
+    needs: build-and-push
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify build success
+        run: |
+          if [ "${{ needs.build-and-push.result }}" == "failure" ] || [ "${{ needs.build-and-push.result }}" == "cancelled" ]; then
+            echo "Matrix build failed or was cancelled."
+            exit 1
+          fi
+          echo "All builds successful or strategically skipped."
+
   deploy:
     needs: build-and-push
     # Allows deployment if build-and-push succeeded OR if it was skipped (because no services changed)
