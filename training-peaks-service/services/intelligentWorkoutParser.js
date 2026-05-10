@@ -1,4 +1,4 @@
-const Groq = require('groq-sdk');
+const { GoogleGenAI } = require('@google/genai');
 const fs = require('fs').promises;
 const path = require('path');
 const metricsService = require('./metrics');
@@ -11,8 +11,8 @@ const metricsService = require('./metrics');
  */
 class IntelligentWorkoutParser {
     constructor() {
-        this.groq = new Groq({
-            apiKey: process.env.GROQ_API_KEY
+        this.ai = new GoogleGenAI({
+            apiKey: process.env.GEMINI_API_KEY
         });
         this.resultsPath = '/app/data';
     }
@@ -40,7 +40,7 @@ class IntelligentWorkoutParser {
                     error: error
                 },
                 metadata: {
-                    model: 'openai/gpt-oss-120b',
+                    model: 'gemini-1.5-flash',
                     promptType: 'two-step-simplified',
                     responseLength: rawResponse?.length || 0
                 }
@@ -257,10 +257,7 @@ class IntelligentWorkoutParser {
         
         const dateToUse = workoutDate || new Date().toISOString().split('T')[0];
 
-        const promptMessages = [
-            {
-                role: "system",
-                content: `### Role
+        const systemInstruction = `### Role
 Expert Running Coach & Data Engineer. Your task is to translate Danish workout descriptions into a strictly formatted Garmin JSON structure. 
 
 ### Target JSON Structure (Template)
@@ -318,37 +315,31 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
 ### Technical Constraints
 - **Strict Schema**: Use ONLY the keys provided in the template (\`type\`, \`duration\`, \`target\`, \`repetition\`, \`count\`).
 - **Formatting**: Time must be \`hh:mm:ss\`. Distance must be a float with one decimal (e.g., 4.0).
-- **Output**: Return ONLY the JSON object. No conversational text.`
-                            },
-            {
-                role: "user",
-                content: description
-            }
-        ];
+- **Output**: Return ONLY the JSON object. No conversational text.`;
+
+        const promptMessages = [{ role: 'user', content: description }];
         
         try {
-            console.log('🚀 [DEBUG] AI Parser - Sending request to Groq API...');
+            console.log('🚀 [DEBUG] AI Parser - Sending request to Gemini API...');
 
-            // Used to use openai/gpt-oss-120b, changed to llama-3.3-70b-versatile for better strict JSON format consistency
-            const completion = await this.groq.chat.completions.create({
-                model: "llama-3.3-70b-versatile",
-                messages: promptMessages,
-                temperature: 0,
-                max_completion_tokens: 4096,
-                top_p: 1,
-                stream: false,
-                response_format: { type: 'json_object' },
-                stop: null
+            const completion = await this.ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: description,
+                config: {
+                    systemInstruction: systemInstruction,
+                    responseMimeType: "application/json",
+                    temperature: 0,
+                }
             });
             
             // Track AI prompt usage
             await metricsService.recordAIPrompt();
             
-            console.log('✅ [DEBUG] AI Parser - Received response from Groq API');
+            console.log('✅ [DEBUG] AI Parser - Received response from Gemini API');
             
-            const result = completion.choices[0]?.message?.content;
+            const result = completion.text;
             if (!result) {
-                throw new Error('No response from Groq API');
+                throw new Error('No response from Gemini API');
             }
 
             console.log(`📄 [DEBUG] AI Parser - Intermediate response length: ${result.length} characters`);
