@@ -109,7 +109,7 @@ class IntelligentWorkoutParser {
         const stepTypeObj = typeMap[stepTypeInput] || typeMap["interval"];
         
         const isDistance = step.type === 'distance' || typeof step.duration === 'number';
-        const targetTypeInput = step.target || "no_target";
+        const targetTypeInput = (step.target && step.target.type) ? step.target.type : (typeof step.target === 'string' ? step.target : "no_target");
         
         // Map target
         const targetTypeKey = targetTypeInput === "pace" ? "pace.zone" : "no.target";
