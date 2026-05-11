@@ -277,7 +277,10 @@ class IntelligentWorkoutParser {
             } else if (type === 'time') {
                 const timeSecs = value;
                 totalTimeSeconds += timeSecs;
-                totalDistanceMeters += (timeSecs / paceSecondsPerKm) * 1000;
+                // Only assume distance is covered if we are not resting (standing still)
+                if (step.stepType?.stepTypeKey !== 'rest') {
+                    totalDistanceMeters += (timeSecs / paceSecondsPerKm) * 1000;
+                }
             }
         };
 
