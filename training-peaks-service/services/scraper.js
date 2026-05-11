@@ -237,9 +237,16 @@ class TrainingPeaksScraper {
                                           element.textContent?.trim() ||
                                           '';
                         
-                        const duration = element.querySelector('.workout-duration, .duration, .time')?.textContent?.trim() ||
+                        let duration = element.querySelector('.plannedTime, .workout-duration, .duration, .time')?.textContent?.trim() ||
                                        element.getAttribute('data-duration') ||
+                                       element.querySelector('.title-time')?.textContent?.trim() ||
                                        null;
+                        
+                        // Parse from description or title as fallback
+                        if (!duration && (title || description)) {
+                            const timeMatch = (title + " " + description).match(/(\d+)\s*(?:timers?|min|m|k?m)/i);
+                            if (timeMatch) duration = timeMatch[0];
+                        }
                         
                         // Only add if we have meaningful content
                         if ((title && title.length > 3) || (description && description.length > 10)) {
