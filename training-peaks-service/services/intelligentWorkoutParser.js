@@ -165,7 +165,7 @@ class IntelligentWorkoutParser {
     /**
      * Convert intermediate simplified AI JSON to full Garmin DTO structure.
      */
-    convertAIToGarmin(aiWorkout, workoutDate, requestedName) {
+    convertAIToGarmin(aiWorkout, workoutDate, requestedName, rawDescription = null) {
         // Build an elegant name if none was supplied
         let defaultName = aiWorkout.workout_name || "Træning";
         if (workoutDate) {
@@ -186,6 +186,7 @@ class IntelligentWorkoutParser {
 
         const garminDto = {
             workoutName: finalName,
+            description: rawDescription || "Parsed via Gemini AI",
             updateDate: currentDate,
             createdDate: currentDate,
             sportType: { sportTypeId: 1, sportTypeKey: "running" },
@@ -352,7 +353,7 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
             console.log('🔍 [DEBUG] AI Parser - Intermediate JSON parsing successful');
             
             // Step 2: Convert to Garmin DTO
-            const garminWorkout = this.convertAIToGarmin(intermediateWorkout, dateToUse, workoutName);
+            const garminWorkout = this.convertAIToGarmin(intermediateWorkout, dateToUse, workoutName, description);
             console.log('🎯 [DEBUG] AI Parser - Converted to final Garmin DTO natively');
             
             this.validateWorkoutStructure(garminWorkout);
