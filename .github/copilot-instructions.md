@@ -5,6 +5,10 @@
 > **NEVER run `docker compose build` or `docker compose up -d` to bypass the CI/CD pipeline.**
 > All deployments, image builds, and container updates MUST be handled automatically by the GitHub Actions CI/CD pipeline triggered by a git push. If an image fails to deploy, you must debug the GitHub Actions pipeline, not force a local build.
 
+> **⚠️ CRITICAL RULE FOR AI AGENT - CONTEXT & DATABASE SAFEGUARDS:**
+> **1. CONTEXT BEFORE ACTION:** Always explain your plan and provide context BEFORE making complex code changes or editing multiple files. Do not use opaque `sed`, `awk`, or bash scripts to edit code; use the proper string replacement tools.
+> **2. DATABASE MODIFICATIONS REQUIRE CONFIRMATION:** NEVER alter database schemas, run migrations, or change core SQL queries that alter database state without asking the user for explicit confirmation first.
+
 ## Architecture Overview
 
 This is a **centralized-auth microservices platform** running on Docker with Caddy reverse proxy. All authentication is handled by the `auth-service`, while individual services remain stateless.

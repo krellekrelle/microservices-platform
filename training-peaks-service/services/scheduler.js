@@ -304,8 +304,26 @@ class PipelineScheduler {
                 console.log(`✅ [SCHEDULER] Workout scheduled to calendar for ${session.date}`);
                 await metrics.recordWorkoutScheduled();
 
-                // Mark as synced
-                await storageService.markTrainingSessionGarminSynced(session.id, actualWorkoutId);
+                // Prepare metrics calculated by AI parser
+                let durationSeconds = null;
+                let distanceKmStr = null;
+                if (workoutResult.parsedWorkout) {
+                    if (workoutResult.parsedWorkout.estimatedDurationInSecs) {
+                        durationSeconds = Math.round(workoutResult.parsedWorkout.estimatedDurationInSecs);
+                    }
+                    if (workoutResult.parsedWorkout.estimatedDistanceInMeters) {
+                        const distKm = workoutResult.parsedWorkout.estimatedDistanceInMeters / 1000;
+                        distanceKmStr = `${distKm.toFixed(2)}km`;
+                    }
+                }
+
+                // Mark as synced and save calculated metrics
+                await storageService.markTrainingSessionGarminSynced(
+                    session.id, 
+                    actualWorkoutId.toString(),
+                    durationSeconds,
+                    distanceKmStr
+                );
                 syncedCount++;
 
             } catch (error) {

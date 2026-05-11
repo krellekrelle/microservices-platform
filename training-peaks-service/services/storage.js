@@ -600,17 +600,37 @@ class StorageService {
     }
 
     // Mark training session as Garmin synced
-    async markTrainingSessionGarminSynced(sessionId, garminWorkoutId = null) {
+    async markTrainingSessionGarminSynced(sessionId, garminWorkoutId = null, durationSeconds = null, distanceStr = null) {
         try {
+            let setClauses = [
+                'garmin_synced = true',
+                'garmin_sync_attempted = NOW()',
+                'workout_id = COALESCE($2, workout_id)'
+            ];
+            let values = [sessionId, garminWorkoutId];
+            let paramCounter = 3;
+
+            // Only update duration if provided
+            if (durationSeconds !== null && durationSeconds !== undefined) {
+                setClauses.push(`duration = $${paramCounter}`);
+                values.push(Math.round(durationSeconds));
+                paramCounter++;
+            }
+
+            // Only update distance if provided
+            if (distanceStr !== null && distanceStr !== undefined) {
+                setClauses.push(`distance = $${paramCounter}`);
+                values.push(distanceStr);
+                paramCounter++;
+            }
+
             const query = `
                 UPDATE training_sessions 
-                SET garmin_synced = true, 
-                    garmin_sync_attempted = NOW(),
-                    workout_id = COALESCE($2, workout_id)
+                SET ${setClauses.join(', ')}
                 WHERE id = $1
             `;
             
-            await db.query(query, [sessionId, garminWorkoutId]);
+            await db.query(query, values);
             console.log(`✅ Marked session ${sessionId} as Garmin synced${garminWorkoutId ? ` with workout ID ${garminWorkoutId}` : ''}`);
         } catch (error) {
             console.error('❌ Error marking session as Garmin synced:', error);

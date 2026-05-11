@@ -248,6 +248,68 @@ class IntelligentWorkoutParser {
     }
 
     /**
+     * Helper to compute estimated distance in meters and time in seconds from steps
+     */
+    calculateWorkoutTotals(garminWorkout) {
+        let totalDistanceMeters = 0;
+        let totalTimeSeconds = 0;
+        const defaultPaceSecondsPerKm = 330; // 5:30/km fallback
+
+        const processStep = (step) => {
+            const type = step.endCondition?.conditionTypeKey;
+            const value = step.endConditionValue || 0;
+            
+            let avgMs = 0;
+            if (step.targetValueOne && step.targetValueTwo) {
+                // targetValueOne and Two are in m/s
+                avgMs = (step.targetValueOne + step.targetValueTwo) / 2;
+            }
+            
+            let paceSecondsPerKm = defaultPaceSecondsPerKm;
+            if (avgMs > 0) {
+                paceSecondsPerKm = 1000 / avgMs;
+            }
+
+            if (type === 'distance') {
+                const distMeters = value;
+                totalDistanceMeters += distMeters;
+                totalTimeSeconds += (distMeters / 1000) * paceSecondsPerKm;
+            } else if (type === 'time') {
+                const timeSecs = value;
+                totalTimeSeconds += timeSecs;
+                totalDistanceMeters += (timeSecs / paceSecondsPerKm) * 1000;
+            }
+        };
+
+        const steps = garminWorkout.workoutSegments?.[0]?.workoutSteps || [];
+        for (const step of steps) {
+            if (step.type === 'RepeatGroupDTO' || step.type === 'RepeatGroup') {
+                const iterations = step.numberOfIterations || 1;
+                const preDist = totalDistanceMeters;
+                const preTime = totalTimeSeconds;
+                
+                for (const child of (step.workoutSteps || [])) {
+                    processStep(child);
+                }
+                
+                const deltaDist = totalDistanceMeters - preDist;
+                const deltaTime = totalTimeSeconds - preTime;
+                
+                // processStep already added one iteration, so add the rest
+                totalDistanceMeters += deltaDist * (iterations - 1);
+                totalTimeSeconds += deltaTime * (iterations - 1);
+            } else {
+                processStep(step);
+            }
+        }
+
+        return {
+            distanceKm: Number((totalDistanceMeters / 1000).toFixed(2)),
+            durationMinutes: Math.round(totalTimeSeconds / 60)
+        };
+    }
+
+    /**
      * Main entry point: Convert a Danish training description into Garmin workout JSON
      * @param {string} description - Danish training description
      * @param {string} workoutDate - Date for the workout (YYYY-MM-DD)
@@ -359,6 +421,12 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
             this.validateWorkoutStructure(garminWorkout);
             console.log('✅ [DEBUG] AI Parser - Garmin workout structure validation passed');
             
+            // Calculate totals
+            const totals = this.calculateWorkoutTotals(garminWorkout);
+            garminWorkout.estimatedDistanceInMeters = Math.round(totals.distanceKm * 1000);
+            garminWorkout.estimatedDurationInSecs = totals.durationMinutes * 60;
+            console.log(`⏱️ [DEBUG] AI Parser - Calculated totals: ${totals.distanceKm}km, ${totals.durationMinutes}min`);
+
             // Save successful AI response
             await this.saveAIResponse(description, dateToUse, promptMessages, result, garminWorkout, true);
             
@@ -366,7 +434,9 @@ Expert Running Coach & Data Engineer. Your task is to translate Danish workout d
             return {
                 garminWorkout,
                 promptMessages,
-                rawResponse: result
+                rawResponse: result,
+                distanceKm: totals.distanceKm,
+                durationMinutes: totals.durationMinutes
             };
             
         } catch (error) {

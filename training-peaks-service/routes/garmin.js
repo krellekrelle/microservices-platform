@@ -892,8 +892,26 @@ router.post('/full-pipeline', async (req, res) => {
                         
                         console.log(`✅ [PIPELINE] Successfully scheduled to calendar with schedule ID: ${scheduleResult.workoutScheduleId}`);
                         
-                        // Mark the session as synced in the database
-                        await storageService.markTrainingSessionGarminSynced(session.id, actualWorkoutId.toString());
+                        // Prepare metrics calculated by AI parser
+                        let durationSeconds = null;
+                        let distanceKmStr = null;
+                        if (workoutResult.parsedWorkout) {
+                            if (workoutResult.parsedWorkout.estimatedDurationInSecs) {
+                                durationSeconds = Math.round(workoutResult.parsedWorkout.estimatedDurationInSecs);
+                            }
+                            if (workoutResult.parsedWorkout.estimatedDistanceInMeters) {
+                                const distKm = workoutResult.parsedWorkout.estimatedDistanceInMeters / 1000;
+                                distanceKmStr = `${distKm.toFixed(2)}km`;
+                            }
+                        }
+
+                        // Mark the session as synced in the database and save workout metrics
+                        await storageService.markTrainingSessionGarminSynced(
+                            session.id, 
+                            actualWorkoutId.toString(),
+                            durationSeconds,
+                            distanceKmStr
+                        );
                         
                         workoutResults.push({
                             session: sessionData.title,

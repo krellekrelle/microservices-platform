@@ -237,16 +237,9 @@ class TrainingPeaksScraper {
                                           element.textContent?.trim() ||
                                           '';
                         
-                        let duration = element.querySelector('.plannedTime, .workout-duration, .duration, .time')?.textContent?.trim() ||
-                                       element.getAttribute('data-duration') ||
-                                       element.querySelector('.title-time')?.textContent?.trim() ||
-                                       null;
-                        
-                        // Parse from description or title as fallback
-                        if (!duration && (title || description)) {
-                            const timeMatch = (title + " " + description).match(/(\d+)\s*(?:timers?|min|m|k?m)/i);
-                            if (timeMatch) duration = timeMatch[0];
-                        }
+                        // We no longer scrape duration here, as it is dynamically calculated downstream
+                        // by the AI parser after converting the description to deterministic intervals.
+                        const duration = null;
                         
                         // Only add if we have meaningful content
                         if ((title && title.length > 3) || (description && description.length > 10)) {
