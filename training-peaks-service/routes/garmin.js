@@ -475,11 +475,20 @@ router.post('/test-manual-workout', async (req, res) => {
             return res.status(400).json({ error: 'Training description is required' });
         }
 
-        // Generate YYYY-MM-DD from session date
-        const dateObj = date ? new Date(date) : new Date();
-        const dateString = isNaN(dateObj.getTime()) 
-            ? new Date().toISOString().split('T')[0] 
-            : dateObj.toISOString().split('T')[0];
+        // Generate YYYY-MM-DD safely preventing backward shifting for UTC midnight
+        const rawDate = date;
+        let dateString;
+        if (typeof rawDate === 'string' && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            dateString = rawDate;
+        } else {
+            const dateObj = rawDate ? new Date(rawDate) : new Date();
+            if (!isNaN(dateObj.getTime())) {
+                const localDate = new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000);
+                dateString = localDate.toISOString().split('T')[0];
+            } else {
+                dateString = new Date().toISOString().split('T')[0];
+            }
+        }
 
         const workoutName = name || "Manual Test Workout";
         console.log(`🤖 [MANUAL TEST] Starting AI parsing for "${workoutName}"`);
@@ -824,11 +833,20 @@ router.post('/full-pipeline', async (req, res) => {
             const session = unsyncedSessions[i];
             console.log(`🏃 [PIPELINE] Processing unsynced session ${i + 1}/${unsyncedSessions.length}: "${session.workout_name || 'Untitled'}"`);
             
-            // Generate YYYY-MM-DD from session date
-            const dateObj = new Date(session.date || session.session_date);
-            const dateString = isNaN(dateObj.getTime()) 
-                ? new Date().toISOString().split('T')[0] 
-                : dateObj.toISOString().split('T')[0];
+            // Generate YYYY-MM-DD safely preventing backward shifting for UTC midnight
+            const rawDate = session.date || session.session_date;
+            let dateString;
+            if (typeof rawDate === 'string' && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                dateString = rawDate;
+            } else {
+                const dateObj = new Date(rawDate);
+                if (!isNaN(dateObj.getTime())) {
+                    const localDate = new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000);
+                    dateString = localDate.toISOString().split('T')[0];
+                } else {
+                    dateString = new Date().toISOString().split('T')[0];
+                }
+            }
 
             // Map database session fields to match the old structure
             const sessionData = {
